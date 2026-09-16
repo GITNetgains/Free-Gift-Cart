@@ -19,8 +19,8 @@
 .fgc-header { align-items: center; display: flex; gap: 16px; justify-content: center; margin: 0 64px; }
 .fgc-gift { font-size: 30px; line-height: 1; }
 .fgc-unlocked {
-  background: #ef0b18; border-radius: 12px; box-shadow: 0 8px 18px rgba(239, 11, 24, .22);
-  color: #fff; font-size: 15px; font-weight: 900; padding: 7px 14px;
+  background: #fff; border: 2px solid #ef0b18; border-radius: 12px; box-shadow: 0 8px 18px rgba(239, 11, 24, .12);
+  color: #ef0b18; font-size: 15px; font-weight: 900; padding: 7px 14px;
 }
 .fgc-heading { font-size: 19px; font-weight: 850; line-height: 1.2; margin: 3px 50px 2px; text-align: center; }
 .fgc-subheading { color: #344054; font-size: 15px; margin: 0 auto 8px; text-align: center; }

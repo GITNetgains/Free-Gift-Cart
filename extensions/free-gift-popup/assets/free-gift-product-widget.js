@@ -33,36 +33,19 @@
     }, new Map()).values());
     let selectedProduct = products[0];
     let selectedVariant = selectedProduct.variants[0];
-    const valuesFor = (variant) => Array.isArray(variant.optionValues) && variant.optionValues.length
-      ? variant.optionValues
-      : variant.variantTitle === "Default Title" ? [] : String(variant.variantTitle || "").split(" / ");
-    const groupsFor = (product) => {
-      const count = Math.max(0, ...product.variants.map((variant) => valuesFor(variant).length));
-      return Array.from({ length: count }, (_, index) => ({
-        name: product.variants.find((variant) => variant.optionNames?.[index])?.optionNames[index] || `Option ${index + 1}`,
-        values: [...new Set(product.variants.map((variant) => valuesFor(variant)[index]).filter(Boolean))],
-      }));
-    };
-
     const startedAt = Date.now();
     const render = () => {
-      const selectedValues = valuesFor(selectedVariant);
       const productCards = products.map((product) => `
         <button class="fgpw-product${product.id === selectedProduct.id ? " is-selected" : ""}" type="button" data-fgpw-product="${escapeHtml(product.id)}">
-          <span class="fgpw-check">${product.id === selectedProduct.id ? "✓" : ""}</span>
           ${product.imageUrl ? `<img class="fgpw-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
           <span class="fgpw-product-title">${escapeHtml(product.title)}</span><span class="fgpw-free">FREE</span>
         </button>`).join("");
-      const optionGroups = groupsFor(selectedProduct).map((group, index) => `
-        <fieldset class="fgpw-group"><legend>Choose ${escapeHtml(group.name)}</legend><div class="fgpw-options">
-          ${group.values.map((value) => `<button class="fgpw-option${selectedValues[index] === value ? " is-selected" : ""}" type="button" data-fgpw-option="${index}" data-fgpw-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`).join("")}
-        </div></fieldset>`).join("");
       const threshold = Math.round(Number(settings.minimumSpend || 0) / 100);
       root.innerHTML = `<div class="fgpw-card">
         <div class="fgpw-top"><div class="fgpw-label"><span class="fgpw-gift-icon">🎁</span><span class="fgpw-pill">🎁 FREE GIFT</span></div><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>10:00</b></span></div>
         <h2 class="fgpw-title">Unlock a <strong>FREE Gift</strong> on Orders <strong>$${threshold}+</strong></h2>
         <p class="fgpw-subtitle">Choose 1 free gift below and add it to your cart.</p>
-        <div class="fgpw-body"><div class="fgpw-products">${productCards}</div><div class="fgpw-options-panel">${optionGroups}<p class="fgpw-selected">Selected: ${escapeHtml(selectedValues.join(" / ") || selectedProduct.title)}</p></div></div>
+        <div class="fgpw-body"><div class="fgpw-products">${productCards}</div></div>
         <button class="fgpw-claim" type="button">🎁 &nbsp; CLAIM MY FREE GIFT</button><p class="fgpw-status" aria-live="polite"></p>
       </div>`;
       root.hidden = false;
@@ -70,15 +53,6 @@
       root.querySelectorAll("[data-fgpw-product]").forEach((button) => button.addEventListener("click", () => {
         selectedProduct = products.find((product) => product.id === button.dataset.fgpwProduct) || products[0];
         selectedVariant = selectedProduct.variants[0];
-        render();
-      }));
-      root.querySelectorAll("[data-fgpw-option]").forEach((button) => button.addEventListener("click", () => {
-        const index = Number(button.dataset.fgpwOption);
-        const wanted = [...valuesFor(selectedVariant)];
-        wanted[index] = button.dataset.fgpwValue;
-        selectedVariant = selectedProduct.variants.find((variant) => wanted.every((value, optionIndex) => !value || valuesFor(variant)[optionIndex] === value))
-          || selectedProduct.variants.find((variant) => valuesFor(variant)[index] === button.dataset.fgpwValue)
-          || selectedVariant;
         render();
       }));
       root.querySelector(".fgpw-claim")?.addEventListener("click", claimGift);
