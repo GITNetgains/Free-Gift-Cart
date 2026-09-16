@@ -19,16 +19,16 @@
 .fgpw-product {
   align-items: center; background: #fff; border: 2px solid #d8dde6; border-radius: 9px;
   color: #111827; cursor: pointer; display: flex; flex-direction: column; font-family: inherit;
-  min-height: 205px; padding: 10px 9px 11px; position: relative; text-align: center;
+  min-height: 220px; padding: 12px 10px 14px; position: relative; text-align: center;
 }
 .fgpw-product.is-selected { border-color: #ef101d; }
-.fgpw-image { height: 112px; object-fit: contain; width: 88%; }
+.fgpw-image { height: 155px; object-fit: contain; width: 94%; }
 .fgpw-product-title {
   display: -webkit-box; font-size: 12.5px; font-weight: 750; line-height: 1.25;
   margin: 7px 0 8px; min-height: 31px; overflow: hidden; overflow-wrap: anywhere;
   -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
-.fgpw-free { background: #ef101d; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 900; margin-top: auto; padding: 5px 18px; }
+.fgpw-free { background: #ef101d; border-radius: 999px; color: #fff; font-size: 11px; font-weight: 900; padding: 5px 12px; position: absolute; right: 10px; top: 10px; }
 .fgpw-claim {
   background: #ef101d; border: 0; border-radius: 6px; color: #fff; cursor: pointer;
   box-shadow: 0 9px 20px rgba(239, 16, 29, .18); font-family: inherit; font-size: 16px;
@@ -41,7 +41,7 @@
   .fgpw-top { align-items: flex-start; }
   .fgpw-timer { font-size: 11px; }
   .fgpw-product { min-height: 165px; }
-  .fgpw-image { height: 85px; }
+  .fgpw-image { height: 115px; }
 }
 @container (max-width: 420px) {
   .fgpw-top { gap: 7px; }
@@ -50,6 +50,6 @@
   .fgpw-title { font-size: 20px; }
   .fgpw-products { grid-template-columns: 1fr 1fr; }
   .fgpw-product { min-height: 155px; }
-  .fgpw-image { height: 76px; }
+  .fgpw-image { height: 100px; }
   .fgpw-claim { font-size: 14px; }
 }

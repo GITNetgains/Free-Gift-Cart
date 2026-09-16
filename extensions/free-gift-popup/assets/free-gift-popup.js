@@ -68,13 +68,17 @@
   const renderSelector = (signature) => {
     const groups = optionGroups(selectedProduct);
     const selectedValues = variantValues(selectedVariant);
-    const cards = products.map((product) => `
+    const cards = products.map((product) => {
+      const displayedVariant = product.id === selectedProduct.id ? selectedVariant : product.variants[0];
+      const displayedImage = displayedVariant?.imageUrl || product.imageUrl;
+      return `
       <button class="fgc-product${product.id === selectedProduct.id ? " is-selected" : ""}" type="button" data-product-id="${escapeHtml(product.id)}">
         <span class="fgc-check" aria-hidden="true">${product.id === selectedProduct.id ? "✓" : ""}</span>
-        ${product.imageUrl ? `<img class="fgc-product-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
+        ${displayedImage ? `<img class="fgc-product-image" src="${escapeHtml(displayedImage)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
         <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
         <span class="fgc-free">🎁 FREE</span>
-      </button>`).join("");
+      </button>`;
+    }).join("");
     const options = groups.map((group, groupIndex) => `
       <fieldset class="fgc-option-group">
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
