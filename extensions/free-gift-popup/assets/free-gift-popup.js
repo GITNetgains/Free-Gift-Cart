@@ -34,6 +34,8 @@
   const giftVariantIds = new Set(variants.map((variant) => Number(variant.variantId.split("/").pop())));
   let selectedProduct = products[0];
   let selectedVariant = selectedProduct.variants[0];
+  let cartCheckInProgress = false;
+  let giftRemovalInProgress = false;
 
   const variantValues = (variant) => {
     if (Array.isArray(variant.optionValues) && variant.optionValues.length) return variant.optionValues;
@@ -63,6 +65,11 @@
     document.documentElement.classList.remove("fgc-lock");
     root.hidden = true;
     root.replaceChildren(settingsNode);
+  };
+  const hidePopup = () => {
+    document.documentElement.classList.remove("fgc-lock");
+    root.querySelector(".fgc-overlay")?.remove();
+    root.hidden = true;
   };
 
   const renderSelector = (signature) => {
@@ -133,6 +140,7 @@
     const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.final_line_price, 0);
     const alreadyHasGift = cart.items.some((item) => item.properties?._free_gift === "true" && giftVariantIds.has(item.variant_id));
     if (paidSubtotal < Number(settings.minimumSpend || 0) || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
+    if (root.querySelector(".fgc-overlay")) return;
 
     root.style.setProperty("--fgc-background", settings.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", settings.textColor || "#111827");
@@ -155,6 +163,50 @@
     renderSelector(signature);
   };
 
-  fetch(`${window.Shopify?.routes?.root || "/"}cart.js`, { headers: { Accept: "application/json" } })
-    .then((response) => response.ok ? response.json() : Promise.reject()).then(show).catch(() => {});
+  const checkCart = async () => {
+    if (cartCheckInProgress || giftRemovalInProgress) return;
+    cartCheckInProgress = true;
+    try {
+      const basePath = window.Shopify?.routes?.root || "/";
+      const response = await fetch(`${basePath}cart.js`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) return;
+      const cart = await response.json();
+      const threshold = Number(settings.minimumSpend || 0);
+      const paidSubtotal = cart.items.reduce(
+        (total, item) => item.properties?._free_gift === "true" ? total : total + item.final_line_price,
+        0,
+      );
+      const giftItems = cart.items.filter((item) => item.properties?._free_gift === "true");
+
+      if (paidSubtotal < threshold) {
+        hidePopup();
+        sessionStorage.removeItem("fgc-dismissed-cart");
+        if (giftItems.length) {
+          giftRemovalInProgress = true;
+          const updates = Object.fromEntries(giftItems.map((item) => [item.key, 0]));
+          const removeResponse = await fetch(`${basePath}cart/update.js`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ updates }),
+          });
+          if (removeResponse.ok) window.location.reload();
+          else giftRemovalInProgress = false;
+        }
+        return;
+      }
+
+      if (!giftItems.length) show(cart);
+      else hidePopup();
+    } catch {
+      // A later polling cycle retries temporary cart/network failures.
+    } finally {
+      cartCheckInProgress = false;
+    }
+  };
+
+  checkCart();
+  window.setInterval(checkCart, 1000);
 })();
