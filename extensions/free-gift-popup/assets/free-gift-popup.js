@@ -89,7 +89,7 @@
 
     root.querySelector(".fgc-content").innerHTML = `
       <div class="fgc-products">${cards}</div>
-      ${groups.length ? `<div class="fgc-variant-panel">${options}<p class="fgc-selected">Selected: ${escapeHtml(selectedValues.join(" / "))}</p></div>` : ""}
+      ${groups.length ? `<div class="fgc-variant-panel">${options}</div>` : ""}
       <button class="fgc-claim" type="button">🎁 ${escapeHtml(settings.buttonLabel || "CLAIM MY FREE GIFT")}</button>
       <p class="fgc-status" aria-live="polite"></p>
       <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
@@ -139,12 +139,10 @@
     root.style.setProperty("--fgc-button", settings.buttonColor || "#EF0B18");
     root.style.setProperty("--fgc-button-text", settings.buttonTextColor || "#FFFFFF");
     root.style.setProperty("--fgc-overlay", settings.overlayColor || "#111827B3");
-    const threshold = Math.round(Number(settings.minimumSpend || 0) / 100);
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
-        <div class="fgc-header"><span class="fgc-gift">🎁</span><span class="fgc-unlocked">YOU’VE UNLOCKED A FREE GIFT!</span></div>
-        <h2 class="fgc-heading" id="fgc-heading">Your $${threshold}+ order qualifies for a free gift.</h2>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">YOU’VE UNLOCKED A FREE GIFT!</h2></div>
         <p class="fgc-subheading">${escapeHtml(settings.subheading || "Choose 1 gift below and add it to your cart.")}</p>
         <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
         <div class="fgc-content"></div>

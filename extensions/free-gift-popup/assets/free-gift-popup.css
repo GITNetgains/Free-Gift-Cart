@@ -16,23 +16,19 @@
   height: 42px; justify-content: center; padding: 0 0 4px; position: absolute;
   right: 14px; top: 14px; width: 42px;
 }
-.fgc-header { align-items: center; display: flex; gap: 16px; justify-content: center; margin: 0 64px; }
-.fgc-gift { font-size: 30px; line-height: 1; }
-.fgc-unlocked {
-  background: #fff; border: 2px solid #ef0b18; border-radius: 12px; box-shadow: 0 8px 18px rgba(239, 11, 24, .12);
-  color: #ef0b18; font-size: 15px; font-weight: 900; padding: 7px 14px;
-}
-.fgc-heading { font-size: 19px; font-weight: 850; line-height: 1.2; margin: 3px 50px 2px; text-align: center; }
+.fgc-header { align-items: center; display: flex; gap: 10px; justify-content: center; margin: 0 60px 3px; }
+.fgc-gift { font-size: 32px; line-height: 1; }
+.fgc-heading { color: #ef0b18; font-size: 20px; font-weight: 900; line-height: 1.15; margin: 0; text-align: center; }
 .fgc-subheading { color: #344054; font-size: 15px; margin: 0 auto 8px; text-align: center; }
 .fgc-urgency {
   background: #fff0f1; border-radius: 9px; color: #ef0b18; font-size: 14px;
   font-weight: 800; margin: 0 0 8px; padding: 6px 12px; text-align: center;
 }
-.fgc-products { display: grid; gap: 44px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fgc-products { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fgc-product {
   align-items: center; appearance: none; background: #fff; border: 2px solid #d0d5dd;
   border-radius: 18px; color: #111827; cursor: pointer; display: flex; flex-direction: column;
-  min-height: 190px; padding: 8px 14px 9px; position: relative; text-align: center;
+  min-height: 205px; padding: 8px 10px 9px; position: relative; text-align: center;
 }
 .fgc-product.is-selected { border-color: #ef0b18; box-shadow: 0 12px 28px rgba(239, 11, 24, .09); }
 .fgc-check {
@@ -41,22 +37,21 @@
   position: absolute; right: 12px; top: 12px; width: 34px;
 }
 .fgc-product.is-selected .fgc-check { background: #ef0b18; border-color: #ef0b18; }
-.fgc-product-image { height: 128px; object-fit: contain; width: min(190px, 78%); }
-.fgc-product-title { font-size: 14px; line-height: 1.25; margin: 6px 0 10px; overflow-wrap: anywhere; }
+.fgc-product-image { height: 148px; object-fit: contain; width: min(240px, 92%); }
+.fgc-product-title { font-size: 14px; line-height: 1.2; margin: 2px 0 7px; overflow-wrap: anywhere; }
 .fgc-free {
   background: #ef0b18; border-radius: 999px; color: #fff; font-size: 15px;
   font-weight: 900; margin-top: auto; padding: 5px 16px;
 }
 .fgc-variant-panel { margin-top: 9px; }
 .fgc-option-group { border: 0; margin: 0 0 7px; padding: 0; }
-.fgc-option-group legend { font-size: 15px; font-weight: 850; margin-bottom: 6px; }
-.fgc-options { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.fgc-option-group legend { font-size: 14px; font-weight: 850; margin-bottom: 5px; }
+.fgc-options { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
 .fgc-option {
   background: #fff; border: 1px solid #cbd2dc; border-radius: 8px; color: #111827;
-  cursor: pointer; font: inherit; font-size: 14px; font-weight: 750; min-height: 38px; min-width: 0; padding: 7px 8px;
+  cursor: pointer; font: inherit; font-size: 13px; font-weight: 750; min-height: 34px; min-width: 0; padding: 5px 7px;
 }
 .fgc-option.is-selected { background: #111d45; border-color: #111d45; box-shadow: 0 7px 14px rgba(17, 29, 69, .16); color: #fff; }
-.fgc-selected { color: #667085; font-size: 14px; margin: 3px 0 7px; }
 .fgc-claim {
   background: var(--fgc-button, #ef0b18); border: 0; border-radius: 9px;
   box-shadow: 0 16px 30px color-mix(in srgb, var(--fgc-button, #ef0b18) 22%, transparent);
@@ -69,17 +64,16 @@
 @media (min-width: 761px) {
   .fgc-product:nth-child(odd):not(:last-child)::after {
     color: #111827; content: "OR"; font-size: 14px; font-weight: 900;
-    position: absolute; right: -32px; top: 48%;
+    position: absolute; right: -19px; top: 48%;
   }
 }
 @media (max-width: 760px) {
   .fgc-overlay { padding: 10px; }
   .fgc-dialog { border-radius: 18px; max-height: calc(100vh - 20px); padding: 20px 16px 16px; }
   .fgc-close { height: 42px; right: 10px; top: 10px; width: 42px; }
-  .fgc-header { flex-direction: column; gap: 4px; margin: 0 42px; }
-  .fgc-gift { font-size: 28px; }
-  .fgc-unlocked { font-size: 13px; padding: 7px 10px; }
-  .fgc-heading { font-size: 18px; margin: 6px 36px 3px; }
+  .fgc-header { gap: 6px; margin: 0 42px 5px; }
+  .fgc-gift { font-size: 27px; }
+  .fgc-heading { font-size: 17px; }
   .fgc-subheading, .fgc-urgency { font-size: 14px; }
   .fgc-products { gap: 10px; }
   .fgc-product { min-height: 205px; padding: 10px 8px; }
