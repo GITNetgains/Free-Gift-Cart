@@ -17,11 +17,11 @@
 .fgpw-body { align-items: stretch; display: block; }
 .fgpw-products { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fgpw-product {
-  align-items: center; background: #fff; border: 2px solid #d8dde6; border-radius: 9px;
+  align-items: center; background: #fff; border: 2px solid #ef101d; border-radius: 9px;
   color: #111827; cursor: pointer; display: flex; flex-direction: column; font-family: inherit;
   min-height: 220px; padding: 12px 10px 14px; position: relative; text-align: center;
 }
-.fgpw-product.is-selected { border-color: #ef101d; }
+.fgpw-product.is-selected { background: #fffdfd; border-color: #ef101d; box-shadow: 0 8px 20px rgba(239, 16, 29, .1); }
 .fgpw-image { height: 155px; object-fit: contain; width: 94%; }
 .fgpw-product-title {
   display: -webkit-box; font-size: 12.5px; font-weight: 750; line-height: 1.25;

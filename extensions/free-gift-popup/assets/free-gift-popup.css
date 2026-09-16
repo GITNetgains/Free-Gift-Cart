@@ -7,8 +7,8 @@
 .fgc-dialog {
   background: var(--fgc-background, #fff); border-radius: 24px;
   box-shadow: 0 30px 90px rgba(0, 0, 0, .34); color: var(--fgc-text, #111827);
-  max-height: calc(100vh - 24px); max-width: 900px; overflow: auto;
-  padding: 14px 34px 12px; position: relative; width: 100%;
+  max-height: calc(100vh - 32px); max-width: 780px; overflow: auto;
+  padding: 16px 32px 14px; position: relative; width: 100%;
 }
 .fgc-close {
   align-items: center; background: #fff; border: 1px solid #dce1e8; border-radius: 50%;
@@ -24,11 +24,11 @@
   background: #fff0f1; border-radius: 9px; color: #ef0b18; font-size: 14px;
   font-weight: 800; margin: 0 0 8px; padding: 6px 12px; text-align: center;
 }
-.fgc-products { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fgc-products { display: grid; gap: 34px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fgc-product {
   align-items: center; appearance: none; background: #fff; border: 2px solid #d0d5dd;
   border-radius: 18px; color: #111827; cursor: pointer; display: flex; flex-direction: column;
-  min-height: 205px; padding: 8px 10px 9px; position: relative; text-align: center;
+  min-height: 218px; padding: 10px 12px 11px; position: relative; text-align: center;
 }
 .fgc-product.is-selected { border-color: #ef0b18; box-shadow: 0 12px 28px rgba(239, 11, 24, .09); }
 .fgc-check {
@@ -37,7 +37,7 @@
   position: absolute; right: 12px; top: 12px; width: 34px;
 }
 .fgc-product.is-selected .fgc-check { background: #ef0b18; border-color: #ef0b18; }
-.fgc-product-image { height: 148px; object-fit: contain; width: min(240px, 92%); }
+.fgc-product-image { height: 145px; object-fit: contain; width: min(210px, 88%); }
 .fgc-product-title { font-size: 14px; line-height: 1.2; margin: 2px 0 7px; overflow-wrap: anywhere; }
 .fgc-free {
   background: #ef0b18; border-radius: 999px; color: #fff; font-size: 15px;
@@ -64,7 +64,7 @@
 @media (min-width: 761px) {
   .fgc-product:nth-child(odd):not(:last-child)::after {
     color: #111827; content: "OR"; font-size: 14px; font-weight: 900;
-    position: absolute; right: -19px; top: 48%;
+    position: absolute; right: -25px; top: 48%;
   }
 }
 @media (max-width: 760px) {
