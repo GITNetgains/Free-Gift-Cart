@@ -1,0 +1,72 @@
+.fgpw-root { container-type: inline-size; display: block; margin: 18px 0; width: 100%; }
+.fgpw-root *, .fgpw-root *::before, .fgpw-root *::after { box-sizing: border-box; }
+.fgpw-card {
+  background: linear-gradient(135deg, #fff 0%, #fff 78%, #fbfcff 100%);
+  border: 1px solid #d9dee8; border-left: 4px solid #ef101d;
+  border-radius: 16px; box-shadow: 0 10px 28px rgba(16, 24, 40, .08);
+  color: #111827; font-family: Arial, Helvetica, sans-serif; padding: 16px 20px 18px;
+}
+.fgpw-top { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
+.fgpw-label { align-items: center; display: flex; gap: 8px; }
+.fgpw-gift-icon { color: #ef101d; font-size: 30px; line-height: 1; }
+.fgpw-pill { background: #111b3e; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .02em; padding: 8px 12px; }
+.fgpw-timer { background: #fff0f1; border-radius: 9px; color: #ef101d; font-size: 12px; font-weight: 800; letter-spacing: .01em; padding: 9px 12px; }
+.fgpw-title { font-size: clamp(22px, 4cqi, 28px); font-weight: 800; letter-spacing: -.025em; line-height: 1.1; margin: 10px 0 4px; }
+.fgpw-title strong { color: #ef101d; }
+.fgpw-subtitle { color: #667085; font-size: 14px; line-height: 1.4; margin: 0 0 14px; }
+.fgpw-body { align-items: stretch; display: grid; gap: 18px; grid-template-columns: minmax(0, 1.35fr) minmax(190px, .9fr); }
+.fgpw-products { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fgpw-product {
+  align-items: center; background: #fff; border: 2px solid #d8dde6; border-radius: 9px;
+  color: #111827; cursor: pointer; display: flex; flex-direction: column; font-family: inherit;
+  min-height: 205px; padding: 10px 9px 11px; position: relative; text-align: center;
+}
+.fgpw-product.is-selected { border-color: #ef101d; }
+.fgpw-check {
+  align-items: center; border: 2px solid #aeb7c5; border-radius: 50%; color: #fff; display: flex;
+  font-weight: 900; height: 23px; justify-content: center; position: absolute; right: 8px; top: 8px; width: 23px;
+}
+.fgpw-product.is-selected .fgpw-check { background: #ef101d; border-color: #ef101d; }
+.fgpw-image { height: 112px; object-fit: contain; width: 88%; }
+.fgpw-product-title {
+  display: -webkit-box; font-size: 12.5px; font-weight: 750; line-height: 1.25;
+  margin: 7px 0 8px; min-height: 31px; overflow: hidden; overflow-wrap: anywhere;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.fgpw-free { background: #ef101d; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 900; margin-top: auto; padding: 5px 18px; }
+.fgpw-options-panel { border-left: 1px solid #e5e7eb; min-width: 0; padding: 8px 0 4px 18px; }
+.fgpw-group { border: 0; margin: 0 0 15px; padding: 0; }
+.fgpw-group legend { font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+.fgpw-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.fgpw-option {
+  background: #fff; border: 1px solid #cbd2dc; border-radius: 6px; color: #111827;
+  cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 750; min-height: 40px; min-width: 54px; padding: 8px 11px;
+}
+.fgpw-option.is-selected { background: #111b3e; border-color: #111b3e; color: #fff; }
+.fgpw-selected { color: #667085; font-size: 13px; margin: 2px 0 0; }
+.fgpw-claim {
+  background: #ef101d; border: 0; border-radius: 6px; color: #fff; cursor: pointer;
+  box-shadow: 0 9px 20px rgba(239, 16, 29, .18); font-family: inherit; font-size: 16px;
+  font-weight: 850; letter-spacing: -.01em; margin-top: 14px; min-height: 52px; width: 100%;
+}
+.fgpw-claim:disabled { cursor: wait; opacity: .58; }
+.fgpw-status { font-size: 13px; margin: 7px 0 0; min-height: 18px; text-align: center; }
+@container (max-width: 590px) {
+  .fgpw-card { padding: 12px; }
+  .fgpw-top { align-items: flex-start; }
+  .fgpw-timer { font-size: 11px; }
+  .fgpw-body { grid-template-columns: 1fr; }
+  .fgpw-options-panel { border-left: 0; border-top: 1px solid #e5e7eb; padding-left: 0; padding-top: 12px; }
+  .fgpw-product { min-height: 165px; }
+  .fgpw-image { height: 85px; }
+}
+@container (max-width: 420px) {
+  .fgpw-top { gap: 7px; }
+  .fgpw-gift-icon { display: none; }
+  .fgpw-pill, .fgpw-timer { font-size: 10px; padding: 7px 8px; }
+  .fgpw-title { font-size: 20px; }
+  .fgpw-products { grid-template-columns: 1fr 1fr; }
+  .fgpw-product { min-height: 155px; }
+  .fgpw-image { height: 76px; }
+  .fgpw-claim { font-size: 14px; }
+}

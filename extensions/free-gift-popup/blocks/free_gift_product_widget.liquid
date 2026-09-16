@@ -1,0 +1,36 @@
+{% assign gift_settings = shop.metafields.free_gift_cart.settings.value %}
+
+{% if gift_settings != blank and gift_settings.enabled and request.page_type == 'product' %}
+  <div class="fgpw-root" data-cart-path="{{ routes.cart_url }}" data-cart-add-url="{{ routes.cart_add_url }}" hidden>
+    <script type="application/json" data-fgpw-settings>{{ gift_settings | json }}</script>
+    <script type="application/json" data-fgpw-inventory>
+      {
+        {% assign inventory_first = true %}
+        {% for gift in gift_settings.products %}
+          {% if gift.productHandle != blank %}
+            {% assign inventory_product = all_products[gift.productHandle] %}
+            {% assign inventory_variant_id = gift.variantId | split: '/' | last | plus: 0 %}
+            {% for inventory_variant in inventory_product.variants %}
+              {% if inventory_variant.id == inventory_variant_id %}
+                {% unless inventory_first %},{% endunless %}
+                {{ gift.variantId | json }}:
+                {% if inventory_variant.inventory_management != blank and inventory_variant.inventory_quantity <= 0 %}false{% else %}{{ inventory_variant.available | json }}{% endif %}
+                {% assign inventory_first = false %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      }
+    </script>
+  </div>
+  {{ 'free-gift-product-widget.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'free-gift-product-widget.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Free Gift Product Widget",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,24 @@
+query CartInput {
+  enteredDiscountCodes { code rejectable }
+  cart {
+    lines {
+      id
+      quantity
+      giftMarker: attribute(key: "_free_gift") { value }
+      merchandise {
+        __typename
+        ... on ProductVariant { id product { id } }
+      }
+      cost {
+        subtotalAmount { amount }
+      }
+    }
+  }
+  shop {
+    giftSettings: metafield(namespace: "free_gift_cart", key: "settings") { jsonValue }
+    restrictionSettings: metafield(namespace: "free_gift_cart", key: "no_discount_products") { jsonValue }
+  }
+  discount {
+    discountClasses
+  }
+}

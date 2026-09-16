@@ -1,0 +1,14 @@
+query CartValidationsGenerateRunInput {
+  cart {
+    discountApplications { allocationMethod }
+    lines {
+      merchandise {
+        __typename
+        ... on ProductVariant { product { id } }
+      }
+    }
+  }
+  shop {
+    restrictionSettings: metafield(namespace: "free_gift_cart", key: "no_discount_products") { jsonValue }
+  }
+}
