@@ -212,6 +212,11 @@ test("a null adjustment group with no userErrors is a successful no-op, not a fa
   await expect(setQuantity(noopAdmin, { itemId: gid("InventoryItem", 1), locationId, quantity: 0, changeFromQuantity: 0, key: "noop-key", pairId: "pair-1" })).resolves.toBeUndefined();
 });
 
+test("inventorySetQuantities itself coming back null (an idempotent key replay) is also treated as success", async () => {
+  const replayAdmin: GraphqlClient = { graphql: async () => ({ json: async () => ({ data: { inventorySetQuantities: null } }) } as never) };
+  await expect(setQuantity(replayAdmin, { itemId: gid("InventoryItem", 1), locationId, quantity: 0, changeFromQuantity: 0, key: "replay-key", pairId: "pair-1" })).resolves.toBeUndefined();
+});
+
 type FakeVariant = { id: string; title: string; policy: string; tracked: boolean; options: Array<{ name: string; value: string }>; available: number | null };
 function fakeProductShop(fakeLocationId: string) {
   const variantsById = new Map<string, FakeVariant & { productId: string; productTitle: string }>();

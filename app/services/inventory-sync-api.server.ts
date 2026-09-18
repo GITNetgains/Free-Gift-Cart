@@ -185,7 +185,8 @@ export async function setQuantity(admin: GraphqlClient, input: { itemId: string;
   });
   const payload = data.inventorySetQuantities;
   if (payload?.userErrors?.length) throw new InventoryRejectedError(payload.userErrors.map((error) => error.message).join("; "));
-  if (!payload) throw new Error("Inventory update result is unknown; retrying with the same request key.");
-  // Shopify returns a null adjustment group (with no userErrors) when the requested quantity
-  // already matches the current quantity - that is a successful no-op, not a failure.
+  // Shopify can return inventorySetQuantities as null itself - both for a genuine no-op
+  // (requested quantity already matches) and when replaying an already-applied @idempotent
+  // key. Neither case reports a userError, so with no top-level GraphQL errors (query()
+  // already guards against those) this is success, not an ambiguous failure to retry forever.
 }
