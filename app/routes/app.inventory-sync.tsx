@@ -4,8 +4,8 @@ import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { locations } from "../services/inventory-sync-api.server";
-import { changeLink, createLink, publicPair } from "../services/inventory-sync-settings.server";
+import { locations, readProductMatches } from "../services/inventory-sync-api.server";
+import { changeLink, createLink, createLinksBulk, publicPair } from "../services/inventory-sync-settings.server";
 import InventorySyncDashboard from "../components/InventorySyncDashboard";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -25,21 +25,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const value = (name: string) => String(form.get(name) || "");
   const intent = value("intent");
   try {
+    if (intent === "preview-products") {
+      const result = await readProductMatches(admin, value("originalProductId"), value("duplicateProductId"), value("locationId"));
+      return { ok: true, error: null, message: null, preview: result };
+    }
+    if (intent === "create-bulk") {
+      if (value("acknowledged") !== "true") throw new Error("Confirm that both listings represent the same physical stock.");
+      const pairs = JSON.parse(value("pairs")) as Array<{ originalId: string; duplicateId: string }>;
+      if (!pairs.length) throw new Error("Select at least one variant pair to link.");
+      const result = await createLinksBulk(db, admin, session.shop, pairs, value("locationId"));
+      const message = result.failed.length
+        ? `Linked ${result.created} of ${pairs.length} variant pairs. ${result.failed.length} could not be linked (likely already linked elsewhere).`
+        : `Linked ${result.created} variant pair${result.created === 1 ? "" : "s"}.`;
+      return { ok: true, error: null, message, preview: null };
+    }
     if (intent === "create") {
       if (value("acknowledged") !== "true") throw new Error("Confirm that both listings represent the same physical stock.");
       await createLink(db, admin, session.shop, value("originalId"), value("duplicateId"), value("locationId"));
-    } else {
-      await changeLink(db, session.shop, value("id"), intent);
+      return { ok: true, error: null, message: "Inventory link saved", preview: null };
     }
-    return { ok: true, error: null, message: intent === "create" ? "Inventory link saved" : intent === "sync" ? "Inventory check queued" : "Inventory link updated" };
+    await changeLink(db, session.shop, value("id"), intent);
+    return { ok: true, error: null, message: intent === "sync" ? "Inventory check queued" : "Inventory link updated", preview: null };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Could not update inventory link.", message: null };
+    return { ok: false, error: error instanceof Error ? error.message : "Could not update inventory link.", message: null, preview: null };
   }
 };
 
 export default function InventorySyncRoute() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const previewFetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
   const bridge = useAppBridge();
   useEffect(() => {
@@ -54,10 +69,16 @@ export default function InventorySyncRoute() {
   }, [data.workerEnabled, revalidator, fetcher.state]);
   return <InventorySyncDashboard {...data} busy={fetcher.state !== "idle"} error={fetcher.data?.error || data.error}
     onAction={(values) => fetcher.submit(values, { method: "POST" })}
-    onPick={async () => {
-      const selection = await bridge.resourcePicker({ type: "variant", multiple: false, action: "select" });
-      const variant = selection?.[0];
-      if (!variant) return undefined;
-      return { id: variant.id, title: `${variant.product.title}${variant.title === "Default Title" ? "" : ` / ${variant.title}`}`, imageUrl: variant.image?.originalSrc };
+    onPreview={(originalProductId, duplicateProductId, locationId) => {
+      previewFetcher.submit({ intent: "preview-products", originalProductId, duplicateProductId, locationId }, { method: "POST" });
+    }}
+    previewBusy={previewFetcher.state !== "idle"}
+    previewResult={previewFetcher.data?.ok ? previewFetcher.data.preview ?? null : null}
+    previewError={previewFetcher.data?.ok === false ? previewFetcher.data.error : null}
+    onPickProduct={async () => {
+      const selection = await bridge.resourcePicker({ type: "product", multiple: false, action: "select" });
+      const product = selection?.[0];
+      if (!product) return undefined;
+      return { id: product.id, title: product.title, imageUrl: product.images?.[0]?.originalSrc };
     }} />;
 }

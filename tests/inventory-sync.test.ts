@@ -4,8 +4,8 @@ import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processPair, enqueueInventory } from "../app/services/inventory-sync-engine.server";
-import { createLink, changeLink } from "../app/services/inventory-sync-settings.server";
-import type { GraphqlClient } from "../app/services/inventory-sync-api.server";
+import { createLink, changeLink, createLinksBulk } from "../app/services/inventory-sync-settings.server";
+import { readProductMatches, type GraphqlClient } from "../app/services/inventory-sync-api.server";
 
 const temp = mkdtempSync(join(tmpdir(), "inventory-sync-test-"));
 const db = new PrismaClient({ datasourceUrl: `file:${join(temp, "test.sqlite").replaceAll("\\", "/")}` });
@@ -204,5 +204,109 @@ describe("inventory sync with SQLite and a simulated Shopify API", () => {
     await expect(createLink(db, api.admin, shop, originalId, originalId, locationId)).rejects.toThrow("different");
     await expect(createLink(db, api.admin, shop, "bad", duplicateId, locationId)).rejects.toThrow("Select");
     expect(api.readCount).toBe(0);
+  });
+});
+
+type FakeVariant = { id: string; title: string; policy: string; tracked: boolean; options: Array<{ name: string; value: string }>; available: number | null };
+function fakeProductShop(fakeLocationId: string) {
+  const variantsById = new Map<string, FakeVariant & { productId: string; productTitle: string }>();
+  const productsById = new Map<string, { id: string; title: string; variantIds: string[] }>();
+  let locationActive = true;
+  const addProduct = (id: string, title: string, variants: FakeVariant[]) => {
+    productsById.set(id, { id, title, variantIds: variants.map((variant) => variant.id) });
+    for (const variant of variants) variantsById.set(variant.id, { ...variant, productId: id, productTitle: title });
+  };
+  const inventoryItem = (variant: FakeVariant) => ({ id: `${variant.id}-item`, tracked: variant.tracked, inventoryLevel: variant.available == null ? null : { quantities: [{ name: "available", quantity: variant.available }] } });
+  const admin: GraphqlClient = { graphql: async (operation, options) => {
+    const variables = options?.variables || {};
+    const location = { id: fakeLocationId, name: "Main warehouse", isActive: locationActive, fulfillmentService: null };
+    if (operation.includes("query InventorySyncProductVariants")) {
+      const ids = variables.ids as string[];
+      const nodes = ids.map((id) => {
+        const product = productsById.get(id);
+        if (!product) return null;
+        return { id: product.id, title: product.title, variants: { nodes: product.variantIds.map((variantId) => {
+          const variant = variantsById.get(variantId)!;
+          return { id: variant.id, title: variant.title, inventoryPolicy: variant.policy, selectedOptions: variant.options, inventoryItem: inventoryItem(variant) };
+        }) } };
+      });
+      return { json: async () => ({ data: { nodes, location } }) };
+    }
+    if (operation.includes("query InventorySyncVariants")) {
+      const ids = variables.ids as string[];
+      const nodes = ids.map((id) => {
+        const variant = variantsById.get(id);
+        if (!variant) return null;
+        return { id: variant.id, title: variant.title, inventoryPolicy: variant.policy, product: { id: variant.productId, title: variant.productTitle }, inventoryItem: inventoryItem(variant) };
+      });
+      return { json: async () => ({ data: { nodes, location } }) };
+    }
+    throw new Error("Unexpected operation");
+  } };
+  return { admin, addProduct, setLocationActive: (value: boolean) => { locationActive = value; } };
+}
+
+describe("matching and linking whole products", () => {
+  const productShopId = "product-match-test.myshopify.com";
+  const matchLocationId = gid("Location", 9);
+  const originalProductId = gid("Product", 10);
+  const duplicateProductId = gid("Product", 20);
+  let shopApi: ReturnType<typeof fakeProductShop>;
+
+  beforeEach(() => {
+    shopApi = fakeProductShop(matchLocationId);
+    shopApi.addProduct(originalProductId, "Slab Case", [
+      { id: gid("ProductVariant", 101), title: "Black", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Black" }], available: 10 },
+      { id: gid("ProductVariant", 102), title: "Silver", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Silver" }], available: 5 },
+      { id: gid("ProductVariant", 103), title: "Rose", policy: "DENY", tracked: false, options: [{ name: "Color", value: "Rose" }], available: 1 },
+    ]);
+    shopApi.addProduct(duplicateProductId, "Slab Case - Gift", [
+      { id: gid("ProductVariant", 201), title: "Black", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Black" }], available: 3 },
+      { id: gid("ProductVariant", 202), title: "Silver", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Silver" }], available: 2 },
+      { id: gid("ProductVariant", 203), title: "Gold", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Gold" }], available: 4 },
+    ]);
+  });
+
+  test("matches variants that share the same option values, reporting unmatched and invalid ones", async () => {
+    const result = await readProductMatches(shopApi.admin, originalProductId, duplicateProductId, matchLocationId);
+    expect(result.matches).toHaveLength(2);
+    expect(result.matches.map((match) => match.originalTitle)).toEqual(["Slab Case / Black", "Slab Case / Silver"]);
+    const black = result.matches.find((match) => match.originalTitle.endsWith("Black"))!;
+    expect(black.duplicateTitle).toBe("Slab Case - Gift / Black");
+    expect(black.originalQuantity).toBe(10);
+    expect(black.duplicateQuantity).toBe(3);
+    expect(result.unmatchedDuplicate).toEqual(["Slab Case - Gift / Gold"]);
+    expect(result.unmatchedOriginal).toEqual([]);
+    expect(result.invalid[0]).toContain("inventory tracking is off");
+  });
+
+  test("rejects matching a product against itself and invalid identifiers before an API call", async () => {
+    await expect(readProductMatches(shopApi.admin, originalProductId, originalProductId, matchLocationId)).rejects.toThrow("different product");
+    await expect(readProductMatches(shopApi.admin, "bad", duplicateProductId, matchLocationId)).rejects.toThrow("Select two products");
+  });
+
+  test("throws when no variants match between the two products", async () => {
+    shopApi.addProduct(gid("Product", 30), "Unrelated", [
+      { id: gid("ProductVariant", 301), title: "Teal", policy: "DENY", tracked: true, options: [{ name: "Color", value: "Teal" }], available: 2 },
+    ]);
+    await expect(readProductMatches(shopApi.admin, originalProductId, gid("Product", 30), matchLocationId)).rejects.toThrow("No variants matched");
+  });
+
+  test("rejects an inactive location", async () => {
+    shopApi.setLocationActive(false);
+    await expect(readProductMatches(shopApi.admin, originalProductId, duplicateProductId, matchLocationId)).rejects.toThrow("active merchant-managed location");
+  });
+
+  test("bulk-creates a link per matched variant pair and reports ones that fail", async () => {
+    await db.inventorySyncPair.deleteMany({ where: { shop: productShopId } });
+    const result = await readProductMatches(shopApi.admin, originalProductId, duplicateProductId, matchLocationId);
+    const pairs = result.matches.map((match) => ({ originalId: match.originalId, duplicateId: match.duplicateId }));
+    const first = await createLinksBulk(db, shopApi.admin, productShopId, pairs, matchLocationId);
+    expect(first.created).toBe(2);
+    expect(first.failed).toEqual([]);
+    const second = await createLinksBulk(db, shopApi.admin, productShopId, pairs, matchLocationId);
+    expect(second.created).toBe(0);
+    expect(second.failed).toHaveLength(2);
+    expect(second.failed[0].reason).toContain("already linked");
   });
 });

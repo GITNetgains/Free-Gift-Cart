@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-export type SelectedVariant = { id: string; title: string; imageUrl?: string };
+export type SelectedProduct = { id: string; title: string; imageUrl?: string };
+export type ProductMatch = {
+  originalId: string; duplicateId: string;
+  originalTitle: string; duplicateTitle: string;
+  originalQuantity: number; duplicateQuantity: number;
+};
+export type PreviewResult = { matches: ProductMatch[]; unmatchedOriginal: string[]; unmatchedDuplicate: string[]; invalid: string[] } | null;
 export type SyncPairView = {
   id: string; originalTitle: string; duplicateTitle: string; locationName: string;
   enabled: boolean; quantity: number; lastSyncedAt: string | null; lastError: string | null; pending: boolean;
@@ -8,28 +14,36 @@ export type SyncPairView = {
 type Props = {
   pairs: SyncPairView[]; locations: Array<{ id: string; name: string }>;
   workerEnabled: boolean; busy: boolean; error?: string | null; notice?: string;
-  onPick: () => Promise<SelectedVariant | undefined>;
+  onPickProduct: () => Promise<SelectedProduct | undefined>;
+  onPreview: (originalProductId: string, duplicateProductId: string, locationId: string) => void;
+  previewBusy: boolean; previewResult: PreviewResult; previewError?: string | null;
   onAction: (data: Record<string, string>) => void;
 };
 
-export default function InventorySyncDashboard({ pairs, locations, workerEnabled, busy, error, notice, onPick, onAction }: Props) {
-  const [original, setOriginal] = useState<SelectedVariant>();
-  const [duplicate, setDuplicate] = useState<SelectedVariant>();
+export default function InventorySyncDashboard({ pairs, locations, workerEnabled, busy, error, notice, onPickProduct, onPreview, previewBusy, previewResult, previewError, onAction }: Props) {
+  const [original, setOriginal] = useState<SelectedProduct>();
+  const [duplicate, setDuplicate] = useState<SelectedProduct>();
   const [locationId, setLocationId] = useState("");
   const [pickError, setPickError] = useState<string>();
   const [picking, setPicking] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const location = locationId || locations[0]?.id || "";
   const active = pairs.filter((pair) => pair.enabled).length;
   const errors = pairs.filter((pair) => pair.lastError).length;
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const match of previewResult?.matches ?? []) next[match.originalId] = true;
+    setChecked(next);
+  }, [previewResult]);
   const pick = async (side: "original" | "duplicate") => {
     setPicking(true);
     setPickError(undefined);
     try {
-      const selected = await onPick();
+      const selected = await onPickProduct();
       if (!selected) return;
       if (selected.id === (side === "original" ? duplicate : original)?.id) {
-        setPickError("Choose different variants for the original and duplicate.");
+        setPickError("Choose different products for the original and duplicate.");
         return;
       }
       (side === "original" ? setOriginal : setDuplicate)(selected);
@@ -40,6 +54,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
       setPicking(false);
     }
   };
+  const selectedMatches = (previewResult?.matches ?? []).filter((match) => checked[match.originalId]);
   return (
     <s-page heading="Inventory sync" inlineSize="large">
       <s-button slot="secondary-actions" href="/app/dashboard">Back to dashboard</s-button>
@@ -60,9 +75,9 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
           </s-grid>
         </s-stack>
       </s-section>
-      <s-section heading="Create an inventory link">
+      <s-section heading="Create inventory links">
         <s-stack gap="base">
-          <s-paragraph color="subdued">Select one variant from each product. Add a separate link for each size, color or location.</s-paragraph>
+          <s-paragraph color="subdued">Pick an original product and its duplicate. Variants that share the same options (e.g. same color/size) are matched and linked automatically &mdash; no need to pick variants one by one.</s-paragraph>
           <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base">
             {(["original", "duplicate"] as const).map((side) => {
               const selected = side === "original" ? original : duplicate;
@@ -71,7 +86,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
                   <s-heading>{side === "original" ? "Original product" : "Duplicate product"}</s-heading>
                   <s-paragraph color="subdued">{side === "original" ? "Its available stock sets the starting quantity." : "Choose an existing duplicate listing."}</s-paragraph>
                   {selected && <s-stack direction="inline" gap="small" alignItems="center">{selected.imageUrl && <s-thumbnail src={selected.imageUrl} alt={selected.title} />}<s-text type="strong">{selected.title}</s-text></s-stack>}
-                  <s-button disabled={busy || picking} onClick={() => void pick(side)}>{selected ? "Change" : "Select"} {side} variant</s-button>
+                  <s-button disabled={busy || picking} onClick={() => void pick(side)}>{selected ? "Change" : "Select"} {side} product</s-button>
                 </s-stack>
               </s-box>;
             })}
@@ -80,12 +95,39 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
             {!locations.length && <s-option value="">No available locations</s-option>}
             {locations.map((entry) => <s-option key={entry.id} value={entry.id}>{entry.name}</s-option>)}
           </s-select>
-          <s-checkbox label="Both listings represent the same physical stock. Replace the duplicate's starting available quantity with the original's quantity when sync runs." checked={acknowledged} onChange={(event) => setAcknowledged(event.currentTarget.checked)} />
           <s-stack direction="inline" gap="base">
-            <s-button variant="primary" disabled={busy || picking || !original || !duplicate || !location || !acknowledged} loading={busy} onClick={() => {
-              if (original && duplicate) onAction({ intent: "create", originalId: original.id, duplicateId: duplicate.id, locationId: location, acknowledged: "true" });
-            }}>Save inventory link</s-button>
+            <s-button disabled={busy || previewBusy || !original || !duplicate || !location} loading={previewBusy} onClick={() => {
+              if (original && duplicate) onPreview(original.id, duplicate.id, location);
+            }}>Find matching variants</s-button>
           </s-stack>
+          {previewError && <s-banner heading="Could not match variants" tone="critical">{previewError}</s-banner>}
+          {previewResult && <s-stack gap="base">
+            {previewResult.matches.length > 0 && <s-stack gap="small">
+              <s-text type="strong">{previewResult.matches.length} variant pair{previewResult.matches.length === 1 ? "" : "s"} matched</s-text>
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Link</s-table-header><s-table-header format="numeric">Original stock</s-table-header><s-table-header format="numeric">Duplicate stock</s-table-header>
+                </s-table-header-row>
+                <s-table-body>{previewResult.matches.map((match) => <s-table-row key={match.originalId}>
+                  <s-table-cell><s-stack direction="inline" gap="small" alignItems="center">
+                    <s-checkbox checked={Boolean(checked[match.originalId])} onChange={(event) => setChecked((prev) => ({ ...prev, [match.originalId]: event.currentTarget.checked }))} />
+                    <s-text>{match.originalTitle} &rarr; {match.duplicateTitle}</s-text>
+                  </s-stack></s-table-cell>
+                  <s-table-cell>{match.originalQuantity}</s-table-cell>
+                  <s-table-cell>{match.duplicateQuantity}</s-table-cell>
+                </s-table-row>)}</s-table-body>
+              </s-table>
+            </s-stack>}
+            {previewResult.unmatchedOriginal.length > 0 && <s-banner heading="No matching duplicate variant" tone="warning">{previewResult.unmatchedOriginal.join(", ")}</s-banner>}
+            {previewResult.unmatchedDuplicate.length > 0 && <s-banner heading="No matching original variant" tone="warning">{previewResult.unmatchedDuplicate.join(", ")}</s-banner>}
+            {previewResult.invalid.length > 0 && <s-banner heading="Skipped &mdash; fix these first" tone="warning">{previewResult.invalid.join(" ")}</s-banner>}
+            {previewResult.matches.length > 0 && <s-stack gap="base">
+              <s-checkbox label="Both listings represent the same physical stock. Replace each duplicate's starting available quantity with the original's quantity when sync runs." checked={acknowledged} onChange={(event) => setAcknowledged(event.currentTarget.checked)} />
+              <s-button variant="primary" disabled={busy || !selectedMatches.length || !acknowledged} loading={busy} onClick={() => {
+                onAction({ intent: "create-bulk", pairs: JSON.stringify(selectedMatches.map((match) => ({ originalId: match.originalId, duplicateId: match.duplicateId }))), locationId: location, acknowledged: "true" });
+              }}>Save {selectedMatches.length || ""} inventory link{selectedMatches.length === 1 ? "" : "s"}</s-button>
+            </s-stack>}
+          </s-stack>}
         </s-stack>
       </s-section>
       <s-section heading="Linked inventory">

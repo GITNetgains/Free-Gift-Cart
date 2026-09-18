@@ -17,6 +17,27 @@ export const VARIANTS_QUERY = `#graphql
   }
 `;
 
+export const PRODUCT_VARIANTS_QUERY = `#graphql
+  query InventorySyncProductVariants($ids: [ID!]!, $locationId: ID!) {
+    nodes(ids: $ids) {
+      ... on Product {
+        id title
+        variants(first: 100) {
+          nodes {
+            id title inventoryPolicy
+            selectedOptions { name value }
+            inventoryItem {
+              id tracked
+              inventoryLevel(locationId: $locationId) { quantities(names: ["available"]) { name quantity } }
+            }
+          }
+        }
+      }
+    }
+    location(id: $locationId) { id name isActive fulfillmentService { id } }
+  }
+`;
+
 export const LOCATIONS_QUERY = `#graphql
   query InventorySyncLocations($after: String) {
     locations(first: 100, after: $after) {
@@ -80,6 +101,79 @@ export async function readPair(admin: GraphqlClient, originalId: string, duplica
     return quantity as number;
   };
   return { original, duplicate, location: data.location, originalQuantity: available(original), duplicateQuantity: available(duplicate) };
+}
+
+type ProductVariant = {
+  id: string; title: string; inventoryPolicy: string;
+  selectedOptions: Array<{ name: string; value: string }>;
+  inventoryItem: { id: string; tracked: boolean; inventoryLevel: { quantities: Array<{ name: string; quantity: number }> } | null };
+};
+type ProductNode = { id: string; title: string; variants: { nodes: ProductVariant[] } };
+
+const signature = (variant: ProductVariant) =>
+  variant.selectedOptions.map((option) => `${option.name}:${option.value}`).sort().join("|");
+
+const invalidReason = (variant: ProductVariant, productTitle: string) => {
+  if (!variant.inventoryItem.tracked) return `${productTitle} / ${variant.title}: inventory tracking is off.`;
+  if (variant.inventoryPolicy !== "DENY") return `${productTitle} / ${variant.title}: turn off 'Continue selling when out of stock'.`;
+  if (!variant.inventoryItem.inventoryLevel) return `${productTitle} / ${variant.title}: not stocked at the selected location.`;
+  return null;
+};
+
+export type ProductMatch = {
+  originalId: string; duplicateId: string;
+  originalTitle: string; duplicateTitle: string;
+  originalQuantity: number; duplicateQuantity: number;
+};
+
+export async function readProductMatches(admin: GraphqlClient, originalProductId: string, duplicateProductId: string, locationId: string) {
+  if (!/^gid:\/\/shopify\/Product\/\d+$/.test(originalProductId) || !/^gid:\/\/shopify\/Product\/\d+$/.test(duplicateProductId) || !/^gid:\/\/shopify\/Location\/\d+$/.test(locationId)) {
+    throw new Error("Select two products and a location.");
+  }
+  if (originalProductId === duplicateProductId) throw new Error("Choose a duplicate from a different product.");
+  const data = await query<{ nodes: Array<ProductNode | null>; location: SyncLocation | null }>(admin, PRODUCT_VARIANTS_QUERY, { ids: [originalProductId, duplicateProductId], locationId });
+  if (!data.location?.isActive || data.location.fulfillmentService) throw new Error("Choose an active merchant-managed location.");
+  const [original, duplicate] = data.nodes;
+  if (!original || !duplicate) throw new Error("A selected product no longer exists or is not accessible.");
+
+  const available = (variant: ProductVariant) => variant.inventoryItem.inventoryLevel?.quantities.find((q) => q.name === "available")?.quantity;
+  const variantTitle = (product: ProductNode, variant: ProductVariant) => `${product.title}${variant.title === "Default Title" ? "" : ` / ${variant.title}`}`;
+
+  const invalid: string[] = [];
+  const usable = (product: ProductNode) => {
+    const map = new Map<string, ProductVariant>();
+    for (const variant of product.variants.nodes) {
+      const reason = invalidReason(variant, product.title);
+      if (reason) { invalid.push(reason); continue; }
+      map.set(signature(variant), variant);
+    }
+    return map;
+  };
+
+  const originalVariants = usable(original);
+  const duplicateVariants = usable(duplicate);
+  const matches: ProductMatch[] = [];
+  const unmatchedOriginal: string[] = [];
+  const unmatchedDuplicate: string[] = [];
+
+  for (const [sig, variant] of originalVariants) {
+    const match = duplicateVariants.get(sig);
+    if (!match) { unmatchedOriginal.push(variantTitle(original, variant)); continue; }
+    const originalQuantity = available(variant);
+    const duplicateQuantity = available(match);
+    if (!Number.isInteger(originalQuantity) || !Number.isInteger(duplicateQuantity)) continue;
+    matches.push({
+      originalId: variant.id, duplicateId: match.id,
+      originalTitle: variantTitle(original, variant), duplicateTitle: variantTitle(duplicate, match),
+      originalQuantity: originalQuantity as number, duplicateQuantity: duplicateQuantity as number,
+    });
+  }
+  for (const [sig, variant] of duplicateVariants) {
+    if (!originalVariants.has(sig)) unmatchedDuplicate.push(variantTitle(duplicate, variant));
+  }
+  if (!matches.length) throw new Error("No variants matched between these two products. Original and duplicate variants must share the same option values (e.g. same color/size).");
+
+  return { location: data.location, matches, unmatchedOriginal, unmatchedDuplicate, invalid };
 }
 
 export class InventoryRejectedError extends Error {}

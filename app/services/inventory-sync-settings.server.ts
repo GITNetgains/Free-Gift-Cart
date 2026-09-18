@@ -19,6 +19,20 @@ export async function createLink(db: PrismaClient, admin: GraphqlClient, shop: s
   }
 }
 
+export async function createLinksBulk(db: PrismaClient, admin: GraphqlClient, shop: string, pairs: Array<{ originalId: string; duplicateId: string }>, locationId: string) {
+  const created: string[] = [];
+  const failed: Array<{ pair: string; reason: string }> = [];
+  for (const pair of pairs) {
+    try {
+      await createLink(db, admin, shop, pair.originalId, pair.duplicateId, locationId);
+      created.push(pair.originalId);
+    } catch (error) {
+      failed.push({ pair: pair.originalId, reason: error instanceof Error ? error.message : "Could not link this pair." });
+    }
+  }
+  return { created: created.length, failed };
+}
+
 export async function changeLink(db: PrismaClient, shop: string, id: string, intent: string) {
   if (!["pause", "resume", "sync", "remove"].includes(intent)) throw new Error("Unknown inventory sync action.");
   const pair = await db.inventorySyncPair.findFirst({ where: { id, shop } });
