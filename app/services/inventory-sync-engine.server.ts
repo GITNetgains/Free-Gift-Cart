@@ -46,12 +46,12 @@ export async function processPair(db: PrismaClient, id: string, getAdmin: (shop:
     // successful side, so partial failure cannot double-count a sale on retry.
     if (pending.step === 0) {
       await save({ lockUntil: new Date(Date.now() + LEASE_MS) });
-      await setQuantity(admin, { itemId: pair.originalItemId, locationId: pair.locationId, quantity: pending.target, compareQuantity: pending.original, key: `${pending.key}-original`, pairId: id });
+      await setQuantity(admin, { itemId: pair.originalItemId, locationId: pair.locationId, quantity: pending.target, changeFromQuantity: pending.original, key: `${pending.key}-original`, pairId: id });
       pending = { ...pending, step: 1 };
       await save({ sharedQuantity: pending.target, originalBaseline: pending.target, duplicateBaseline: pending.duplicate, pending: JSON.stringify(pending) });
     }
     await save({ lockUntil: new Date(Date.now() + LEASE_MS) });
-    await setQuantity(admin, { itemId: pair.duplicateItemId, locationId: pair.locationId, quantity: pending.target, compareQuantity: pending.duplicate, key: `${pending.key}-duplicate`, pairId: id });
+    await setQuantity(admin, { itemId: pair.duplicateItemId, locationId: pair.locationId, quantity: pending.target, changeFromQuantity: pending.duplicate, key: `${pending.key}-duplicate`, pairId: id });
     await save({ duplicateBaseline: pending.target, pending: null, lastSyncedAt: new Date(), lastError: null, attempts: 0, nextRunAt: new Date(Date.now() + 2_000) });
   } catch (error) {
     const pair = await db.inventorySyncPair.findUnique({ where: { id } });

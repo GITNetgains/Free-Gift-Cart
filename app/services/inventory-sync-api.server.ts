@@ -178,10 +178,10 @@ export async function readProductMatches(admin: GraphqlClient, originalProductId
 
 export class InventoryRejectedError extends Error {}
 
-export async function setQuantity(admin: GraphqlClient, input: { itemId: string; locationId: string; quantity: number; compareQuantity: number; key: string; pairId: string }) {
+export async function setQuantity(admin: GraphqlClient, input: { itemId: string; locationId: string; quantity: number; changeFromQuantity: number; key: string; pairId: string }) {
   const data = await query<{ inventorySetQuantities: { inventoryAdjustmentGroup: unknown; userErrors: Array<{ code: string; message: string }> } }>(admin, SET_QUANTITY_MUTATION, {
     key: input.key,
-    input: { name: "available", reason: "correction", referenceDocumentUri: `inventory-sync://pairs/${input.pairId}`, quantities: [{ inventoryItemId: input.itemId, locationId: input.locationId, quantity: input.quantity, compareQuantity: input.compareQuantity }] },
+    input: { name: "available", reason: "correction", referenceDocumentUri: `inventory-sync://pairs/${input.pairId}`, quantities: [{ inventoryItemId: input.itemId, locationId: input.locationId, quantity: input.quantity, changeFromQuantity: input.changeFromQuantity }] },
   });
   const payload = data.inventorySetQuantities;
   if (payload?.userErrors?.length) throw new InventoryRejectedError(payload.userErrors.map((error) => error.message).join("; "));

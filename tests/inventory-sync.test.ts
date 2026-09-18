@@ -43,14 +43,14 @@ function fakeShopify() {
       } }) };
     }
     if (!operation.includes("mutation InventorySyncSet")) throw new Error("Unexpected operation");
-    const input = variables.input as { quantities: Array<{ inventoryItemId: string; quantity: number; compareQuantity: number }> };
+    const input = variables.input as { quantities: Array<{ inventoryItemId: string; quantity: number; changeFromQuantity: number }> };
     const change = input.quantities[0];
     const key = variables.key as string;
     const side = change.inventoryItemId.endsWith("/1") ? 0 : 1;
     calls.push({ key, side, quantity: change.quantity });
     if (completed.has(key)) return { json: async () => completed.get(key) };
     if (conflictSide === side) { conflictSide = -1; quantities[side]--; }
-    if (change.compareQuantity !== quantities[side]) return { json: async () => ({ data: { inventorySetQuantities: { inventoryAdjustmentGroup: null, userErrors: [{ code: "COMPARE_QUANTITY_STALE", message: "Stock changed during sync" }] } } }) };
+    if (change.changeFromQuantity !== quantities[side]) return { json: async () => ({ data: { inventorySetQuantities: { inventoryAdjustmentGroup: null, userErrors: [{ code: "CHANGE_FROM_QUANTITY_STALE", message: "Stock changed during sync" }] } } }) };
     if (failSide === side && failure === "before") { failSide = -1; throw new Error("Network unavailable"); }
     quantities[side] = change.quantity;
     const response = { data: { inventorySetQuantities: { inventoryAdjustmentGroup: { createdAt: new Date().toISOString() }, userErrors: [] } } };
