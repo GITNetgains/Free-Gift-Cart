@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processPair, enqueueInventory } from "../app/services/inventory-sync-engine.server";
 import { createLink, changeLink, createLinksBulk } from "../app/services/inventory-sync-settings.server";
-import { readProductMatches, type GraphqlClient } from "../app/services/inventory-sync-api.server";
+import { readProductMatches, setQuantity, type GraphqlClient } from "../app/services/inventory-sync-api.server";
 
 const temp = mkdtempSync(join(tmpdir(), "inventory-sync-test-"));
 const db = new PrismaClient({ datasourceUrl: `file:${join(temp, "test.sqlite").replaceAll("\\", "/")}` });
@@ -205,6 +205,11 @@ describe("inventory sync with SQLite and a simulated Shopify API", () => {
     await expect(createLink(db, api.admin, shop, "bad", duplicateId, locationId)).rejects.toThrow("Select");
     expect(api.readCount).toBe(0);
   });
+});
+
+test("a null adjustment group with no userErrors is a successful no-op, not a failure", async () => {
+  const noopAdmin: GraphqlClient = { graphql: async () => ({ json: async () => ({ data: { inventorySetQuantities: { inventoryAdjustmentGroup: null, userErrors: [] } } }) } as never) };
+  await expect(setQuantity(noopAdmin, { itemId: gid("InventoryItem", 1), locationId, quantity: 0, changeFromQuantity: 0, key: "noop-key", pairId: "pair-1" })).resolves.toBeUndefined();
 });
 
 type FakeVariant = { id: string; title: string; policy: string; tracked: boolean; options: Array<{ name: string; value: string }>; available: number | null };

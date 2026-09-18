@@ -185,5 +185,7 @@ export async function setQuantity(admin: GraphqlClient, input: { itemId: string;
   });
   const payload = data.inventorySetQuantities;
   if (payload?.userErrors?.length) throw new InventoryRejectedError(payload.userErrors.map((error) => error.message).join("; "));
-  if (!payload?.inventoryAdjustmentGroup) throw new Error("Inventory update result is unknown; retrying with the same request key.");
+  if (!payload) throw new Error("Inventory update result is unknown; retrying with the same request key.");
+  // Shopify returns a null adjustment group (with no userErrors) when the requested quantity
+  // already matches the current quantity - that is a successful no-op, not a failure.
 }
