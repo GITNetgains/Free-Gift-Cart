@@ -20,5 +20,6 @@ query CartInput {
   }
   discount {
     discountClasses
+    giftSettings: metafield(namespace: "$app:free_gift_cart", key: "settings") { jsonValue }
   }
 }

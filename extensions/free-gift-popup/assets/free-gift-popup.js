@@ -21,7 +21,7 @@
   const escapeHtml = (value) => {
     const element = document.createElement("div");
     element.textContent = String(value || "");
-    return element.innerHTML;
+    return element.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   };
   const products = Array.from(variants.reduce((map, variant) => {
     if (!map.has(variant.productId)) map.set(variant.productId, {
@@ -121,9 +121,13 @@
       const status = root.querySelector(".fgc-status");
       claim.disabled = true;
       try {
+        const formData = new URLSearchParams({
+          id: String(Number(selectedVariant.variantId.split("/").pop())),
+          quantity: "1",
+          "properties[_free_gift]": "true",
+        });
         const response = await fetch(`${window.Shopify?.routes?.root || "/"}cart/add.js`, {
-          method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ items: [{ id: Number(selectedVariant.variantId.split("/").pop()), quantity: 1, properties: { _free_gift: "true" } }] }),
+          method: "POST", headers: { Accept: "application/json" }, body: formData,
         });
         if (!response.ok) throw new Error("Gift could not be added. Please try another option.");
         status.textContent = settings.successMessage || "Free gift added.";
@@ -137,7 +141,7 @@
 
   const show = (cart) => {
     const signature = cartSignature(cart);
-    const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.final_line_price, 0);
+    const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price, 0);
     const alreadyHasGift = cart.items.some((item) => item.properties?._free_gift === "true" && giftVariantIds.has(item.variant_id));
     if (paidSubtotal < Number(settings.minimumSpend || 0) || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
     if (root.querySelector(".fgc-overlay")) return;
@@ -159,7 +163,8 @@
     document.documentElement.classList.add("fgc-lock");
     root.querySelector(".fgc-close")?.addEventListener("click", () => close(signature));
     root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(signature); });
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !root.hidden) close(signature); }, { once: true });
+    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(signature); };
+    root.querySelector(".fgc-close")?.focus();
     renderSelector(signature);
   };
 
@@ -176,7 +181,9 @@
       const cart = await response.json();
       const threshold = Number(settings.minimumSpend || 0);
       const paidSubtotal = cart.items.reduce(
-        (total, item) => item.properties?._free_gift === "true" ? total : total + item.final_line_price,
+        // Match the function's subtotal before discounts, so another promotion
+        // cannot remove an otherwise eligible gift.
+        (total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price,
         0,
       );
       const giftItems = cart.items.filter((item) => item.properties?._free_gift === "true");
@@ -201,6 +208,7 @@
       if (!giftItems.length) show(cart);
       else hidePopup();
     } catch {
+      giftRemovalInProgress = false;
       // A later polling cycle retries temporary cart/network failures.
     } finally {
       cartCheckInProgress = false;

@@ -22,7 +22,7 @@
     const escapeHtml = (value) => {
       const element = document.createElement("div");
       element.textContent = String(value || "");
-      return element.innerHTML;
+      return element.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     };
     const products = Array.from(variants.reduce((map, variant) => {
       if (!map.has(variant.productId)) map.set(variant.productId, {
@@ -72,15 +72,21 @@
         const cartResponse = await fetch(`${window.Shopify?.routes?.root || "/"}cart.js`, { headers: { Accept: "application/json" } });
         if (!cartResponse.ok) throw new Error("Cart could not be checked.");
         const cart = await cartResponse.json();
-        const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.final_line_price, 0);
+        // Gift eligibility uses spend before discounts, matching the cart popup
+        // and the server-side discount function.
+        const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price, 0);
         if (paidSubtotal < Number(settings.minimumSpend || 0)) {
           const remaining = (Number(settings.minimumSpend || 0) - paidSubtotal) / 100;
           throw new Error(`Add $${remaining.toFixed(2)} more to unlock your free gift.`);
         }
         if (cart.items.some((item) => item.properties?._free_gift === "true")) throw new Error("A free gift is already in your cart.");
+        const formData = new URLSearchParams({
+          id: String(Number(selectedVariant.variantId.split("/").pop())),
+          quantity: "1",
+          "properties[_free_gift]": "true",
+        });
         const response = await fetch(`${window.Shopify?.routes?.root || "/"}cart/add.js`, {
-          method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ items: [{ id: Number(selectedVariant.variantId.split("/").pop()), quantity: 1, properties: { _free_gift: "true" } }] }),
+          method: "POST", headers: { Accept: "application/json" }, body: formData,
         });
         if (!response.ok) throw new Error("Gift could not be added. Please try again.");
         status.textContent = settings.successMessage || "Your free gift was added to the cart.";

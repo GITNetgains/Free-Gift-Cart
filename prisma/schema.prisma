@@ -32,3 +32,45 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model InventorySyncPair {
+  id                  String   @id @default(cuid())
+  shop                String
+  originalVariantId   String
+  duplicateVariantId  String
+  originalItemId      String
+  duplicateItemId     String
+  originalTitle       String
+  duplicateTitle      String
+  locationId          String
+  locationName        String
+  enabled             Boolean  @default(true)
+  sharedQuantity      Int
+  originalBaseline    Int
+  duplicateBaseline   Int
+  pending             String?
+  lastSyncedAt        DateTime?
+  lastError           String?
+  attempts            Int      @default(0)
+  nextRunAt           DateTime @default(now())
+  lockToken           String?
+  lockUntil           DateTime?
+  createdAt           DateTime @default(now())
+  members             InventorySyncMember[]
+
+  @@index([enabled, nextRunAt])
+  @@index([shop])
+}
+
+// A variant can only belong to one pair at a location, including paused pairs.
+// This prevents circular links and ambiguous shared-stock groups.
+model InventorySyncMember {
+  id              String @id @default(cuid())
+  shop            String
+  inventoryItemId String
+  locationId      String
+  pairId          String
+  pair            InventorySyncPair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, inventoryItemId, locationId])
+}

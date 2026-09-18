@@ -9,6 +9,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Webhook requests can trigger multiple times and after an app has already been uninstalled.
   // If this webhook already ran, the session may have been deleted previously.
+  await db.inventorySyncPair.deleteMany({ where: { shop } });
   if (session) {
     await db.session.deleteMany({ where: { shop } });
   }

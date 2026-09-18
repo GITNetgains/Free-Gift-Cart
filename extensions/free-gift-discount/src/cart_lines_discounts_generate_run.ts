@@ -35,7 +35,11 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
   }
 
   if (!input.discount.discountClasses.includes(DiscountClass.Product)) return { operations };
-  const settings = input.shop.giftSettings?.jsonValue as GiftSettings | undefined;
+  // Discount-owned configuration is the reliable source for a discount
+  // function. Keep the shop metafield fallback for discounts created by older
+  // app versions while merchants migrate through their next settings save.
+  const settings = (input.discount.giftSettings?.jsonValue ??
+    input.shop.giftSettings?.jsonValue) as GiftSettings | undefined;
   if (!settings?.enabled || !Array.isArray(settings.products)) return { operations };
 
   const allowedVariantIds = new Set(settings.products.map((product) => product.variantId).filter(Boolean));

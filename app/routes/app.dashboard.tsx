@@ -88,6 +88,9 @@ export default function Dashboard() {
             <s-clickable href="/app" padding="base" background="subdued" borderRadius="base" accessibilityLabel="Manage free gift offer">
               <s-stack gap="small-200"><s-icon type="product-add"></s-icon><s-heading>Free gift offer</s-heading><s-paragraph color="subdued">Products, threshold, popup content, colors, and widget settings.</s-paragraph></s-stack>
             </s-clickable>
+            <s-clickable href="/app/inventory-sync" padding="base" background="subdued" borderRadius="base" accessibilityLabel="Manage inventory sync">
+              <s-stack gap="small-200"><s-heading>Inventory sync</s-heading><s-paragraph color="subdued">Link original and duplicate variants, monitor stock and manage background syncing.</s-paragraph></s-stack>
+            </s-clickable>
             <s-clickable href="/app/no-discounts" padding="base" background="subdued" borderRadius="base" accessibilityLabel="Manage no-discount products">
               <s-stack gap="small-200"><s-icon type="discount-code"></s-icon><s-heading>Discount protection</s-heading><s-paragraph color="subdued">Block Shopify, affiliate, automatic, and app discounts on selected products.</s-paragraph></s-stack>
             </s-clickable>

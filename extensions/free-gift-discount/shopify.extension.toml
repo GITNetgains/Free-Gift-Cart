@@ -12,6 +12,14 @@ description = "t:description"
   input_query = "src/cart_lines_discounts_generate_run.graphql"
   export = "cart-lines-discounts-generate-run"
 
+  [[extensions.metafields]]
+  namespace = "$app:free_gift_cart"
+  key = "settings"
+
+  [[extensions.metafields]]
+  namespace = "free_gift_cart"
+  key = "no_discount_products"
+
   [extensions.build]
   command = ""
   path = "dist/function.wasm"

@@ -136,6 +136,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 async function ensureAutomaticDiscount(
   admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
+  settings: GiftSettings,
   existingDiscountId?: string,
 ) {
   const discountInput = {
@@ -143,6 +144,12 @@ async function ensureAutomaticDiscount(
     functionHandle: "free-gift-discount",
     discountClasses: ["PRODUCT" as AdminDiscountClass],
     combinesWith: { orderDiscounts: true, productDiscounts: true, shippingDiscounts: true },
+    metafields: [{
+      namespace: "$app:free_gift_cart",
+      key: "settings",
+      type: "json",
+      value: JSON.stringify(settings),
+    }],
   };
 
   if (existingDiscountId) {
@@ -206,7 +213,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   settings.products = await enrichGiftProducts(admin, settings.products);
 
-  const discount = await ensureAutomaticDiscount(admin, settings.discountId);
+  const discount = await ensureAutomaticDiscount(admin, settings, settings.discountId);
   if (discount.discountId) settings.discountId = discount.discountId;
   const shopResponse = await admin.graphql(SETTINGS_QUERY);
   const shopJson = await shopResponse.json();

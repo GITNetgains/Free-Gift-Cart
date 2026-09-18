@@ -235,3 +235,27 @@ Shopify:
 Internationalization:
 
 - [Internationalizing your app](https://shopify.dev/docs/apps/best-practices/internationalization/getting-started)
+
+## Inventory sync (local implementation)
+
+- Embedded route: `/app/inventory-sync`, also linked from the dashboard and app navigation.
+- `npm run preview:inventory` starts a separate sample-data preview at http://127.0.0.1:4174. It renders the same dashboard component, without store authentication or Shopify inventory writes. Its sale/restock controls simulate UI state; backend behavior is tested separately.
+- `npm run setup` generates Prisma and applies the SQLite migration. Keep the database on persistent storage.
+- `npm test` runs inventory-engine tests against a temporary SQLite database and a simulated Shopify API, existing discount/validation tests, and storefront regression tests.
+- The actual worker is **off by default**. `INVENTORY_SYNC_WORKER_ENABLED=true` opts into real Shopify writes. Do not enable it merely to inspect the local UI.
+
+### Behavior
+
+Select an original variant, an existing duplicate variant, and a merchant-managed location. Both variants must track inventory and disallow selling past zero. Confirm that they represent the same physical inventory. The first sync uses the original's starting stock, including subsequent changes on either listing. Each variant can belong to only one pair per location, even while paused.
+
+Inventory webhooks queue a check; their payload quantities are never trusted. The worker reads current stock, adds changes on both sides, and updates each side using compare-and-set plus durable idempotency keys. Partial failures preserve progress. A periodic reconciliation catches missed webhooks. Pausing retains baselines, so resuming includes changes made during the pause. Record a physical stock adjustment on only one listing.
+
+The worker polls every two seconds and periodically rechecks unchanged pairs after a minute. These are scheduling intervals, not delivery guarantees. API throttling, backlog, or failures can delay processing. This implementation requires a continuously running Node server; it is not a serverless scheduled worker. Use one app worker process with this SQLite deployment. An ambiguous write older than 23 hours pauses for manual inventory-history review instead of risking replay after Shopify's idempotency window.
+
+Only `available` quantities are linked at the chosen location. Product details and committed/on-hand states are not merged. Negative availability is preserved to avoid hiding oversells. Near-real-time synchronization does not prevent simultaneous checkout overselling.
+
+### Before a later live rollout
+
+No deployment or live stock changes were performed during local implementation. A later rollout needs the additional inventory/location scopes approved, the inventory webhook subscription deployed, migrations applied on persistent storage, the worker enabled, and an end-to-end test on a development store (sale on each listing, restock, restocked cancellation/return, and retry). The local preview does not test Shopify's embedded resource picker, webhook delivery, authentication or real checkout.
+
+API references: [inventorySetQuantities](https://shopify.dev/docs/api/admin-graphql/latest/mutations/inventorySetQuantities), [idempotency](https://shopify.dev/docs/apps/build/apis/graphql-admin/implementing-idempotency).
