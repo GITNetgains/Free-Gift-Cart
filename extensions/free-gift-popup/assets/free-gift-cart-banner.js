@@ -92,7 +92,9 @@
         </div>`;
 
       const cards = products.map((product, index) => {
-        const isSelected = claimed ? claimed.product_id === Number(product.id.split("/").pop()) : product.id === selectedProduct.id;
+        const isSelected = claimed
+          ? claimed.product_id === Number(product.id.split("/").pop())
+          : unlocked && product.id === selectedProduct.id;
         return `
         <button class="fgcb-product${isSelected ? " is-selected" : ""}" type="button" data-fgcb-product="${escapeHtml(product.id)}" ${unlocked && !claimed ? "" : "disabled"}>
           ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}">` : ""}
