@@ -87,8 +87,8 @@
 
       const progress = `
         <div class="fgcb-progress">
-          <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%"></div></div>
-          <p class="fgcb-amounts">$${formatMoney(paid)} / $${formatMoney(threshold)}</p>
+          <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
+          <p class="fgcb-amounts">$${formatMoney(paid)}&nbsp;/&nbsp;$${formatMoney(threshold)}</p>
         </div>`;
 
       const cards = products.map((product, index) => {
@@ -134,7 +134,6 @@
             <li>Spend $${Math.round(threshold / 100)}+</li>
             <li>Choose 1 free gift</li>
           </ul>
-          <p class="fgcb-fineprint">*Limited time offer. While supplies last.</p>
         </div>
       </div>`;
       root.hidden = false;
