@@ -95,7 +95,7 @@
         const isSelected = claimed ? claimed.product_id === Number(product.id.split("/").pop()) : product.id === selectedProduct.id;
         return `
         <button class="fgcb-product${isSelected ? " is-selected" : ""}" type="button" data-fgcb-product="${escapeHtml(product.id)}" ${unlocked && !claimed ? "" : "disabled"}>
-          ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
+          ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}">` : ""}
           <span class="fgcb-product-title">${escapeHtml(product.title)}</span><span class="fgcb-free">FREE</span>
         </button>${index < products.length - 1 ? `<span class="fgcb-or">OR</span>` : ""}`;
       }).join("");

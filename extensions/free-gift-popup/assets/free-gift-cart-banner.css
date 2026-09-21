@@ -14,6 +14,15 @@
   position: static !important; text-decoration: none !important; text-shadow: none !important;
   transform: none !important; visibility: visible !important;
 }
+/* Site-wide lazy-load/image-optimizer apps often key off img[loading] or
+   img:not(.loaded) with a blur placeholder that's more specific than a
+   plain class selector, so it can beat the reset above. Bump this one to
+   ID-level specificity (the id never exists, so :not() always matches)
+   so it wins regardless of what the optimizer script's rule looks like. */
+.fgcb-root img.fgcb-image:not(#fgcb-specificity-bump) {
+  filter: none !important; opacity: 1 !important; transform: none !important;
+  image-rendering: auto !important; -webkit-filter: none !important;
+}
 .fgcb-root *, .fgcb-root *::before, .fgcb-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
 .fgcb-card {
   align-items: start; background: #fdf1f2; border-radius: 16px;
