@@ -21,6 +21,7 @@ export default function App() {
         <s-link href="/app/dashboard">Dashboard</s-link>
         <s-link href="/app">Free gift settings</s-link>
         <s-link href="/app/no-discounts">No-discount products</s-link>
+        <s-link href="/app/discount-checker">Discounts on product</s-link>
         <s-link href="/app/inventory-sync">Inventory sync</s-link>
       </s-app-nav>
       <Outlet />
