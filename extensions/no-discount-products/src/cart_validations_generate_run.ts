@@ -5,22 +5,21 @@ import type {
 
 type RestrictionSettings = {
   enabled?: boolean;
-  productIds?: string[];
 };
 
 export function cartValidationsGenerateRun(input: CartValidationsGenerateRunInput): CartValidationsGenerateRunResult {
   const settings = input.shop.restrictionSettings?.jsonValue as RestrictionSettings | undefined;
-  if (!settings?.enabled || !Array.isArray(settings.productIds) || settings.productIds.length === 0) {
+  if (!settings?.enabled) {
     return { operations: [] };
   }
 
-  const restrictedIds = new Set(settings.productIds);
-  const hasRestrictedProduct = input.cart.lines.some((line) =>
-    line.merchandise.__typename === "ProductVariant" &&
-    restrictedIds.has(line.merchandise.product.id));
-  const hasAnyDiscount = input.cart.discountApplications.length > 0;
+  const hasRestrictedDiscountedLine = input.cart.lines.some((line) => {
+    if (line.merchandise.__typename !== "ProductVariant") return false;
+    const isRestricted = line.merchandise.product.noDiscount?.value === "true";
+    return isRestricted && line.discountAllocations.length > 0;
+  });
 
-  if (!hasRestrictedProduct || !hasAnyDiscount) return { operations: [] };
+  if (!hasRestrictedDiscountedLine) return { operations: [] };
 
   return {
     operations: [{

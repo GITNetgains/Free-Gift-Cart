@@ -88,19 +88,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shopResponse = await admin.graphql(SETTINGS_QUERY);
   const shopJson = await shopResponse.json();
+  const previousSettings = shopJson.data?.shop?.metafield?.jsonValue as Partial<RestrictionSettings> | undefined;
+  const previousIds = new Set((previousSettings?.products ?? []).map((product) => product.id));
+  const newIds = new Set(settings.products.map((product) => product.id));
+  const removedIds = [...previousIds].filter((id) => !newIds.has(id));
+
+  const metafields = [
+    {
+      ownerId: shopJson.data!.shop!.id,
+      namespace: "free_gift_cart",
+      key: "no_discount_products",
+      type: "json",
+      value: JSON.stringify(settings),
+    },
+    ...settings.products.map((product) => ({
+      ownerId: product.id,
+      namespace: "free_gift_cart",
+      key: "no_discount",
+      type: "boolean",
+      value: "true",
+    })),
+    ...removedIds.map((id) => ({
+      ownerId: id,
+      namespace: "free_gift_cart",
+      key: "no_discount",
+      type: "boolean",
+      value: "false",
+    })),
+  ];
+
   const saveResponse = await admin.graphql(
     `#graphql
       mutation SaveNoDiscountSettings($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) { metafields { id } userErrors { message } }
       }
     `,
-    { variables: { metafields: [{
-      ownerId: shopJson.data!.shop!.id,
-      namespace: "free_gift_cart",
-      key: "no_discount_products",
-      type: "json",
-      value: JSON.stringify({ ...settings, productIds: settings.products.map((product) => product.id) }),
-    }] } },
+    { variables: { metafields } },
   );
   const saveJson = await saveResponse.json();
   const error = saveJson.data?.metafieldsSet?.userErrors?.[0]?.message;

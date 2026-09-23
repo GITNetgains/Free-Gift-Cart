@@ -1,10 +1,15 @@
 query CartValidationsGenerateRunInput {
   cart {
-    discountApplications { allocationMethod }
     lines {
+      discountAllocations { discountedAmount { amount } }
       merchandise {
         __typename
-        ... on ProductVariant { product { id } }
+        ... on ProductVariant {
+          product {
+            id
+            noDiscount: metafield(namespace: "free_gift_cart", key: "no_discount") { value }
+          }
+        }
       }
     }
   }
