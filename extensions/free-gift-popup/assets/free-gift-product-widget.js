@@ -41,8 +41,8 @@
     const render = () => {
       const productCards = products.map((product) => `
         <button class="fgpw-product${product.id === selectedProduct.id ? " is-selected" : ""}" type="button" data-fgpw-product="${escapeHtml(product.id)}">
-          ${product.imageUrl ? `<img class="fgpw-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
-          <span class="fgpw-product-title">${escapeHtml(product.title)}</span><span class="fgpw-free">FREE</span>
+          <span class="fgpw-thumb">${product.imageUrl ? `<img class="fgpw-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}</span>
+          <span class="fgpw-info"><span class="fgpw-free">FREE GIFT</span><span class="fgpw-product-title">${escapeHtml(product.title)}</span></span>
         </button>`).join("");
       const threshold = Math.round(Number(settings.minimumSpend || 0) / 100);
       root.innerHTML = `<div class="fgpw-card">
