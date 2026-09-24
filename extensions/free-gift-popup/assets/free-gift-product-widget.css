@@ -15,15 +15,15 @@
 .fgpw-products { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fgpw-product {
   align-items: center; background: #fff; border: 2px solid #e4e7ec; border-radius: 9px;
-  color: #111827; cursor: pointer; display: flex; flex-direction: column; font-family: inherit;
-  padding: 8px 6px 8px; position: relative; text-align: center;
+  color: #111827; cursor: pointer; display: flex; font-family: inherit; gap: 12px;
+  padding: 8px; position: relative; text-align: left;
 }
-.fgpw-product.is-selected { background: #fff; border-color: #98a2b3; box-shadow: 0 6px 16px rgba(16, 24, 40, .08); }
-.fgpw-image { aspect-ratio: 1 / 1; height: auto; max-height: 130px; object-fit: contain; width: 100%; }
+.fgpw-product.is-selected { background: #fff; border-color: #e4e7ec; box-shadow: none; }
+.fgpw-image { flex: 0 0 110px; height: 110px; object-fit: contain; width: 110px; }
 .fgpw-product-title {
-  display: -webkit-box; font-size: 12px; font-weight: 750; line-height: 1.25;
-  margin: 4px 0 0; overflow: hidden; overflow-wrap: anywhere;
-  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  display: -webkit-box; flex: 1 1 auto; font-size: 13px; font-weight: 750; line-height: 1.3;
+  margin: 0; min-width: 0; overflow: hidden; overflow-wrap: anywhere;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 3;
 }
 .fgpw-free { background: #ef101d; border-radius: 999px; color: #fff; font-size: 10px; font-weight: 900; padding: 4px 10px; position: absolute; right: 6px; top: 6px; }
 .fgpw-claim {
@@ -36,12 +36,15 @@
 @container (max-width: 590px) {
   .fgpw-card { padding: 12px; }
   .fgpw-timer { font-size: 11px; }
-  .fgpw-image { max-height: 110px; }
+  .fgpw-product { gap: 8px; }
+  .fgpw-image { flex-basis: 80px; height: 80px; width: 80px; }
+  .fgpw-product-title { font-size: 12px; }
 }
 @container (max-width: 420px) {
   .fgpw-timer { font-size: 10px; padding: 7px 8px; }
   .fgpw-title { font-size: 17px; }
   .fgpw-products { grid-template-columns: 1fr 1fr; }
-  .fgpw-image { max-height: 95px; }
+  .fgpw-product { flex-direction: column; text-align: center; }
+  .fgpw-image { flex-basis: auto; height: 95px; width: 100%; }
   .fgpw-claim { font-size: 14px; }
 }
