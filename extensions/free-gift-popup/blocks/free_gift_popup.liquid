@@ -22,6 +22,29 @@
         {% endfor %}
       }
     </script>
+    <script type="application/json" data-free-gift-images>
+      {
+        {% assign image_first = true %}
+        {% for gift in gift_settings.products %}
+          {% if gift.productHandle != blank %}
+            {% assign image_product = all_products[gift.productHandle] %}
+            {% assign image_variant_id = gift.variantId | split: '/' | last | plus: 0 %}
+            {% if image_product.featured_image != blank %}
+              {% unless image_first %},{% endunless %}
+              {{ gift.productId | json }}: {{ image_product.featured_image | image_url: width: 600 | json }}
+              {% assign image_first = false %}
+            {% endif %}
+            {% for image_variant in image_product.variants %}
+              {% if image_variant.id == image_variant_id and image_variant.featured_image != blank %}
+                {% unless image_first %},{% endunless %}
+                {{ gift.variantId | json }}: {{ image_variant.featured_image | image_url: width: 600 | json }}
+                {% assign image_first = false %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      }
+    </script>
   </div>
   {{ 'free-gift-popup.css' | asset_url | stylesheet_tag }}
   <script src="{{ 'free-gift-popup.js' | asset_url }}" defer></script>

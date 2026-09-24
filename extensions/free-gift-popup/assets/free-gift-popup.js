@@ -11,11 +11,17 @@
   try { settings = JSON.parse(settingsNode.textContent || "{}"); } catch { return; }
   let liveInventory = {};
   try { liveInventory = JSON.parse(root.querySelector("[data-free-gift-inventory]")?.textContent || "{}"); } catch { liveInventory = {}; }
+  // Current product/variant images from Liquid (keyed by product and variant
+  // GID), so image changes in Shopify admin show up without re-saving settings.
+  let liveImages = {};
+  try { liveImages = JSON.parse(root.querySelector("[data-free-gift-images]")?.textContent || "{}"); } catch { liveImages = {}; }
   const variants = Array.isArray(settings.products) ? settings.products.filter((variant) => {
     if (Object.prototype.hasOwnProperty.call(liveInventory, variant.variantId)) return liveInventory[variant.variantId] === true;
     if (variant.inventoryTracked && Number(variant.inventoryQuantity) <= 0) return false;
     return variant.availableForSale !== false;
-  }) : [];
+  }).map((variant) => ({
+    ...variant, imageUrl: liveImages[variant.variantId] || liveImages[variant.productId] || variant.imageUrl,
+  })) : [];
   if (!settings.enabled || variants.length === 0) return;
 
   const escapeHtml = (value) => {
@@ -26,7 +32,7 @@
   const products = Array.from(variants.reduce((map, variant) => {
     if (!map.has(variant.productId)) map.set(variant.productId, {
       id: variant.productId, title: variant.productTitle,
-      imageUrl: variant.imageUrl, variants: [],
+      imageUrl: liveImages[variant.productId] || variant.imageUrl, variants: [],
     });
     map.get(variant.productId).variants.push(variant);
     return map;
@@ -76,8 +82,11 @@
     const groups = optionGroups(selectedProduct);
     const selectedValues = variantValues(selectedVariant);
     const cards = products.map((product) => {
-      const displayedVariant = product.id === selectedProduct.id ? selectedVariant : product.variants[0];
-      const displayedImage = displayedVariant?.imageUrl || product.imageUrl;
+      // Unselected cards show the product's featured image; the selected card
+      // follows the chosen variant's own image.
+      const displayedImage = product.id === selectedProduct.id
+        ? selectedVariant?.imageUrl || product.imageUrl
+        : product.imageUrl;
       return `
       <button class="fgc-product${product.id === selectedProduct.id ? " is-selected" : ""}" type="button" data-product-id="${escapeHtml(product.id)}">
         <span class="fgc-check" aria-hidden="true">${product.id === selectedProduct.id ? "✓" : ""}</span>
