@@ -42,10 +42,10 @@
         </button>`).join("");
       const threshold = Math.round(Number(settings.minimumSpend || 0) / 100);
       root.innerHTML = `<div class="fgpw-card">
-        <div class="fgpw-top"><div class="fgpw-label"><span class="fgpw-gift-icon">🎁</span><span class="fgpw-pill">🎁 FREE GIFT</span></div><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>10:00</b></span></div>
         <h2 class="fgpw-title">Unlock a <strong>FREE Gift</strong> on Orders <strong>$${threshold}+</strong></h2>
         <p class="fgpw-subtitle">Choose 1 free gift below and add it to your cart.</p>
         <div class="fgpw-body"><div class="fgpw-products">${productCards}</div></div>
+        <div class="fgpw-bottom"><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>10:00</b></span></div>
         <button class="fgpw-claim" type="button">🎁 &nbsp; CLAIM MY FREE GIFT</button><p class="fgpw-status" aria-live="polite"></p>
       </div>`;
       root.hidden = false;
