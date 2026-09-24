@@ -12,6 +12,10 @@
     try { settings = JSON.parse(settingsNode?.textContent || "{}"); } catch { return; }
     let liveInventory = {};
     try { liveInventory = JSON.parse(inventoryNode?.textContent || "{}"); } catch { liveInventory = {}; }
+    // The product's current featured image from Liquid, so reordering media in
+    // Shopify admin shows up without re-saving the gift settings.
+    let liveImages = {};
+    try { liveImages = JSON.parse(root.querySelector("[data-fgpw-images]")?.textContent || "{}"); } catch { liveImages = {}; }
     const variants = Array.isArray(settings.products) ? settings.products.filter((variant) => {
       if (Object.prototype.hasOwnProperty.call(liveInventory, variant.variantId)) return liveInventory[variant.variantId] === true;
       if (variant.inventoryTracked && Number(variant.inventoryQuantity) <= 0) return false;
@@ -26,7 +30,7 @@
     };
     const products = Array.from(variants.reduce((map, variant) => {
       if (!map.has(variant.productId)) map.set(variant.productId, {
-        id: variant.productId, title: variant.productTitle, imageUrl: variant.imageUrl, variants: [],
+        id: variant.productId, title: variant.productTitle, imageUrl: liveImages[variant.productId] || variant.imageUrl, variants: [],
       });
       map.get(variant.productId).variants.push(variant);
       return map;

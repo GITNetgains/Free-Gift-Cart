@@ -22,6 +22,21 @@
         {% endfor %}
       }
     </script>
+    <script type="application/json" data-fgpw-images>
+      {
+        {% assign image_first = true %}
+        {% for gift in gift_settings.products %}
+          {% if gift.productHandle != blank %}
+            {% assign image_product = all_products[gift.productHandle] %}
+            {% if image_product.featured_image != blank %}
+              {% unless image_first %},{% endunless %}
+              {{ gift.productId | json }}: {{ image_product.featured_image | image_url: width: 600 | json }}
+              {% assign image_first = false %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      }
+    </script>
   </div>
   {{ 'free-gift-product-widget.css' | asset_url | stylesheet_tag }}
   <script src="{{ 'free-gift-product-widget.js' | asset_url }}" defer></script>
