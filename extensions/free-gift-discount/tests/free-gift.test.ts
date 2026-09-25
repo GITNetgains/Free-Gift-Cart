@@ -4,8 +4,9 @@ import { DiscountClass, type CartInput } from "../generated/api";
 
 const variantId = "gid://shopify/ProductVariant/123";
 
-function input(amount = "100.00", allowedId = variantId): CartInput {
+function input(amount = "100.00", allowedId = variantId, presentmentCurrencyRate = "1.0"): CartInput {
   return {
+    presentmentCurrencyRate,
     enteredDiscountCodes: [],
     discount: { discountClasses: [DiscountClass.Product] },
     shop: {
@@ -85,6 +86,12 @@ describe("free gift discount", () => {
 
   test("does not discount below the threshold", () => {
     expect(cartLinesDiscountsGenerateRun(input("49.99")).operations).toEqual([]);
+  });
+
+  test("converts the threshold into the buyer's currency", () => {
+    // $50 USD threshold at 1.4 CAD per USD needs CA$70.
+    expect(cartLinesDiscountsGenerateRun(input("69.99", variantId, "1.4")).operations).toEqual([]);
+    expect(cartLinesDiscountsGenerateRun(input("70.00", variantId, "1.4")).operations).toHaveLength(1);
   });
 
   test("rejects an unconfigured gift variant", () => {

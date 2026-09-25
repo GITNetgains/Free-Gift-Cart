@@ -47,7 +47,11 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
     if (line.giftMarker?.value === "true") return total;
     return total + Math.round(Number(line.cost.subtotalAmount.amount) * 100);
   }, 0);
-  if (paidSubtotalCents < Number(settings.minimumSpend || 0)) return { operations };
+  // minimumSpend is saved in the shop currency (USD) while cart amounts are in
+  // the buyer's presentment currency, so convert the threshold before comparing.
+  const currencyRate = Number(input.presentmentCurrencyRate) || 1;
+  const thresholdCents = Math.round(Number(settings.minimumSpend || 0) * currencyRate);
+  if (paidSubtotalCents < thresholdCents) return { operations };
 
   const giftLine = input.cart.lines.find((line) =>
     line.giftMarker?.value === "true" &&

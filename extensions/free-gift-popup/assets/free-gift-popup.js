@@ -24,6 +24,10 @@
   })) : [];
   if (!settings.enabled || variants.length === 0) return;
 
+  // minimumSpend is saved in the shop currency (USD) while cart.js amounts are in
+  // the buyer's currency, so convert it with the storefront's active rate.
+  const threshold = Math.round(Number(settings.minimumSpend || 0) * (Number(window.Shopify?.currency?.rate) || 1));
+
   const escapeHtml = (value) => {
     const element = document.createElement("div");
     element.textContent = String(value || "");
@@ -152,7 +156,7 @@
     const signature = cartSignature(cart);
     const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price, 0);
     const alreadyHasGift = cart.items.some((item) => item.properties?._free_gift === "true" && giftVariantIds.has(item.variant_id));
-    if (paidSubtotal < Number(settings.minimumSpend || 0) || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
+    if (paidSubtotal < threshold || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
     if (root.querySelector(".fgc-overlay")) return;
 
     root.style.setProperty("--fgc-background", settings.backgroundColor || "#FFFFFF");
@@ -188,7 +192,6 @@
       });
       if (!response.ok) return;
       const cart = await response.json();
-      const threshold = Number(settings.minimumSpend || 0);
       const paidSubtotal = cart.items.reduce(
         // Match the function's subtotal before discounts, so another promotion
         // cannot remove an otherwise eligible gift.

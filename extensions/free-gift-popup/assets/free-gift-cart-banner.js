@@ -23,7 +23,9 @@
     const basePath = window.Shopify?.routes?.root || "/";
     const cartAddUrl = root.dataset.cartAddUrl || `${basePath}cart/add.js`;
     const cartUpdateUrl = root.dataset.cartUpdateUrl || `${basePath}cart/update.js`;
-    const threshold = Number(settings.minimumSpend || 0);
+    // minimumSpend is saved in the shop currency (USD) while cart.js amounts are in
+    // the buyer's currency, so convert it with the storefront's active rate.
+    const threshold = Math.round(Number(settings.minimumSpend || 0) * (Number(window.Shopify?.currency?.rate) || 1));
     const giftVariantIds = new Set(variants.map((variant) => Number(variant.variantId.split("/").pop())));
 
     const escapeHtml = (value) => {
@@ -31,7 +33,17 @@
       element.textContent = String(value || "");
       return element.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     };
-    const formatMoney = (cents) => (Math.max(0, Number(cents) || 0) / 100).toFixed(2);
+    const formatMoney = (cents, digits = 2) => {
+      const amount = Math.max(0, Number(cents) || 0) / 100;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency", currency: window.Shopify?.currency?.active || "USD", currencyDisplay: "narrowSymbol",
+          minimumFractionDigits: digits, maximumFractionDigits: digits,
+        }).format(digits ? amount : Math.ceil(amount));
+      } catch {
+        return "$" + (digits ? amount : Math.ceil(amount)).toFixed(digits);
+      }
+    };
     const variantValues = (variant) => {
       if (Array.isArray(variant.optionValues) && variant.optionValues.length) return variant.optionValues;
       if (!variant.variantTitle || variant.variantTitle === "Default Title") return [];
@@ -83,12 +95,12 @@
         ? `You've claimed your <strong>FREE gift</strong>!`
         : unlocked
           ? `You've unlocked a <strong>FREE gift</strong>!`
-          : `Add <strong>$${formatMoney(remaining)}</strong> more to unlock your <strong>FREE gift</strong>!`;
+          : `Add <strong>${formatMoney(remaining)}</strong> more to unlock your <strong>FREE gift</strong>!`;
 
       const progress = `
         <div class="fgcb-progress">
           <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
-          <p class="fgcb-amounts">$${formatMoney(paid)}&nbsp;/&nbsp;$${formatMoney(threshold)}</p>
+          <p class="fgcb-amounts">${formatMoney(paid)}&nbsp;/&nbsp;${formatMoney(threshold)}</p>
         </div>`;
 
       const cards = products.map((product, index) => {
@@ -133,7 +145,7 @@
         </div>
         <div class="fgcb-right">
           <ul class="fgcb-perks">
-            <li>Spend $${Math.round(threshold / 100)}+</li>
+            <li>Spend ${formatMoney(threshold, 0)}+</li>
             <li>Choose 1 free gift</li>
           </ul>
         </div>

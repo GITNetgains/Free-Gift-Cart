@@ -37,6 +37,20 @@
     }, new Map()).values());
     let selectedProduct = products[0];
     let selectedVariant = selectedProduct.variants[0];
+    // minimumSpend is saved in the shop currency (USD) while cart.js amounts are in
+    // the buyer's currency, so convert it with the storefront's active rate.
+    const threshold = Math.round(Number(settings.minimumSpend || 0) * (Number(window.Shopify?.currency?.rate) || 1));
+    const formatMoney = (cents, digits = 2) => {
+      const amount = Math.max(0, Number(cents) || 0) / 100;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency", currency: window.Shopify?.currency?.active || "USD", currencyDisplay: "narrowSymbol",
+          minimumFractionDigits: digits, maximumFractionDigits: digits,
+        }).format(digits ? amount : Math.ceil(amount));
+      } catch {
+        return "$" + (digits ? amount : Math.ceil(amount)).toFixed(digits);
+      }
+    };
     const startedAt = Date.now();
     const render = () => {
       const productCards = products.map((product) => `
@@ -44,9 +58,8 @@
           <span class="fgpw-thumb">${product.imageUrl ? `<img class="fgpw-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}</span>
           <span class="fgpw-info"><span class="fgpw-free">FREE GIFT</span><span class="fgpw-product-title">${escapeHtml(product.title)}</span></span>
         </button>`).join("");
-      const threshold = Math.round(Number(settings.minimumSpend || 0) / 100);
       root.innerHTML = `<div class="fgpw-card">
-        <h2 class="fgpw-title">Unlock a <strong>FREE Gift</strong> on Orders <strong>$${threshold}+</strong></h2>
+        <h2 class="fgpw-title">Unlock a <strong>FREE Gift</strong> on Orders <strong>${formatMoney(threshold, 0)}+</strong></h2>
         <p class="fgpw-subtitle">Choose 1 free gift below and add it to your cart.</p>
         <div class="fgpw-body"><div class="fgpw-products">${productCards}</div></div>
         <div class="fgpw-bottom"><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>10:00</b></span></div>
@@ -79,9 +92,8 @@
         // Gift eligibility uses spend before discounts, matching the cart popup
         // and the server-side discount function.
         const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price, 0);
-        if (paidSubtotal < Number(settings.minimumSpend || 0)) {
-          const remaining = (Number(settings.minimumSpend || 0) - paidSubtotal) / 100;
-          throw new Error(`Add $${remaining.toFixed(2)} more to unlock your free gift.`);
+        if (paidSubtotal < threshold) {
+          throw new Error(`Add ${formatMoney(threshold - paidSubtotal)} more to unlock your free gift.`);
         }
         if (cart.items.some((item) => item.properties?._free_gift === "true")) throw new Error("A free gift is already in your cart.");
         const formData = new URLSearchParams({
