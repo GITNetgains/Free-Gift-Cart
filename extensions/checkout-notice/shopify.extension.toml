@@ -1,0 +1,33 @@
+# Learn more about configuring your checkout UI extension:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration
+
+api_version = "2026-07"
+
+[[extensions]]
+name = "Checkout notices"
+handle = "checkout-notice"
+type = "ui_extension"
+uid = "eaa4b7de-3bc3-6a8b-bce1-9e95940fb4c8e4c81f58"
+
+# Every placement shares one module; it renders only the notices saved for the
+# target it is running in (see PLACEMENT_BY_TARGET in src/Checkout.jsx).
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.delivery-address.render-before"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.shipping-option-list.render-before"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.payment-method-list.render-before"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+# Saved by the app's Checkout notices admin page.
+[[extensions.metafields]]
+namespace = "free_gift_cart"
+key = "checkout_notices"
