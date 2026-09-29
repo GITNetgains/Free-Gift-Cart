@@ -55,10 +55,32 @@ function Extension() {
 }
 
 // The admin page saves the message as a rich-text tree (see
-// app/services/rich-text.ts): paragraphs and lists of text and link nodes,
-// where text can be bold and/or italic.
+// app/services/rich-text.ts): paragraphs, headings, lists and tables of text
+// and link nodes (text can be bold and/or italic), plus images.
 function renderRichText(root) {
   return root.children.map((block, index) => {
+    if (block?.type === 'heading') {
+      return <s-heading key={index}>{renderInlines(block.children)}</s-heading>;
+    }
+    if (block?.type === 'image') {
+      const src = String(block.src || '');
+      return /^https:\/\//i.test(src)
+        ? <s-image key={index} src={src} alt={String(block.alt || '')} inlineSize="auto" />
+        : null;
+    }
+    if (block?.type === 'table') {
+      const rows = Array.isArray(block.rows) ? block.rows : [];
+      const columns = Math.max(1, ...rows.map((row) => (row?.cells || []).length));
+      return (
+        <s-grid key={index} gridTemplateColumns={`repeat(${columns}, auto)`} columnGap="base" rowGap="small-300">
+          {rows.flatMap((row, rowIndex) => Array.from({length: columns}, (_, cellIndex) => (
+            <s-text key={`${rowIndex}-${cellIndex}`} type={row?.header ? 'strong' : undefined}>
+              {renderInlines(row?.cells?.[cellIndex])}
+            </s-text>
+          )))}
+        </s-grid>
+      );
+    }
     if (block?.type === 'list') {
       const items = (block.children || []).map((item, itemIndex) => (
         <s-list-item key={itemIndex}>{renderInlines(item?.children)}</s-list-item>

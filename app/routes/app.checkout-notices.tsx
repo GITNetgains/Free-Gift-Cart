@@ -8,6 +8,9 @@ import {
   type RichText,
   emptyRichText,
   plainTextFromRichText,
+  richTextFromHtml,
+  richTextToHtml,
+  sanitizeEditorHtml,
   richTextFromPlain,
   sanitizeRichText,
 } from "../services/rich-text";
@@ -30,14 +33,17 @@ type Tone = (typeof TONES)[number]["value"];
 type Placement = (typeof PLACEMENTS)[number]["value"];
 type CheckoutNotice = {
   id: string; enabled: boolean; heading: string;
-  // richMessage is what checkout renders; message is its plain-text copy for
+  // html is the editor source; richMessage is what checkout renders (built from
+  // the HTML in the browser on edit); message is its plain-text copy for
   // the block list, validation and older extension versions.
-  message: string; richMessage: RichText;
+  html: string; message: string; richMessage: RichText;
   tone: Tone; placement: Placement; countries: string[]; dismissible: boolean;
 };
 
 const MAX_NOTICES = 20;
-const MAX_MESSAGE = 1000;
+const MAX_MESSAGE = 3000;
+// Shop metafields of type json are capped, and checkout loads the whole value.
+const MAX_PAYLOAD = 120_000;
 const SETTINGS_QUERY = `#graphql
   query CheckoutNoticeSettings {
     shop {
@@ -56,6 +62,7 @@ function sanitizeNotice(notice: Partial<CheckoutNotice>): CheckoutNotice {
     heading: String(notice.heading || "").slice(0, 200),
     message: plainTextFromRichText(richMessage),
     richMessage,
+    html: sanitizeEditorHtml(notice.html) || richTextToHtml(richMessage),
     tone: TONES.some((tone) => tone.value === notice.tone) ? notice.tone as Tone : "warning",
     placement: PLACEMENTS.some((placement) => placement.value === notice.placement) ? notice.placement as Placement : "delivery",
     countries: Array.isArray(notice.countries)
@@ -89,8 +96,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   const tooLong = notices.find((notice) => notice.message.length > MAX_MESSAGE);
   if (tooLong) return { ok: false, error: `Messages can be up to ${MAX_MESSAGE} characters.` };
-  const blank = notices.find((notice) => notice.enabled && !notice.message.trim());
+  const blank = notices.find((notice) => notice.enabled && !notice.richMessage.children.length);
   if (blank) return { ok: false, error: "Every active block needs a message." };
+  if (JSON.stringify({ notices }).length > MAX_PAYLOAD) {
+    return { ok: false, error: "The blocks are too large to save. Shorten some messages or remove unused blocks." };
+  }
   const noCountry = notices.find((notice) => notice.enabled && notice.countries.length === 0);
   if (noCountry) return { ok: false, error: "Every active block needs at least one country." };
 
@@ -156,6 +166,7 @@ export default function CheckoutNotices() {
       heading: "",
       message: "",
       richMessage: emptyRichText(),
+      html: "",
       tone: "warning",
       placement: "delivery",
       countries: data.countries.includes("CA") ? ["CA"] : [],
@@ -226,10 +237,15 @@ export default function CheckoutNotices() {
               const heading = event.currentTarget.value;
               update(editing.id, { heading });
             }} />
-            <RichTextEditor key={editing.id} label="Message" value={editing.richMessage} maxLength={MAX_MESSAGE}
+            <RichTextEditor key={editing.id} label="Message" initialHtml={editing.html}
               placeholder="Write the message buyers see in checkout"
-              details="Bold, italic, links, lists and line breaks show in checkout."
-              onChange={(richMessage) => update(editing.id, { richMessage, message: plainTextFromRichText(richMessage) })} />
+              details="Checkout shows headings, bold, italic, links, lists, images and tables. Colours, underline, alignment and videos show as plain text."
+              counter={`${editing.message.length}/${MAX_MESSAGE}`}
+              counterOver={editing.message.length > MAX_MESSAGE}
+              onChange={(html) => {
+                const richMessage = richTextFromHtml(html);
+                update(editing.id, { html, richMessage, message: plainTextFromRichText(richMessage) });
+              }} />
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
               <s-select label="Colour" value={editing.tone} onChange={(event) => {
                 const tone = event.currentTarget.value as Tone;
@@ -277,7 +293,7 @@ export default function CheckoutNotices() {
             <s-divider />
             <s-heading>Preview</s-heading>
             <s-banner tone={editing.tone} heading={editing.heading || undefined} dismissible={editing.dismissible}>
-              {editing.message.trim()
+              {editing.richMessage.children.length
                 ? <RichTextPreview value={editing.richMessage} />
                 : <s-paragraph color="subdued">Your message will appear here.</s-paragraph>}
             </s-banner>

@@ -1,43 +1,84 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  type RichText,
-  type RichTextInline,
-  type RichTextLeaf,
-  plainTextFromRichText,
-  richTextFromElement,
-  richTextToHtml,
-  safeUrl,
-} from "../services/rich-text";
+import { useEffect, useState } from "react";
+import { Editor } from "@tinymce/tinymce-react";
+import type { RichText, RichTextInline, RichTextLeaf } from "../services/rich-text";
 
 type Props = {
   label: string;
-  value: RichText;
-  onChange: (value: RichText) => void;
+  // Editor HTML. The parent remounts the editor (via key) to load another value.
+  initialHtml: string;
+  onChange: (html: string) => void;
   details?: string;
-  maxLength?: number;
+  counter?: string;
+  counterOver?: boolean;
   placeholder?: string;
 };
 
-const STYLES = `
-.rte { border: 1px solid #8a8a8a; border-radius: 8px; background: #fff; overflow: hidden; }
-.rte:focus-within { outline: 2px solid #005bd3; outline-offset: 1px; }
-.rte-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-bottom: 1px solid #e3e3e3; background: #f7f7f7; }
-.rte-toolbar button { min-width: 30px; height: 28px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #303030; font: inherit; font-size: 13px; cursor: pointer; }
-.rte-toolbar button:hover { background: #e3e3e3; }
-.rte-toolbar button[aria-pressed="true"] { background: #d4d4d4; }
-.rte-sep { width: 1px; margin: 4px 4px; background: #d4d4d4; }
-.rte-area { min-height: 84px; max-height: 320px; overflow-y: auto; padding: 8px 12px; font-size: 13px; line-height: 1.5; outline: none; }
-.rte-area:empty::before { content: attr(data-placeholder); color: #8a8a8a; }
-.rte-area ul, .rte-area ol { margin: 4px 0; padding-left: 22px; }
-.rte-area a { color: #005bd3; text-decoration: underline; }
-.rte-link { display: flex; gap: 6px; align-items: center; padding: 6px; border-top: 1px solid #e3e3e3; background: #f7f7f7; }
-.rte-link input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid #8a8a8a; border-radius: 6px; font: inherit; font-size: 13px; }
-.rte-link button { height: 28px; padding: 0 10px; border: 1px solid #c9c9c9; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer; }
-.rte-link button.primary { background: #303030; border-color: #303030; color: #fff; }
-.rte-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; font-size: 12px; color: #616161; }
-.rte-meta .over { color: #8e1f0b; }
-.rte-label { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 450; color: #303030; }
+const CONTENT_STYLE = `
+body { font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-size: 14px; line-height: 1.5; color: #303030; margin: 12px 14px; }
+p { margin: 0 0 12px; }
+a { color: #005bd3; }
+ul, ol { padding-left: 24px; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #d4d4d4; padding: 4px 8px; }
+img { max-width: 100%; height: auto; }
 `;
+
+// Shopify-style HTML editor (the same toolbar merchants know from product
+// descriptions), with a source view for editing the HTML directly.
+export function RichTextEditor({ label, initialHtml, onChange, details, counter, counterOver, placeholder }: Props) {
+  const [ready, setReady] = useState(false);
+
+  // TinyMCE needs the browser, so it is only loaded on the client.
+  useEffect(() => {
+    let cancelled = false;
+    import("./tinymce.client").then(() => { if (!cancelled) setReady(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <s-stack gap="small-200">
+      <s-text>{label}</s-text>
+      {ready ? (
+        <Editor
+          licenseKey="gpl"
+          initialValue={initialHtml}
+          // Skip the normalisation TinyMCE does on load, so opening a block does
+          // not mark it as changed.
+          onEditorChange={(html, editor) => { if (editor.isDirty()) onChange(html); }}
+          init={{
+            height: 340,
+            menubar: false,
+            branding: false,
+            promotion: false,
+            statusbar: true,
+            elementpath: false,
+            resize: true,
+            placeholder,
+            plugins: "autolink code image link lists media table",
+            toolbar: "blocks | bold italic underline forecolor | align | link image media table | bullist numlist | removeformat | code",
+            toolbar_mode: "sliding",
+            block_formats: "Paragraph=p; Heading 1=h1; Heading 2=h2; Heading 3=h3; Heading 4=h4; Heading 5=h5; Heading 6=h6; Blockquote=blockquote",
+            link_default_target: "_blank",
+            link_title: false,
+            image_uploadtab: false,
+            image_description: true,
+            paste_data_images: false,
+            convert_urls: false,
+            content_style: CONTENT_STYLE,
+          }}
+        />
+      ) : (
+        <s-box padding="base" border="base" borderRadius="base" minBlockSize="340px">
+          <s-spinner accessibilityLabel="Loading editor" size="base" />
+        </s-box>
+      )}
+      <s-grid gridTemplateColumns="1fr auto" gap="base">
+        <s-text color="subdued">{details}</s-text>
+        {counter ? <s-text tone={counterOver ? "critical" : undefined} color={counterOver ? undefined : "subdued"}>{counter}</s-text> : <span />}
+      </s-grid>
+    </s-stack>
+  );
+}
 
 function PreviewInlines({ nodes }: { nodes: RichTextInline[] }) {
   const leaf = (node: RichTextLeaf, key: number) => {
@@ -51,156 +92,31 @@ function PreviewInlines({ nodes }: { nodes: RichTextInline[] }) {
     : leaf(node, index))}</>;
 }
 
-// Admin approximation of how checkout renders the message.
+// Admin approximation of how checkout renders the message: only what checkout
+// components support (headings, bold, italic, links, lists, images, tables).
 export function RichTextPreview({ value }: { value: RichText }) {
   return (
     <s-stack gap="small-200">
       {value.children.map((block, index) => {
         if (block.type === "paragraph") return <s-paragraph key={index}><PreviewInlines nodes={block.children} /></s-paragraph>;
+        if (block.type === "heading") return <s-heading key={index}><PreviewInlines nodes={block.children} /></s-heading>;
+        if (block.type === "image") return <img key={index} src={block.src} alt={block.alt} style={{ maxWidth: "100%", height: "auto" }} />;
+        if (block.type === "table") {
+          return (
+            <table key={index} style={{ borderCollapse: "collapse" }}>
+              <tbody>{block.rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>{row.cells.map((cell, cellIndex) => (
+                  <td key={cellIndex} style={{ padding: "2px 12px 2px 0", fontWeight: row.header ? 650 : undefined }}><PreviewInlines nodes={cell} /></td>
+                ))}</tr>
+              ))}</tbody>
+            </table>
+          );
+        }
         const items = block.children.map((item, itemIndex) => <li key={itemIndex}><PreviewInlines nodes={item.children} /></li>);
         return block.listType === "ordered"
           ? <ol key={index} style={{ margin: 0, paddingLeft: 20 }}>{items}</ol>
           : <ul key={index} style={{ margin: 0, paddingLeft: 20 }}>{items}</ul>;
       })}
     </s-stack>
-  );
-}
-
-// Minimal rich-text field for checkout notices: bold, italic, links and lists,
-// which are exactly what the checkout extension can render.
-export function RichTextEditor({ label, value, onChange, details, maxLength, placeholder }: Props) {
-  const areaRef = useRef<HTMLDivElement>(null);
-  const rangeRef = useRef<Range | null>(null);
-  const [active, setActive] = useState({ bold: false, italic: false });
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const length = plainTextFromRichText(value).length;
-
-  // The parent remounts the editor (via key) when a different notice is edited,
-  // so the initial value only needs to be written once.
-  useEffect(() => {
-    if (areaRef.current) areaRef.current.innerHTML = richTextToHtml(value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const onSelectionChange = () => {
-      const selection = document.getSelection();
-      const area = areaRef.current;
-      if (!selection?.rangeCount || !area || !area.contains(selection.anchorNode)) return;
-      rangeRef.current = selection.getRangeAt(0).cloneRange();
-      setActive({ bold: document.queryCommandState("bold"), italic: document.queryCommandState("italic") });
-    };
-    document.addEventListener("selectionchange", onSelectionChange);
-    return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, []);
-
-  const emit = () => {
-    if (areaRef.current) onChange(richTextFromElement(areaRef.current));
-  };
-  const restoreSelection = () => {
-    const area = areaRef.current;
-    if (!area) return;
-    area.focus();
-    const range = rangeRef.current;
-    const selection = document.getSelection();
-    if (range && selection && area.contains(range.commonAncestorContainer)) {
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  };
-  const run = (command: string, argument?: string) => {
-    restoreSelection();
-    document.execCommand(command, false, argument);
-    emit();
-  };
-  const openLink = () => {
-    const anchor = (rangeRef.current?.commonAncestorContainer as HTMLElement | undefined);
-    const existing = (anchor?.nodeType === 1 ? anchor : anchor?.parentElement)?.closest?.("a");
-    setLinkUrl(existing?.getAttribute("href") || "https://");
-    setLinkOpen(true);
-  };
-  const applyLink = () => {
-    const url = safeUrl(linkUrl);
-    setLinkOpen(false);
-    if (!url) return;
-    restoreSelection();
-    const selection = document.getSelection();
-    if (selection?.isCollapsed) {
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.textContent = url;
-      document.execCommand("insertHTML", false, anchor.outerHTML);
-    } else document.execCommand("createLink", false, url);
-    emit();
-  };
-  const onPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const html = event.clipboardData.getData("text/html");
-    const text = event.clipboardData.getData("text/plain");
-    const container = document.createElement("div");
-    if (html) container.append(...new DOMParser().parseFromString(html, "text/html").body.childNodes);
-    else text.split(/\r?\n/).forEach((line) => {
-      const row = document.createElement("div");
-      row.textContent = line;
-      container.append(row);
-    });
-    document.execCommand("insertHTML", false, richTextToHtml(richTextFromElement(container)));
-    emit();
-  };
-  const keep = (event: React.MouseEvent) => event.preventDefault();
-
-  return (
-    <div>
-      <style>{STYLES}</style>
-      <span className="rte-label">{label}</span>
-      <div className="rte">
-        <div className="rte-toolbar" role="toolbar" aria-label={`${label} formatting`}>
-          <button type="button" title="Bold" aria-pressed={active.bold} onMouseDown={keep} onClick={() => run("bold")}><b>B</b></button>
-          <button type="button" title="Italic" aria-pressed={active.italic} onMouseDown={keep} onClick={() => run("italic")}><i>I</i></button>
-          <span className="rte-sep" />
-          <button type="button" title="Bulleted list" onMouseDown={keep} onClick={() => run("insertUnorderedList")}>• List</button>
-          <button type="button" title="Numbered list" onMouseDown={keep} onClick={() => run("insertOrderedList")}>1. List</button>
-          <span className="rte-sep" />
-          <button type="button" title="Add link" onMouseDown={keep} onClick={openLink}>Link</button>
-          <button type="button" title="Remove link" onMouseDown={keep} onClick={() => run("unlink")}>Unlink</button>
-          <button type="button" title="Clear formatting" onMouseDown={keep} onClick={() => { run("removeFormat"); run("unlink"); }}>Clear</button>
-        </div>
-        <div
-          ref={areaRef}
-          className="rte-area"
-          contentEditable
-          suppressContentEditableWarning
-          role="textbox"
-          aria-multiline="true"
-          aria-label={label}
-          data-placeholder={placeholder || ""}
-          onInput={emit}
-          onPaste={onPaste}
-        />
-        {linkOpen && (
-          <div className="rte-link">
-            <input
-              type="url"
-              value={linkUrl}
-              ref={(input) => input?.focus()}
-              aria-label="Link URL"
-              placeholder="https://example.com"
-              onChange={(event) => setLinkUrl(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") { event.preventDefault(); applyLink(); }
-                if (event.key === "Escape") setLinkOpen(false);
-              }}
-            />
-            <button type="button" className="primary" onClick={applyLink}>Apply</button>
-            <button type="button" onClick={() => setLinkOpen(false)}>Cancel</button>
-          </div>
-        )}
-      </div>
-      <div className="rte-meta">
-        <span>{details}</span>
-        {maxLength ? <span className={length > maxLength ? "over" : undefined}>{length}/{maxLength}</span> : null}
-      </div>
-    </div>
   );
 }
