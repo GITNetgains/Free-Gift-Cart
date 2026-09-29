@@ -42,14 +42,53 @@ function Extension() {
           dismissible={notice.dismissible}
         >
           <s-stack gap="small-200">
-            {notice.message.split('\n').filter((line) => line.trim()).map((line, index) => (
-              <s-text key={index}>{line}</s-text>
-            ))}
+            {notice.richMessage
+              ? renderRichText(notice.richMessage)
+              : notice.message.split('\n').filter((line) => line.trim()).map((line, index) => (
+                <s-text key={index}>{line}</s-text>
+              ))}
           </s-stack>
         </s-banner>
       ))}
     </s-stack>
   );
+}
+
+// The admin page saves the message as a rich-text tree (see
+// app/services/rich-text.ts): paragraphs and lists of text and link nodes,
+// where text can be bold and/or italic.
+function renderRichText(root) {
+  return root.children.map((block, index) => {
+    if (block?.type === 'list') {
+      const items = (block.children || []).map((item, itemIndex) => (
+        <s-list-item key={itemIndex}>{renderInlines(item?.children)}</s-list-item>
+      ));
+      return block.listType === 'ordered'
+        ? <s-ordered-list key={index}>{items}</s-ordered-list>
+        : <s-unordered-list key={index}>{items}</s-unordered-list>;
+    }
+    return <s-paragraph key={index}>{renderInlines(block?.children)}</s-paragraph>;
+  });
+}
+
+function renderInlines(nodes) {
+  return (Array.isArray(nodes) ? nodes : []).map((node, index) => {
+    if (node?.type === 'link') {
+      const url = String(node.url || '');
+      const children = (node.children || []).map(renderLeaf);
+      return /^(https?:\/\/|mailto:|tel:|\/)/i.test(url)
+        ? <s-link key={index} href={url} target={/^https?:/i.test(url) ? '_blank' : 'auto'}>{children}</s-link>
+        : children;
+    }
+    return renderLeaf(node, index);
+  });
+}
+
+function renderLeaf(node, index) {
+  let content = String(node?.value || '');
+  if (node?.italic) content = <s-text type="emphasis">{content}</s-text>;
+  if (node?.bold) content = <s-text type="strong">{content}</s-text>;
+  return <s-text key={index}>{content}</s-text>;
 }
 
 function parseNotices(value) {
@@ -65,6 +104,9 @@ function parseNotices(value) {
       placement: String(notice?.placement || 'delivery'),
       countries: Array.isArray(notice?.countries) ? notice.countries.map(String) : [],
       dismissible: Boolean(notice?.dismissible),
+      richMessage: notice?.richMessage?.type === 'root' && Array.isArray(notice.richMessage.children)
+        ? notice.richMessage
+        : null,
     }));
   } catch {
     return [];

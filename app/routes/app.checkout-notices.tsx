@@ -3,6 +3,14 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { RichTextEditor, RichTextPreview } from "../components/RichTextEditor";
+import {
+  type RichText,
+  emptyRichText,
+  plainTextFromRichText,
+  richTextFromPlain,
+  sanitizeRichText,
+} from "../services/rich-text";
 
 // Checkout UI extensions only allow Shopify's banner tones, not custom colors,
 // so the tone is the merchant's colour choice.
@@ -21,11 +29,15 @@ const PLACEMENTS = [
 type Tone = (typeof TONES)[number]["value"];
 type Placement = (typeof PLACEMENTS)[number]["value"];
 type CheckoutNotice = {
-  id: string; enabled: boolean; heading: string; message: string;
+  id: string; enabled: boolean; heading: string;
+  // richMessage is what checkout renders; message is its plain-text copy for
+  // the block list, validation and older extension versions.
+  message: string; richMessage: RichText;
   tone: Tone; placement: Placement; countries: string[]; dismissible: boolean;
 };
 
 const MAX_NOTICES = 20;
+const MAX_MESSAGE = 1000;
 const SETTINGS_QUERY = `#graphql
   query CheckoutNoticeSettings {
     shop {
@@ -37,11 +49,13 @@ const SETTINGS_QUERY = `#graphql
 `;
 
 function sanitizeNotice(notice: Partial<CheckoutNotice>): CheckoutNotice {
+  const richMessage = sanitizeRichText(notice.richMessage) ?? richTextFromPlain(String(notice.message || "").slice(0, MAX_MESSAGE));
   return {
     id: String(notice.id || crypto.randomUUID()).slice(0, 64),
     enabled: notice.enabled !== false,
     heading: String(notice.heading || "").slice(0, 200),
-    message: String(notice.message || "").slice(0, 1000),
+    message: plainTextFromRichText(richMessage),
+    richMessage,
     tone: TONES.some((tone) => tone.value === notice.tone) ? notice.tone as Tone : "warning",
     placement: PLACEMENTS.some((placement) => placement.value === notice.placement) ? notice.placement as Placement : "delivery",
     countries: Array.isArray(notice.countries)
@@ -73,6 +87,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch {
     return { ok: false, error: "Notices payload is invalid." };
   }
+  const tooLong = notices.find((notice) => notice.message.length > MAX_MESSAGE);
+  if (tooLong) return { ok: false, error: `Messages can be up to ${MAX_MESSAGE} characters.` };
   const blank = notices.find((notice) => notice.enabled && !notice.message.trim());
   if (blank) return { ok: false, error: "Every active block needs a message." };
   const noCountry = notices.find((notice) => notice.enabled && notice.countries.length === 0);
@@ -139,6 +155,7 @@ export default function CheckoutNotices() {
       enabled: true,
       heading: "",
       message: "",
+      richMessage: emptyRichText(),
       tone: "warning",
       placement: "delivery",
       countries: data.countries.includes("CA") ? ["CA"] : [],
@@ -209,11 +226,10 @@ export default function CheckoutNotices() {
               const heading = event.currentTarget.value;
               update(editing.id, { heading });
             }} />
-            <s-text-area label="Message" rows={3} maxLength={1000} value={editing.message}
-              details="Line breaks are kept." onInput={(event) => {
-                const message = event.currentTarget.value;
-                update(editing.id, { message });
-              }} />
+            <RichTextEditor key={editing.id} label="Message" value={editing.richMessage} maxLength={MAX_MESSAGE}
+              placeholder="Write the message buyers see in checkout"
+              details="Bold, italic, links, lists and line breaks show in checkout."
+              onChange={(richMessage) => update(editing.id, { richMessage, message: plainTextFromRichText(richMessage) })} />
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
               <s-select label="Colour" value={editing.tone} onChange={(event) => {
                 const tone = event.currentTarget.value as Tone;
@@ -261,9 +277,9 @@ export default function CheckoutNotices() {
             <s-divider />
             <s-heading>Preview</s-heading>
             <s-banner tone={editing.tone} heading={editing.heading || undefined} dismissible={editing.dismissible}>
-              {editing.message.trim() ? editing.message.split("\n").filter((line) => line.trim()).map((line, index) => (
-                <s-paragraph key={index}>{line}</s-paragraph>
-              )) : <s-paragraph color="subdued">Your message will appear here.</s-paragraph>}
+              {editing.message.trim()
+                ? <RichTextPreview value={editing.richMessage} />
+                : <s-paragraph color="subdued">Your message will appear here.</s-paragraph>}
             </s-banner>
             <s-paragraph color="subdued">{"Checkout uses your store's checkout branding for the exact shade of this colour."}</s-paragraph>
 
