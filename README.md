@@ -1,5 +1,14 @@
 # Shopify App Template - React Router
 
+## Help Desk admin form
+
+- Open **Help Desk** in the embedded app navigation (`/app/help-desk`).
+- This first version is an admin-only form preview: **Check form** validates the active topic; it does not save tickets, send emails or upload images. Values are cleared when leaving/reloading the page.
+- Includes international shipping with paginated product search and multiple selections, wholesale/affiliate queries, order updates/issues, and returns/exchanges/refunds.
+- Images are required for defective/wrong products received and every return/exchange/refund issue. The preview accepts up to five JPG/PNG/WebP files of 5 MB each.
+- Storefront page assignment, signup links, submission storage/delivery and production deployment remain follow-up work.
+- Run `npm exec vitest run -- tests/help-desk.test.ts` for conditional validation coverage.
+
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
 
 Rather than cloning this repo, follow the [Quick Start steps](https://github.com/Shopify/shopify-app-template-react-router#quick-start).
