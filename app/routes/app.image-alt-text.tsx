@@ -5,11 +5,13 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 
 const ALT_MAX_LENGTH = 512;
-// Name searches load several products at once, so keep each one's media list short
-// enough to stay under the GraphQL query cost limit. A single product loads everything.
-const SEARCH_PRODUCT_LIMIT = 10;
-const SEARCH_MEDIA_LIMIT = 50;
+// Name searches load several products at once, so keep each one's media and variant
+// lists short enough to stay under the GraphQL query cost limit. A single product loads more.
+const SEARCH_PRODUCT_LIMIT = 8;
+const SEARCH_MEDIA_LIMIT = 40;
+const SEARCH_VARIANT_LIMIT = 20;
 const SINGLE_MEDIA_LIMIT = 250;
+const SINGLE_VARIANT_LIMIT = 100;
 
 type ProductImage = {
   id: string;
@@ -18,6 +20,7 @@ type ProductImage = {
   width: number | null;
   height: number | null;
   status: string;
+  suggestion: string;
 };
 
 type ProductDetail = {
@@ -37,12 +40,20 @@ type MediaNode = {
   image?: { url: string; width: number | null; height: number | null } | null;
 };
 
+type VariantNode = {
+  selectedOptions: Array<{ name: string; value: string }>;
+  media?: { nodes: Array<{ id: string }> } | null;
+};
+
 type ProductNode = {
   id: string;
   title: string;
   status: string;
+  vendor: string;
+  productType: string;
   mediaCount?: { count: number } | null;
   media?: { pageInfo: { hasNextPage: boolean }; nodes: MediaNode[] } | null;
+  variants?: { nodes: VariantNode[] } | null;
 };
 
 const PRODUCT_GID = "gid://shopify/Product/";
@@ -65,6 +76,8 @@ const PRODUCT_FIELDS = `#graphql
     id
     title
     status
+    vendor
+    productType
     mediaCount { count }
     media(first: $mediaLimit) {
       pageInfo { hasNextPage }
@@ -76,36 +89,91 @@ const PRODUCT_FIELDS = `#graphql
         ... on MediaImage { image { url width height } }
       }
     }
+    variants(first: $variantLimit) {
+      nodes {
+        selectedOptions { name value }
+        media(first: 1) { nodes { id } }
+      }
+    }
   }
 `;
 
 const PRODUCT_BY_ID_QUERY = `#graphql
   ${PRODUCT_FIELDS}
-  query ProductImagesForAltText($id: ID!, $mediaLimit: Int!) {
+  query ProductImagesForAltText($id: ID!, $mediaLimit: Int!, $variantLimit: Int!) {
     product(id: $id) { ...AltTextProductFields }
   }
 `;
 
 const PRODUCT_SEARCH_QUERY = `#graphql
   ${PRODUCT_FIELDS}
-  query ProductSearchForAltText($query: String!, $first: Int!, $mediaLimit: Int!) {
+  query ProductSearchForAltText($query: String!, $first: Int!, $mediaLimit: Int!, $variantLimit: Int!) {
     products(first: $first, query: $query, sortKey: TITLE) {
       nodes { ...AltTextProductFields }
     }
   }
 `;
 
+// Generic camera/export names carry no meaning, so they are never used in a suggestion.
+const GENERIC_FILE_WORDS = /^(img|image|dsc|dscn|dcim|pxl|photo|pic|picture|screenshot|screen shot|untitled|copy|final|edit|edited|new|web|large|small|thumb|thumbnail|product|main|front|default)$/i;
+
+// Turns "red-leather-wallet_open_1a2b3c4d.jpg?v=123" into "red leather wallet open".
+function wordsFromFileName(url: string, title: string): string {
+  const file = decodeURIComponent(url.split("?")[0].split("/").pop() || "");
+  const base = file.replace(/\.[a-z0-9]+$/i, "");
+  const titleWords = new Set(title.toLowerCase().split(/\s+/));
+  const words = base
+    .split(/[\s_\-.+]+/)
+    .filter((word) => word.length > 1)
+    // Drop hashes, UUID chunks, dimensions and plain numbers that Shopify or cameras append.
+    .filter((word) => !/^[0-9a-f]{6,}$/i.test(word) && !/\d{3,}/.test(word) && !/^\d+x\d+$/i.test(word))
+    .filter((word) => !GENERIC_FILE_WORDS.test(word))
+    // Skip words already in the product title so the suggestion doesn't repeat itself.
+    .filter((word) => !titleWords.has(word.toLowerCase()));
+  return words.length >= 1 && words.join("").length >= 3 ? words.join(" ").toLowerCase() : "";
+}
+
+// Builds a readable alt text for every image, preferring the variant the image belongs
+// to (e.g. "Leather wallet - Red / Large"), then meaningful file name words, then the
+// image's position. Suggestions are kept unique within the product.
+function suggestAltTexts(node: ProductNode, images: Array<{ id: string; url: string }>): string[] {
+  const variantLabel = new Map<string, string>();
+  for (const variant of node.variants?.nodes ?? []) {
+    const mediaId = variant.media?.nodes?.[0]?.id;
+    if (!mediaId || variantLabel.has(mediaId)) continue;
+    const values = variant.selectedOptions
+      .filter((option) => option.value && option.value !== "Default Title")
+      .map((option) => option.value);
+    if (values.length > 0) variantLabel.set(mediaId, values.join(" / "));
+  }
+
+  const title = node.title.trim();
+  const typeLabel = node.productType && !title.toLowerCase().includes(node.productType.toLowerCase()) ? node.productType.toLowerCase() : "";
+  const used = new Set<string>();
+
+  return images.map((image, index) => {
+    const detail = variantLabel.get(image.id) || wordsFromFileName(image.url, title);
+    let suggestion = detail ? `${title} - ${detail}` : index === 0 && typeLabel ? `${title} ${typeLabel}` : title;
+    if (used.has(suggestion.toLowerCase()) || (!detail && images.length > 1 && index > 0)) {
+      suggestion = `${suggestion} - view ${index + 1}`;
+    }
+    used.add(suggestion.toLowerCase());
+    return suggestion.slice(0, ALT_MAX_LENGTH);
+  });
+}
+
 function toProductDetail(node: ProductNode): ProductDetail {
-  const images = (node.media?.nodes ?? [])
-    .filter((m) => m.mediaContentType === "IMAGE")
-    .map((m) => ({
-      id: m.id,
-      alt: m.alt ?? "",
-      url: m.image?.url ?? "",
-      width: m.image?.width ?? null,
-      height: m.image?.height ?? null,
-      status: m.status,
-    }));
+  const mediaImages = (node.media?.nodes ?? []).filter((m) => m.mediaContentType === "IMAGE");
+  const suggestions = suggestAltTexts(node, mediaImages.map((m) => ({ id: m.id, url: m.image?.url ?? "" })));
+  const images = mediaImages.map((m, index) => ({
+    id: m.id,
+    alt: m.alt ?? "",
+    url: m.image?.url ?? "",
+    width: m.image?.width ?? null,
+    height: m.image?.height ?? null,
+    status: m.status,
+    suggestion: suggestions[index],
+  }));
   return {
     id: node.id,
     title: node.title,
@@ -123,22 +191,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (!q) return { q, products: [] as ProductDetail[], error: "" };
 
-  const gid = toProductGid(q);
-  if (gid) {
-    const response = await admin.graphql(PRODUCT_BY_ID_QUERY, { variables: { id: gid, mediaLimit: SINGLE_MEDIA_LIMIT } });
-    const json = await response.json();
-    const node: ProductNode | null = json.data?.product ?? null;
-    if (!node) return { q, products: [], error: `No product found with ID ${numericId(gid)}.` };
-    return { q, products: [toProductDetail(node)], error: "" };
-  }
+  try {
+    const gid = toProductGid(q);
+    if (gid) {
+      const response = await admin.graphql(PRODUCT_BY_ID_QUERY, {
+        variables: { id: gid, mediaLimit: SINGLE_MEDIA_LIMIT, variantLimit: SINGLE_VARIANT_LIMIT },
+      });
+      const json = await response.json();
+      const node: ProductNode | null = json.data?.product ?? null;
+      if (!node) return { q, products: [], error: `No product found with ID ${numericId(gid)}.` };
+      return { q, products: [toProductDetail(node)], error: "" };
+    }
 
-  const escaped = q.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const response = await admin.graphql(PRODUCT_SEARCH_QUERY, {
-    variables: { query: `title:*${escaped}*`, first: SEARCH_PRODUCT_LIMIT, mediaLimit: SEARCH_MEDIA_LIMIT },
-  });
-  const json = await response.json();
-  const nodes: ProductNode[] = json.data?.products?.nodes ?? [];
-  return { q, products: nodes.map(toProductDetail), error: "" };
+    const escaped = q.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const response = await admin.graphql(PRODUCT_SEARCH_QUERY, {
+      variables: { query: `title:*${escaped}*`, first: SEARCH_PRODUCT_LIMIT, mediaLimit: SEARCH_MEDIA_LIMIT, variantLimit: SEARCH_VARIANT_LIMIT },
+    });
+    const json = await response.json();
+    const nodes: ProductNode[] = json.data?.products?.nodes ?? [];
+    return { q, products: nodes.map(toProductDetail), error: "" };
+  } catch (error) {
+    console.error("Image alt text search failed", error);
+    return { q, products: [], error: "Couldn't load products from Shopify. Please try again." };
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -190,7 +265,8 @@ export default function ImageAltText() {
 
   useEffect(() => setSearch(q), [q]);
 
-  // Reset drafts whenever the loaded images (or their saved alt text) change.
+  // Existing alt text is loaded into each field; reset whenever the loaded images
+  // (or their saved alt text) change.
   const dataKey = products.map((p) => p.images.map((i) => i.id + i.alt).join("|")).join("||");
   useEffect(() => {
     setDrafts(Object.fromEntries(products.flatMap((p) => p.images.map((image) => [image.id, image.alt]))));
@@ -219,13 +295,14 @@ export default function ImageAltText() {
   };
 
   const totalImages = products.reduce((sum, p) => sum + p.images.length, 0);
+  const totalMissing = products.reduce((sum, p) => sum + p.images.filter((i) => !i.alt.trim()).length, 0);
 
   return (
     <s-page heading="Image alt text">
       <s-section heading="Find a product">
         <s-stack gap="base">
           <s-paragraph color="subdued">
-            Search by product name or product ID. Every image of the matching products is shown below with its alt text, ready to edit.
+            Search by product name or product ID. Existing alt text is filled in for every image; images without alt text get a suggestion you can use or edit.
           </s-paragraph>
           <s-grid gridTemplateColumns="1fr auto auto" gap="base" alignItems="end">
             <form onSubmit={(event) => { event.preventDefault(); goTo(search.trim()); }}>
@@ -242,7 +319,7 @@ export default function ImageAltText() {
               <s-text color="subdued">
                 {products.length === 0
                   ? <>No products match &ldquo;{q}&rdquo;.</>
-                  : <>{products.length} product{products.length === 1 ? "" : "s"} · {totalImages} image{totalImages === 1 ? "" : "s"} for &ldquo;{q}&rdquo;</>}
+                  : <>{products.length} product{products.length === 1 ? "" : "s"} · {totalImages} image{totalImages === 1 ? "" : "s"} · {totalMissing} missing alt text</>}
               </s-text>
               <s-button variant="tertiary" onClick={() => { setSearch(""); goTo(""); }}>Clear</s-button>
             </s-stack>
@@ -278,16 +355,16 @@ function ProductImages({ product, drafts, setDrafts, saving, onSave, onShowAll }
 }) {
   const valueOf = (image: ProductImage) => drafts[image.id] ?? image.alt;
   const changed = product.images.filter((image) => valueOf(image).trim() !== image.alt);
-  const missingCount = product.images.filter((image) => !valueOf(image).trim()).length;
+  const empty = product.images.filter((image) => !valueOf(image).trim());
 
-  const fillEmptyWithTitle = () => {
+  const setDraft = (id: string, value: string) => setDrafts((current) => ({ ...current, [id]: value }));
+
+  const useAllSuggestions = () => {
     setDrafts((current) => {
       const next = { ...current };
-      product.images.forEach((image, index) => {
-        if (!(next[image.id] ?? "").trim()) {
-          next[image.id] = product.images.length > 1 ? `${product.title} - image ${index + 1}` : product.title;
-        }
-      });
+      for (const image of product.images) {
+        if (!(next[image.id] ?? "").trim()) next[image.id] = image.suggestion;
+      }
       return next;
     });
   };
@@ -307,14 +384,14 @@ function ProductImages({ product, drafts, setDrafts, saving, onSave, onShowAll }
               <s-text color="subdued">ID {numericId(product.id)}</s-text>
               <s-badge tone={product.status === "ACTIVE" ? "success" : "neutral"}>{product.status.toLowerCase()}</s-badge>
               <s-badge>{product.images.length} image{product.images.length === 1 ? "" : "s"}</s-badge>
-              {product.images.length > 0 && (missingCount > 0
-                ? <s-badge tone="warning">{missingCount} missing alt text</s-badge>
+              {product.images.length > 0 && (empty.length > 0
+                ? <s-badge tone="warning">{empty.length} missing alt text</s-badge>
                 : <s-badge tone="success">All images have alt text</s-badge>)}
             </s-stack>
           </s-stack>
           {product.images.length > 0 && (
             <s-stack direction="inline" gap="small-200">
-              {missingCount > 0 && <s-button variant="tertiary" onClick={fillEmptyWithTitle}>Fill empty with title</s-button>}
+              {empty.length > 0 && <s-button icon="wand" onClick={useAllSuggestions}>Use {empty.length} suggestion{empty.length === 1 ? "" : "s"}</s-button>}
               <s-button disabled={changed.length === 0 || saving} onClick={discard}>Discard</s-button>
               <s-button variant="primary" disabled={changed.length === 0 || saving} onClick={() => onSave(changed)}
                 {...(saving && changed.length > 0 ? { loading: true } : {})}>
@@ -329,40 +406,18 @@ function ProductImages({ product, drafts, setDrafts, saving, onSave, onShowAll }
         {product.images.length === 0 ? (
           <s-paragraph color="subdued">This product has no images.</s-paragraph>
         ) : (
-          <s-grid gridTemplateColumns="repeat(auto-fill, minmax(240px, 1fr))" gap="base">
-            {product.images.map((image, index) => {
-              const value = valueOf(image);
-              const dirty = value.trim() !== image.alt;
-              return (
-                <s-box key={image.id} padding="small" border="base" borderRadius="base">
-                  <s-stack gap="small-200">
-                    <s-box borderRadius="base" overflow="hidden" background="subdued">
-                      <s-image src={image.url} alt={image.alt} aspectRatio="1/1" objectFit="contain" />
-                    </s-box>
-                    <s-stack direction="inline" gap="small-200" alignItems="center">
-                      <s-text type="strong">Image {index + 1}</s-text>
-                      {image.width && image.height && <s-text color="subdued">{image.width}×{image.height}</s-text>}
-                    </s-stack>
-                    <s-stack direction="inline" gap="small-200">
-                      {!value.trim() && <s-badge tone="warning">Missing alt</s-badge>}
-                      {dirty && <s-badge tone="info">Unsaved</s-badge>}
-                      {image.status !== "READY" && <s-badge tone="caution">{image.status.toLowerCase()}</s-badge>}
-                    </s-stack>
-                    <s-text-area label="Alt text" rows={3} maxLength={ALT_MAX_LENGTH} value={value}
-                      placeholder="Describe this image"
-                      details={`${value.length}/${ALT_MAX_LENGTH}`}
-                      onInput={(event) => {
-                        const next = event.currentTarget.value ?? "";
-                        setDrafts((current) => ({ ...current, [image.id]: next }));
-                      }} />
-                    <s-grid gridTemplateColumns="1fr auto" gap="small-200" alignItems="center">
-                      <s-link href={image.url} target="_blank">Open full size</s-link>
-                      <s-button disabled={!dirty || saving} onClick={() => onSave([image])}>Save</s-button>
-                    </s-grid>
-                  </s-stack>
-                </s-box>
-              );
-            })}
+          <s-grid gridTemplateColumns="repeat(4, minmax(0, 1fr))" gap="base">
+            {product.images.map((image, index) => (
+              <ImageCard
+                key={image.id}
+                image={image}
+                index={index}
+                value={valueOf(image)}
+                saving={saving}
+                onChange={(value) => setDraft(image.id, value)}
+                onSave={() => onSave([image])}
+              />
+            ))}
           </s-grid>
         )}
 
@@ -374,5 +429,57 @@ function ProductImages({ product, drafts, setDrafts, saving, onSave, onShowAll }
         )}
       </s-stack>
     </s-section>
+  );
+}
+
+function ImageCard({ image, index, value, saving, onChange, onSave }: {
+  image: ProductImage;
+  index: number;
+  value: string;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const dirty = value.trim() !== image.alt;
+  const hasSavedAlt = Boolean(image.alt.trim());
+  const isEmpty = !value.trim();
+
+  return (
+    <s-box padding="small" border="base" borderRadius="base">
+      <s-stack gap="small-200">
+        <s-box borderRadius="base" overflow="hidden" background="subdued">
+          <s-image src={image.url} alt={image.alt} aspectRatio="1/1" objectFit="contain" />
+        </s-box>
+
+        <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent="space-between">
+          <s-text type="strong">Image {index + 1}</s-text>
+          {dirty
+            ? <s-badge tone="info">Unsaved</s-badge>
+            : hasSavedAlt
+              ? <s-badge tone="success">Has alt</s-badge>
+              : <s-badge tone="warning">Missing alt</s-badge>}
+        </s-stack>
+
+        <s-text-area label="Alt text" rows={3} maxLength={ALT_MAX_LENGTH} value={value}
+          placeholder={image.suggestion}
+          details={`${value.length}/${ALT_MAX_LENGTH}`}
+          onInput={(event) => onChange(event.currentTarget.value ?? "")} />
+
+        {isEmpty && (
+          <s-box padding="small-200" background="subdued" borderRadius="base">
+            <s-stack gap="small-200">
+              <s-text color="subdued">Suggested</s-text>
+              <s-text>{image.suggestion}</s-text>
+              <s-button variant="secondary" icon="wand" onClick={() => onChange(image.suggestion)}>Use suggestion</s-button>
+            </s-stack>
+          </s-box>
+        )}
+
+        <s-grid gridTemplateColumns="1fr auto" gap="small-200" alignItems="center">
+          <s-link href={image.url} target="_blank">Full size</s-link>
+          <s-button disabled={!dirty || saving} onClick={onSave}>Save</s-button>
+        </s-grid>
+      </s-stack>
+    </s-box>
   );
 }
