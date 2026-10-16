@@ -25,6 +25,7 @@ export default function App() {
         <s-link href="/app/discount-checker">Discounts on product</s-link>
         <s-link href="/app/checkout-notices">Checkout notices</s-link>
         <s-link href="/app/inventory-sync">Inventory sync</s-link>
+        <s-link href="/app/image-alt-text">Image alt text</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>
