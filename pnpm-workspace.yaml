@@ -11,3 +11,5 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+  sharp: true
+  exifreader: false

@@ -20,9 +20,7 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app/dashboard">Dashboard</s-link>
         <s-link href="/app/help-desk">Help Desk</s-link>
-        <s-link href="/app">Free gift settings</s-link>
-        <s-link href="/app/no-discounts">No-discount products</s-link>
-        <s-link href="/app/discount-checker">Discounts on product</s-link>
+        <s-link href="/app/free-gift">Free gift settings</s-link>
         <s-link href="/app/checkout-notices">Checkout notices</s-link>
         <s-link href="/app/inventory-sync">Inventory sync</s-link>
         <s-link href="/app/image-alt-text">Image alt text</s-link>

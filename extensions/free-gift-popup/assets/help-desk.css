@@ -1,0 +1,192 @@
+/* Colours come from the block settings (defaults match Zion Cases: navy text, red accent). */
+.help-desk {
+  --hd-accent: #ef3a24;
+  --hd-text: #19213d;
+  --hd-muted: #5b6275;
+  --hd-border: #d4d6dd;
+  --hd-field: #f8f8f9;
+  --hd-ring: color-mix(in srgb, var(--hd-accent) 20%, transparent);
+  box-sizing: border-box;
+  /* The theme's .page-width wrapper sets the width, matching other sections. */
+  width: 100%;
+  margin: clamp(24px, 5vw, 56px) 0;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid #e4e5ea;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(25, 33, 61, .07);
+  color: var(--hd-text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.help-desk *, .help-desk *::before, .help-desk *::after { box-sizing: border-box; }
+.help-desk-header { margin-bottom: 28px; }
+.help-desk h2 {
+  margin: 0 0 12px;
+  color: var(--hd-text);
+  font-size: clamp(26px, 3.4vw, 36px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+.help-desk h2::after { content: ""; display: block; width: 48px; height: 3px; margin-top: 14px; border-radius: 3px; background: var(--hd-accent); }
+.help-desk-header p { margin: 0; color: var(--hd-muted); }
+
+.help-desk form, .help-desk fieldset, .help-desk [data-fields] { display: grid; gap: 20px; }
+.help-desk fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.help-desk form > fieldset > * { grid-column: 1 / -1; }
+@media (min-width: 640px) {
+  .help-desk form > fieldset { grid-template-columns: 1fr 1fr; column-gap: 16px; }
+  .help-desk form > fieldset > label:nth-child(-n+4) { grid-column: auto; }
+}
+
+.help-desk label, .help-desk legend { display: grid; gap: 8px; color: var(--hd-text); font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+.help-desk legend { display: block; margin-bottom: 4px; padding: 0; }
+.help-desk-required { color: var(--hd-accent); }
+.help-desk p { margin: 0; color: var(--hd-muted); font-size: 14px; }
+.help-desk a { color: var(--hd-accent); font-weight: 600; text-underline-offset: 3px; }
+
+.help-desk input:not([type=checkbox]):not([type=radio]):not([type=file]), .help-desk select, .help-desk textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 14px 16px;
+  border: 1px solid var(--hd-border);
+  border-radius: 10px;
+  background: var(--hd-field);
+  color: var(--hd-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+.help-desk ::placeholder { color: #9a9fae; opacity: 1; }
+.help-desk select {
+  appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%2319213d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  cursor: pointer;
+}
+.help-desk textarea { min-height: 130px; resize: vertical; }
+.help-desk input:hover, .help-desk select:hover, .help-desk textarea:hover { border-color: #b4b8c4; }
+.help-desk input:focus, .help-desk select:focus, .help-desk textarea:focus { outline: none; border-color: var(--hd-text); background-color: #fff; box-shadow: 0 0 0 4px var(--hd-ring); }
+/* Image upload: the transparent file input covers the drop zone, so clicks and drops reach it. */
+.help-desk-upload { display: grid; gap: 12px; }
+.help-desk-drop {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 28px 20px;
+  border: 1.5px dashed var(--hd-border);
+  border-radius: 12px;
+  background: var(--hd-field);
+  text-align: center;
+  transition: border-color .15s, background-color .15s;
+}
+.help-desk-drop:hover, .help-desk-drop.help-desk-dragging { border-color: var(--hd-accent); background: color-mix(in srgb, var(--hd-accent) 5%, #fff); }
+.help-desk-drop:focus-within { border-color: var(--hd-text); box-shadow: 0 0 0 4px var(--hd-ring); }
+.help-desk-drop strong { color: var(--hd-text); font-size: 15px; font-weight: 600; }
+.help-desk-drop small { color: var(--hd-muted); font-size: 13px; font-weight: 400; }
+.help-desk-drop[data-count]:not([data-count=""])::after { content: attr(data-count); margin-top: 6px; padding: 3px 10px; border-radius: 999px; background: var(--hd-text); color: #fff; font-size: 12px; font-weight: 600; }
+.help-desk-drop-icon {
+  width: 44px; height: 44px; margin-bottom: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--hd-accent) 12%, #fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='%23ef3a24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 15V4m0 0L6.5 8.5M11 4l4.5 4.5M3 15v2.5A1.5 1.5 0 0 0 4.5 19h13a1.5 1.5 0 0 0 1.5-1.5V15'/%3E%3C/svg%3E") center no-repeat;
+}
+.help-desk-drop input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.help-desk-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
+.help-desk-previews:empty { display: none; }
+.help-desk-previews figure { position: relative; margin: 0; overflow: hidden; border: 1px solid #e4e5ea; border-radius: 10px; background: #fff; }
+.help-desk-previews img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+.help-desk-previews figcaption { padding: 6px 8px; overflow: hidden; color: var(--hd-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.help-desk-previews figure.help-desk-invalid { border-color: var(--hd-accent); }
+.help-desk-previews figure.help-desk-invalid figcaption { color: var(--hd-accent); }
+.help-desk .help-desk-previews button { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 26px; min-height: 0; height: 26px; padding: 0; border-radius: 50%; background: rgba(25, 33, 61, .85); color: #fff; font-size: 16px; line-height: 1; letter-spacing: 0; }
+.help-desk .help-desk-previews button:hover { background: var(--hd-accent); box-shadow: none; transform: none; filter: none; }
+.help-desk input[type=checkbox], .help-desk input[type=radio] { width: 18px; height: 18px; margin: 0; accent-color: var(--hd-accent); flex: none; }
+
+.help-desk button {
+  min-height: 54px;
+  padding: 14px 28px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hd-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: filter .15s, transform .15s, box-shadow .15s;
+}
+.help-desk button:hover:not(:disabled) { filter: brightness(.93); box-shadow: 0 6px 18px color-mix(in srgb, var(--hd-accent) 30%, transparent); transform: translateY(-1px); }
+.help-desk button:disabled { opacity: .6; cursor: wait; }
+.help-desk button[type=submit] { margin-top: 8px; width: 100%; }
+.help-desk :focus-visible { outline: 3px solid var(--hd-text); outline-offset: 3px; }
+
+/* Yes / No answers as pill buttons */
+.help-desk legend ~ .help-desk-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid var(--hd-border);
+  border-radius: 10px;
+  background: var(--hd-field);
+  cursor: pointer;
+}
+.help-desk legend ~ .help-desk-choice:has(input:checked) { border-color: var(--hd-accent); background: color-mix(in srgb, var(--hd-accent) 7%, #fff); }
+.help-desk fieldset:has(> legend) { grid-template-columns: 1fr 1fr; gap: 12px; }
+.help-desk fieldset:has(> legend) > legend { grid-column: 1 / -1; }
+.help-desk .help-desk-results .help-desk-choice { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; font-weight: 400; font-size: 15px; cursor: pointer; }
+
+/* Product picker */
+.help-desk details { border: 1px solid var(--hd-border); border-radius: 10px; background: #fff; overflow: hidden; }
+.help-desk details[open] { padding-bottom: 16px; }
+.help-desk details > :not(summary) { margin: 12px 16px 0; }
+.help-desk summary { position: relative; padding: 16px 44px 16px 16px; background: var(--hd-field); font-size: 14px; font-weight: 600; list-style: none; cursor: pointer; }
+.help-desk summary::-webkit-details-marker { display: none; }
+.help-desk summary::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; border: solid var(--hd-text); border-width: 0 2px 2px 0; transform: translateY(-70%) rotate(45deg); transition: transform .15s; }
+.help-desk details[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+.help-desk details > button { justify-self: start; min-height: 44px; padding: 10px 20px; background: var(--hd-text); }
+.help-desk .help-desk-results { max-height: 260px; overflow: auto; padding: 4px; border: 1px solid #eceef2; border-radius: 8px; }
+.help-desk .help-desk-results .help-desk-choice:hover { background: var(--hd-field); }
+.help-desk .help-desk-selected { display: flex; flex-wrap: wrap; gap: 8px; }
+.help-desk .help-desk-selected:empty { display: none; }
+.help-desk .help-desk-thumb { flex: none; width: 44px; height: 44px; border-radius: 8px; border: 1px solid #eceef2; background: var(--hd-field); object-fit: cover; }
+.help-desk .help-desk-selected .help-desk-thumb { width: 26px; height: 26px; border-radius: 50%; }
+.help-desk .help-desk-selected button { display: inline-flex; align-items: center; gap: 8px; min-height: 0; padding: 4px 12px 4px 4px; border-radius: 999px; background: color-mix(in srgb, var(--hd-text) 8%, #fff); color: var(--hd-text); font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.help-desk .help-desk-selected button:hover { box-shadow: none; transform: none; background: color-mix(in srgb, var(--hd-accent) 12%, #fff); }
+
+/* Status messages */
+.help-desk [data-help-desk-status]:not(:empty) { margin-bottom: 24px; padding: 14px 18px; border-left: 4px solid #2f9e6a; border-radius: 10px; background: #edf8f2; color: #1d5c3f; font-size: 15px; overflow-wrap: anywhere; }
+.help-desk [data-help-desk-status][data-error=true] { border-left-color: var(--hd-accent); background: color-mix(in srgb, var(--hd-accent) 8%, #fff); color: #8f1f12; }
+.help-desk [data-help-desk-status]:not([data-error]) { border-left-color: var(--hd-border); background: var(--hd-field); color: var(--hd-muted); }
+.help-desk [data-help-desk-status] button { display: block; min-height: 44px; margin-top: 12px; padding: 10px 20px; }
+
+.help-desk .help-desk-trap { display: none; }
+.help-desk [hidden] { display: none !important; }
+
+/* Signed-in customers */
+.help-desk .help-desk-signed { padding: 12px 16px; border-radius: 10px; background: color-mix(in srgb, var(--hd-text) 5%, #fff); color: var(--hd-text); font-size: 14px; }
+.help-desk .help-desk-badge { margin-left: auto; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--hd-accent) 12%, #fff); color: var(--hd-accent); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.help-desk .help-desk-order-items { display: grid; gap: 2px; padding: 8px; border: 1px solid #eceef2; border-radius: 10px; background: #fff; }
+.help-desk .help-desk-order-items > div { display: flex; align-items: center; gap: 12px; padding: 6px; }
+.help-desk .help-desk-order-items span:not(.help-desk-thumb) { display: grid; color: var(--hd-text); font-size: 14px; font-weight: 500; }
+.help-desk .help-desk-order-items small { color: var(--hd-muted); font-size: 13px; font-weight: 400; }
+
+/* Signed-in customers' earlier requests. */
+.help-desk-history { margin-bottom: 24px; border: 1px solid #e4e5ea; border-radius: 12px; background: var(--hd-field); }
+.help-desk-history summary { padding: 14px 16px; font-weight: 600; cursor: pointer; }
+.help-desk-history ul { display: grid; gap: 0; margin: 0; padding: 0 16px 8px; list-style: none; }
+.help-desk-history li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; border-top: 1px solid #e4e5ea; }
+.help-desk-history li a { flex: 1 1 220px; }
+.help-desk-history small { color: var(--hd-muted); font-size: 13px; }
+.help-desk-pill { padding: 2px 10px; border-radius: 999px; background: #eef0f4; font-size: 12px; font-weight: 600; }
+.help-desk-pill[data-status="Waiting on customer"] { background: #e3effd; color: #003a80; }
+.help-desk-pill[data-status="Resolved"] { background: #d9f5e3; color: #0c5132; }
+.help-desk [data-help-desk-status] a { margin-left: 4px; }

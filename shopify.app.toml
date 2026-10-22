@@ -1,13 +1,18 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "51a9b5d934817d5ee594fe3ea396b7bb"
-name = "Free Gift Cart"
+name = "Zion App"
 application_url = "https://zion.netgains.org"
 embedded = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_discounts,write_validations,write_metaobjects,write_metaobject_definitions,read_inventory,write_inventory,read_locations"
+scopes = "write_products,write_discounts,write_validations,write_metaobjects,write_metaobject_definitions,read_inventory,write_inventory,read_locations,write_app_proxy,read_shipping,read_orders"
+
+[app_proxy]
+url = "/help-desk"
+prefix = "apps"
+subpath = "help-desk"
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"

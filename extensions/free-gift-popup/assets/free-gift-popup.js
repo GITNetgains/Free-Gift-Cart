@@ -171,6 +171,7 @@
         <p class="fgc-subheading">${escapeHtml(settings.subheading || "Choose 1 gift below and add it to your cart.")}</p>
         <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
         <div class="fgc-content"></div>
+        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </section></div>`);
     root.hidden = false;
     document.documentElement.classList.add("fgc-lock");

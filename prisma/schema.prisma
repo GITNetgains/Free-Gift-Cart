@@ -13,6 +13,164 @@ datasource db {
   url      = "file:dev.sqlite"
 }
 
+model HelpDeskTicket {
+  id          String @id @default(cuid())
+  shop        String
+  requestKey  String
+  name        String
+  email       String
+  topic       String
+  details     String
+  products    String
+  // Wrong-delivery tickets: products the customer received instead of the ones in products.
+  receivedProducts String @default("[]")
+  status      String @default("Open")
+  // Customer-facing ticket number, sequential per shop from 1001.
+  number      Int    @default(0)
+  priority    String @default("Normal")
+  assignee    String @default("")
+  // Comma-separated.
+  tags        String @default("")
+  // Shopify customer ID when a signed-in shopper submitted the ticket.
+  customerId  String @default("")
+  // Secret for the customer's tracking link; never shown to other shoppers.
+  accessToken String @unique @default("")
+  unread      Boolean @default(true)
+  // form (storefront Help Desk form) or chat (escalated from the chat widget).
+  channel     String @default("form")
+  // When staff last opened the ticket; later messages are marked new.
+  staffReadAt DateTime?
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  lastActivityAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attachments HelpDeskAttachment[]
+  messages    HelpDeskMessage[]
+  emails      HelpDeskEmail[]
+
+  @@unique([shop, requestKey])
+  @@unique([shop, number])
+  @@index([shop, createdAt])
+  @@index([shop, lastActivityAt])
+  @@index([shop, customerId])
+}
+
+// Conversation after the original request. kind: customer (portal reply),
+// reply (staff reply, visible to the customer), note (internal) or event (log).
+model HelpDeskMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  kind      String
+  author    String
+  body      String
+  emailed   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  ticket    HelpDeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+// Chat widget knowledge base: the bot answers with the best-matching entry.
+model HelpDeskFaq {
+  id        String   @id @default(cuid())
+  shop      String
+  question  String
+  // Comma-separated words and phrases customers might use.
+  keywords  String   @default("")
+  answer    String
+  createdAt DateTime @default(now())
+
+  @@index([shop])
+}
+
+// Questions asked to the chat bot. result: faq, order, none or escalated.
+model HelpDeskBotQuestion {
+  id        String   @id @default(cuid())
+  shop      String
+  question  String
+  result    String
+  faqId     String?
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+}
+
+// Outgoing emails, sent from a queue with retries.
+// kind: new-ticket, customer-reply (to the store), ack, reply, status (to the customer).
+// status: pending, processing, sent, skipped or failed.
+model HelpDeskEmail {
+  id            String    @id @default(cuid())
+  shop          String
+  ticketId      String
+  messageId     String?
+  kind          String
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  lastError     String    @default("")
+  nextAttemptAt DateTime  @default(now())
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+  ticket        HelpDeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([ticketId])
+}
+
+// Saved replies agents can insert into a response.
+model HelpDeskMacro {
+  id        String   @id @default(cuid())
+  shop      String
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([shop])
+}
+
+model HelpDeskAttachment {
+  id       String @id @default(cuid())
+  ticketId String
+  name     String
+  type     String
+  data     Bytes
+  // Set for images sent with a later customer message; null for the original request.
+  messageId String?
+  ticket   HelpDeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  scan     HelpDeskImageScan?
+
+  @@index([messageId])
+}
+
+// AI / authenticity scan of one customer image. Each *Result column holds
+// one detection layer's JSON (see app/services/image-scan/).
+// status: pending, completed or failed.
+// overallVerdict: likely_ai, duplicate, uncertain, likely_real or error.
+model HelpDeskImageScan {
+  id                      String   @id @default(cuid())
+  attachmentId            String   @unique
+  shop                    String
+  status                  String   @default("pending")
+  overallVerdict          String?
+  overallConfidence       Float?
+  contentHash             String?
+  perceptualHash          String?
+  duplicateOfAttachmentId String?
+  c2paResult              String?
+  watermarkResult         String?
+  exifResult              String?
+  hashResult              String?
+  classifierResult        String?
+  editResult              String?
+  error                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  attachment              HelpDeskAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@index([shop, contentHash])
+  @@index([status, updatedAt])
+}
+
 model Session {
   id            String    @id
   shop          String
@@ -73,4 +231,30 @@ model InventorySyncMember {
   pair            InventorySyncPair @relation(fields: [pairId], references: [id], onDelete: Cascade)
 
   @@unique([shop, inventoryItemId, locationId])
+}
+
+model HelpDeskSettings {
+  shop        String  @id
+  notify      Boolean @default(true)
+  notifyEmail String  @default("")
+  // Email customers a confirmation with their ticket number and tracking link.
+  autoReply   Boolean @default(true)
+  signature   String  @default("")
+  // Comma-separated names agents can assign tickets to.
+  team        String  @default("")
+  // Email the customer when staff move a ticket to In progress or Resolved.
+  statusEmails Boolean @default(true)
+  chatEnabled  Boolean @default(true)
+  chatGreeting String  @default("")
+  // Starter FAQs are added once, so deleting them sticks.
+  faqsSeeded   Boolean @default(false)
+  // AI photo check. Mode: suspicious (detector only for photos that aren't
+  // clear camera originals), always, or manual. Detector credentials are the
+  // store's own; they're never sent back to the browser.
+  aiDetectionEnabled  Boolean @default(true)
+  aiDetectorMode      String  @default("suspicious")
+  aiDetectionProvider String  @default("sightengine")
+  sightengineUser     String  @default("")
+  sightengineSecret   String  @default("")
+  truthscanKey        String  @default("")
 }

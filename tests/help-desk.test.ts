@@ -35,7 +35,9 @@ describe("Help desk validation", () => {
     expect(validateHelpDesk({ ...values, resolution: "Invalid" }, [], [image])).toHaveProperty("resolution");
   });
   it("handles wrongly ordered products without requiring issue images", () => {
-    expect(validateHelpDesk({ ...contact, topic: topics[3], orderType: orderTypes[2], orderNumber: "#1001", details: "Ordered the wrong size" }, [], [])).toEqual({});
+    const wrong = { ...contact, topic: topics[3], orderType: orderTypes[2], orderNumber: "#1001", details: "Received the small case instead of the large one" };
+    expect(validateHelpDesk(wrong, ["gid://shopify/Product/1"], [{ name: "case.jpg", size: 10, type: "image/jpeg" }], ["gid://shopify/Product/2"])).toEqual({});
+    expect(Object.keys(validateHelpDesk({ ...wrong, details: "" }, [], []))).toEqual(["receivedProducts", "products", "images"]);
   });
   it("rejects oversized, empty, unsupported and excessive images", () => {
     const values = { ...contact, topic: topics[3], orderType: orderTypes[1], issue: issues[2], orderNumber: "#1001", details: "Details" };

@@ -1,1 +1,7 @@
-{}
+{
+  "help_desk": {
+    "intro": "Share your details and choose a topic so we can help you.",
+    "loading": "Loading the help desk...",
+    "javascript_required": "Please enable JavaScript to submit a support request."
+  }
+}

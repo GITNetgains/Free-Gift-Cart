@@ -191,7 +191,7 @@ export default function DiscountChecker() {
   const loading = fetcher.state !== "idle";
 
   return (
-    <s-page heading="Discounts on product">
+    <s-page heading="Discount checker">
       <s-section heading="Check a product">
         <s-stack gap="base">
           <s-paragraph color="subdued">Search a product to see every active discount (code and automatic) and whether it currently applies to it.</s-paragraph>
@@ -208,7 +208,7 @@ export default function DiscountChecker() {
       {result && (
         <s-section heading={`Discounts (${result.discounts.length})`}>
           {result.restricted && (
-            <s-banner heading="No-discount product" tone="critical">This product is marked as No-Discount in your app settings. Any discount marked &ldquo;Yes&rdquo; below will block checkout while this product is in the cart.</s-banner>
+            <s-banner heading="Protected product" tone="critical">This product is on your Discount protection list. Any discount marked &ldquo;Yes&rdquo; below will block checkout while this product is in the cart.</s-banner>
           )}
           {result.discounts.length === 0 ? (
             <s-paragraph color="subdued">No active discounts found.</s-paragraph>

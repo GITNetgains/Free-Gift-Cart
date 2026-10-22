@@ -37,8 +37,12 @@ type CheckoutNotice = {
   // the HTML in the browser on edit); message is its plain-text copy for
   // the block list, validation and older extension versions.
   html: string; message: string; richMessage: RichText;
-  tone: Tone; placement: Placement; countries: string[]; dismissible: boolean;
+  tone: Tone; placement: Placement; countries: string[];
+  // A country listed here shows the block only in these province codes; a
+  // country without an entry shows it in all of its states.
+  states: Record<string, string[]>;
 };
+type Province = { code: string; name: string };
 
 const MAX_NOTICES = 20;
 const MAX_MESSAGE = 3000;
@@ -54,8 +58,38 @@ const SETTINGS_QUERY = `#graphql
   }
 `;
 
+// Provinces come from the shop's shipping zones, so they use the same codes
+// checkout reports for the shipping address. Shops rarely have more than a
+// handful of delivery profiles.
+const PROVINCES_QUERY = `#graphql
+  query CheckoutNoticeProvinces {
+    deliveryProfiles(first: 50) {
+      nodes {
+        profileLocationGroups {
+          countriesInAnyZone { country { code { countryCode } provinces { code name } } }
+        }
+      }
+    }
+  }
+`;
+
+function sanitizeStates(value: unknown, countries: string[]): Record<string, string[]> {
+  const states: Record<string, string[]> = {};
+  if (!value || typeof value !== "object") return states;
+  for (const country of countries) {
+    const codes = (value as Record<string, unknown>)[country];
+    if (Array.isArray(codes)) {
+      states[country] = [...new Set(codes.map((code) => String(code).toUpperCase()).filter((code) => /^[A-Z0-9-]{1,10}$/.test(code)))];
+    }
+  }
+  return states;
+}
+
 function sanitizeNotice(notice: Partial<CheckoutNotice>): CheckoutNotice {
   const richMessage = sanitizeRichText(notice.richMessage) ?? richTextFromPlain(String(notice.message || "").slice(0, MAX_MESSAGE));
+  const countries = Array.isArray(notice.countries)
+    ? [...new Set(notice.countries.map((code) => String(code).toUpperCase()).filter((code) => /^[A-Z]{2}$/.test(code)))]
+    : [];
   return {
     id: String(notice.id || crypto.randomUUID()).slice(0, 64),
     enabled: notice.enabled !== false,
@@ -65,11 +99,40 @@ function sanitizeNotice(notice: Partial<CheckoutNotice>): CheckoutNotice {
     html: sanitizeEditorHtml(notice.html) || richTextToHtml(richMessage),
     tone: TONES.some((tone) => tone.value === notice.tone) ? notice.tone as Tone : "warning",
     placement: PLACEMENTS.some((placement) => placement.value === notice.placement) ? notice.placement as Placement : "delivery",
-    countries: Array.isArray(notice.countries)
-      ? [...new Set(notice.countries.map((code) => String(code).toUpperCase()).filter((code) => /^[A-Z]{2}$/.test(code)))]
-      : [],
-    dismissible: Boolean(notice.dismissible),
+    countries,
+    states: sanitizeStates(notice.states, countries),
   };
+}
+
+type ProvincesResponse = { data?: { deliveryProfiles?: { nodes?: {
+  profileLocationGroups?: { countriesInAnyZone?: { country?: {
+    code?: { countryCode?: string | null }; provinces?: Province[];
+  } }[] }[];
+}[] } } };
+
+async function loadProvinces(admin: { graphql: (query: string) => Promise<Response> }) {
+  const byCountry = new Map<string, Map<string, string>>();
+  try {
+    const json = await (await admin.graphql(PROVINCES_QUERY)).json() as ProvincesResponse;
+    for (const profile of json.data?.deliveryProfiles?.nodes ?? []) {
+      for (const group of profile.profileLocationGroups ?? []) {
+        for (const { country } of group.countriesInAnyZone ?? []) {
+          const code = country?.code?.countryCode;
+          if (!code) continue;
+          const provinces = byCountry.get(code) ?? new Map<string, string>();
+          for (const province of country?.provinces ?? []) provinces.set(province.code.toUpperCase(), province.name);
+          byCountry.set(code, provinces);
+        }
+      }
+    }
+  } catch {
+    // Without the read_shipping scope (not yet approved) the page still works;
+    // countries just offer "All states" only.
+  }
+  return Object.fromEntries([...byCountry].map(([country, provinces]) => [
+    country,
+    [...provinces].map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name)),
+  ])) as Record<string, Province[]>;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -80,6 +143,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     notices: Array.isArray(saved?.notices) ? saved.notices.map(sanitizeNotice) : [],
     countries: (json.data?.shop?.shipsToCountries ?? []) as string[],
+    provinces: await loadProvinces(admin),
   };
 };
 
@@ -92,7 +156,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!Array.isArray(incoming)) throw new Error();
     notices = incoming.slice(0, MAX_NOTICES).map(sanitizeNotice);
   } catch {
-    return { ok: false, error: "Notices payload is invalid." };
+    return { ok: false, error: "Your changes couldn't be saved. Reload the page and try again." };
   }
   const tooLong = notices.find((notice) => notice.message.length > MAX_MESSAGE);
   if (tooLong) return { ok: false, error: `Messages can be up to ${MAX_MESSAGE} characters.` };
@@ -103,6 +167,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   const noCountry = notices.find((notice) => notice.enabled && notice.countries.length === 0);
   if (noCountry) return { ok: false, error: "Every active block needs at least one country." };
+  const noState = notices.find((notice) => notice.enabled && Object.values(notice.states).some((codes) => codes.length === 0));
+  if (noState) return { ok: false, error: "Pick at least one state, or choose \"All states\", for every country set to \"Select states\"." };
 
   const shopResponse = await admin.graphql(SETTINGS_QUERY);
   const shopJson = await shopResponse.json();
@@ -144,6 +210,13 @@ export default function CheckoutNotices() {
     [data.countries],
   );
   const editing = notices.find((notice) => notice.id === editingId);
+  const provinceName = (country: string, code: string) =>
+    data.provinces[country]?.find((province) => province.code === code)?.name || code;
+  const regionLabel = (notice: CheckoutNotice, country: string) => notice.states[country]
+    ? `${countryName(country)} (${notice.states[country].map((code) => provinceName(country, code)).join(", ") || "no states"})`
+    : countryName(country);
+  const withoutKey = (states: Record<string, string[]>, key: string) =>
+    Object.fromEntries(Object.entries(states).filter(([country]) => country !== key));
 
   useEffect(() => {
     if (!fetcher.data) return;
@@ -170,7 +243,7 @@ export default function CheckoutNotices() {
       tone: "warning",
       placement: "delivery",
       countries: data.countries.includes("CA") ? ["CA"] : [],
-      dismissible: false,
+      states: {},
     };
     setNotices((current) => [...current, notice]);
     setEditingId(notice.id);
@@ -210,7 +283,7 @@ export default function CheckoutNotices() {
               <s-table-body>{notices.map((notice) => (
                 <s-table-row key={notice.id}>
                   <s-table-cell><s-text>{notice.heading || notice.message.slice(0, 60) || "Untitled block"}</s-text></s-table-cell>
-                  <s-table-cell>{notice.countries.map(countryName).join(", ") || "—"}</s-table-cell>
+                  <s-table-cell>{notice.countries.map((country) => regionLabel(notice, country)).join(", ") || "—"}</s-table-cell>
                   <s-table-cell>{placementLabel(notice.placement)}</s-table-cell>
                   <s-table-cell><s-badge tone={notice.enabled ? "success" : "neutral"}>{notice.enabled ? "Active" : "Off"}</s-badge></s-table-cell>
                   <s-table-cell>
@@ -239,7 +312,7 @@ export default function CheckoutNotices() {
             }} />
             <RichTextEditor key={editing.id} label="Message" initialHtml={editing.html}
               placeholder="Write the message buyers see in checkout"
-              details="Checkout shows headings, bold, italic, links, lists, images and tables. Colours, underline, alignment and videos show as plain text."
+              details="Checkout shows headings, bold, italic, links, lists, images and tables. Colors, underline, alignment and videos show as plain text."
               counter={`${editing.message.length}/${MAX_MESSAGE}`}
               counterOver={editing.message.length > MAX_MESSAGE}
               onChange={(html) => {
@@ -247,7 +320,7 @@ export default function CheckoutNotices() {
                 update(editing.id, { html, richMessage, message: plainTextFromRichText(richMessage) });
               }} />
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-              <s-select label="Colour" value={editing.tone} onChange={(event) => {
+              <s-select label="Color" value={editing.tone} onChange={(event) => {
                 const tone = event.currentTarget.value as Tone;
                 update(editing.id, { tone });
               }}>
@@ -277,7 +350,10 @@ export default function CheckoutNotices() {
                   <s-stack direction="inline" gap="small-200">
                     {editing.countries.map((code) => (
                       <s-clickable-chip key={code} removable accessibilityLabel={`Remove ${countryName(code)}`}
-                        onRemove={() => update(editing.id, { countries: editing.countries.filter((item) => item !== code) })}>
+                        onRemove={() => update(editing.id, {
+                          countries: editing.countries.filter((item) => item !== code),
+                          states: withoutKey(editing.states, code),
+                        })}>
                         {countryName(code)}
                       </s-clickable-chip>
                     ))}
@@ -285,14 +361,54 @@ export default function CheckoutNotices() {
                 )}
             </s-stack>
 
-            <s-checkbox label="Let customers close this block" checked={editing.dismissible} onChange={(event) => {
-              const dismissible = event.currentTarget.checked;
-              update(editing.id, { dismissible });
-            }} />
+            {editing.countries.map((country) => {
+              const provinces = data.provinces[country] ?? [];
+              const selected = editing.states[country];
+              return (
+                <s-stack key={country} gap="small-200">
+                  <s-select label={`States in ${countryName(country)}`} value={selected ? "selected" : "all"}
+                    details={provinces.length ? undefined : "No states found in your shipping zones for this country, so the block shows in all of it."}
+                    onChange={(event) => {
+                      const states = event.currentTarget.value === "selected"
+                        ? { ...editing.states, [country]: [] }
+                        : withoutKey(editing.states, country);
+                      update(editing.id, { states });
+                    }}>
+                    <s-option value="all">All states</s-option>
+                    <s-option value="selected" disabled={!provinces.length}>Select states</s-option>
+                  </s-select>
+                  {selected && (
+                    <>
+                      <s-select label={`Show in these states of ${countryName(country)}`} value="" onChange={(event) => {
+                        const code = event.currentTarget.value;
+                        if (code && !selected.includes(code)) update(editing.id, { states: { ...editing.states, [country]: [...selected, code] } });
+                      }}>
+                        <s-option value="">Add a state…</s-option>
+                        {provinces.filter((province) => !selected.includes(province.code)).map((province) => (
+                          <s-option key={province.code} value={province.code}>{province.name}</s-option>
+                        ))}
+                      </s-select>
+                      {selected.length === 0
+                        ? <s-paragraph color="subdued">Pick at least one state. The block shows only when the checkout shipping address is in one of them.</s-paragraph>
+                        : (
+                          <s-stack direction="inline" gap="small-200">
+                            {selected.map((code) => (
+                              <s-clickable-chip key={code} removable accessibilityLabel={`Remove ${provinceName(country, code)}`}
+                                onRemove={() => update(editing.id, { states: { ...editing.states, [country]: selected.filter((item) => item !== code) } })}>
+                                {provinceName(country, code)}
+                              </s-clickable-chip>
+                            ))}
+                          </s-stack>
+                        )}
+                    </>
+                  )}
+                </s-stack>
+              );
+            })}
 
             <s-divider />
             <s-heading>Preview</s-heading>
-            <s-banner tone={editing.tone} heading={editing.heading || undefined} dismissible={editing.dismissible}>
+            <s-banner tone={editing.tone} heading={editing.heading || undefined}>
               {editing.richMessage.children.length
                 ? <RichTextPreview value={editing.richMessage} />
                 : <s-paragraph color="subdued">Your message will appear here.</s-paragraph>}
@@ -310,6 +426,7 @@ export default function CheckoutNotices() {
       <s-section slot="aside" heading="How it works">
         <s-stack gap="base">
           <s-paragraph>{"Each block shows only when the buyer's shipping country in checkout is one of the block's countries. For example, a Canada block appears when Canada is selected and stays hidden for the United States."}</s-paragraph>
+          <s-paragraph>{"Set a country to \"Select states\" to narrow it further: a block for Ontario and Quebec shows only when the shipping address is in one of those provinces."}</s-paragraph>
           <s-paragraph>{"One-time setup: in Settings → Checkout → Customize, add the \"Checkout notices\" app block to each placement you use."}</s-paragraph>
         </s-stack>
       </s-section>

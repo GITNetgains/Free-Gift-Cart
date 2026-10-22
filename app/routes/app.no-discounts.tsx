@@ -79,7 +79,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       validationId: incoming.validationId,
     };
   } catch {
-    return { ok: false, error: "Settings payload is invalid." };
+    return { ok: false, error: "Your changes couldn't be saved. Reload the page and try again." };
   }
 
   const validation = await ensureValidation(admin, settings.validationId);
@@ -141,7 +141,7 @@ export default function NoDiscountProducts() {
     if (!fetcher.data) return;
     if (fetcher.data.ok) {
       if (fetcher.data.settings) setSettings(fetcher.data.settings);
-      shopify.toast.show("No-discount products saved");
+      shopify.toast.show("Discount protection saved");
     } else if (fetcher.data.error) shopify.toast.show(fetcher.data.error, { isError: true });
   }, [fetcher.data, shopify]);
 
@@ -163,12 +163,12 @@ export default function NoDiscountProducts() {
   const save = () => fetcher.submit({ settings: JSON.stringify(settings) }, { method: "POST", encType: "application/x-www-form-urlencoded" });
 
   return (
-    <s-page heading="No-discount products">
+    <s-page heading="Discount protection">
       <s-button slot="primary-action" variant="primary" icon="save" onClick={save} {...(fetcher.state !== "idle" ? { loading: true } : {})}>Save</s-button>
       <s-section heading="Checkout protection">
         <s-stack gap="base">
           <s-switch label="Block checkout when these products receive a discount" checked={settings.enabled} onChange={(event) => {
-            const enabled = event.currentTarget.checked;
+            const enabled = (event.currentTarget.checked ?? false);
             setSettings((current) => ({ ...current, enabled }));
           }} />
           <s-paragraph color="subdued">Customers cannot complete checkout while any selected product has a discount. They must remove the discount first.</s-paragraph>

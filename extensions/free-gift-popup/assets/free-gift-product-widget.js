@@ -64,6 +64,7 @@
         <div class="fgpw-body"><div class="fgpw-products">${productCards}</div></div>
         <div class="fgpw-bottom"><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>10:00</b></span></div>
         <button class="fgpw-claim" type="button">🎁 &nbsp; CLAIM MY FREE GIFT</button><p class="fgpw-status" aria-live="polite"></p>
+        <p class="fgpw-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </div>`;
       root.hidden = false;
 
@@ -113,7 +114,27 @@
       }
     };
 
-    render();
+    // Hide the widget while a free gift is in the cart, and bring it back once
+    // the gift is removed (e.g. from the cart drawer in another tab).
+    let rendered = false;
+    const syncWithCart = async () => {
+      let hasGift = false;
+      try {
+        const response = await fetch(`${window.Shopify?.routes?.root || "/"}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
+        if (response.ok) hasGift = (await response.json()).items.some((item) => item.properties?._free_gift === "true");
+        else if (rendered) return;
+      } catch {
+        // Keep the current state; the next polling cycle retries.
+        if (rendered) return;
+      }
+      if (hasGift) { root.hidden = true; return; }
+      if (rendered) { root.hidden = false; return; }
+      rendered = true;
+      render();
+    };
+
+    syncWithCart();
+    window.setInterval(syncWithCart, 2000);
     window.setInterval(updateTimer, 1000);
   });
 })();

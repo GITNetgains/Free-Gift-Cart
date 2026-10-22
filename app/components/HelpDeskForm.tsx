@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
+import type { action as ticketAction } from "../routes/app.help-desk";
 import type { loader as productLoader } from "../routes/app.help-desk-products";
 import { countries, imagesRequired, issues, orderTypes, topics, updates, validateHelpDesk, type HelpDeskValues } from "../services/help-desk";
 
@@ -14,6 +15,24 @@ export default function HelpDeskForm() {
   const [fileKey, setFileKey] = useState(0);
   const statusRef = useRef<HTMLDivElement>(null);
   const productFetcher = useFetcher<typeof productLoader>();
+  const ticketFetcher = useFetcher<typeof ticketAction>();
+  const requestKey = useRef("");
+  const handledTicket = useRef("");
+  const [savedTicket, setSavedTicket] = useState("");
+  const saving = ticketFetcher.state !== "idle";
+  useEffect(() => {
+    if (ticketFetcher.state !== "idle" || !ticketFetcher.data) return;
+    if (ticketFetcher.data.ticketId && handledTicket.current !== ticketFetcher.data.ticketId) {
+      handledTicket.current = ticketFetcher.data.ticketId;
+      setSavedTicket(ticketFetcher.data.ticketId);
+      setValues({}); setProducts({}); setFiles([]); setErrors({});
+      setFileKey(previous => previous + 1);
+      requestKey.current = "";
+    } else if (Object.keys(ticketFetcher.data.errors).length) {
+      setErrors(ticketFetcher.data.errors); setChecked(true);
+    }
+    statusRef.current?.focus();
+  }, [ticketFetcher.data, ticketFetcher.state]);
   const topic = values.topic;
   const isPartner = topic === topics[1] || topic === topics[2];
   const isOrder = topic === topics[3];
@@ -22,6 +41,7 @@ export default function HelpDeskForm() {
 
   function change(key: string, input: string | undefined) {
     const value = input || "";
+    setSavedTicket("");
     setChecked(false);
     setErrors({});
     if (key === "topic") {
@@ -60,20 +80,31 @@ export default function HelpDeskForm() {
   }
 
   function checkForm() {
-    setErrors(validateHelpDesk(values, Object.keys(products), files));
+    if (saving) return;
+    const nextErrors = validateHelpDesk(values, Object.keys(products), files);
+    setErrors(nextErrors);
     setChecked(true);
+    setSavedTicket("");
+    if (!Object.keys(nextErrors).length) {
+      if (!requestKey.current) requestKey.current = crypto.randomUUID();
+      const form = new FormData();
+      form.set("requestKey", requestKey.current);
+      for (const [key, value] of Object.entries(values)) form.set(key, String(value));
+      for (const id of Object.keys(products)) form.append("products", id);
+      if (showImages) for (const file of files) form.append("images", file);
+      void ticketFetcher.submit(form, { method: "post", encType: "multipart/form-data", action: "/app/help-desk" });
+    }
     requestAnimationFrame(() => statusRef.current?.focus());
   }
 
   return <s-page heading="Help Desk" inlineSize="base">
-    <s-badge slot="primary-action" tone="info">Form preview</s-badge>
     <s-section>
-      <s-banner heading="Preview your help desk form" tone="info">
-        Explore each topic and check the required fields. Requests and images are not saved or sent yet.
+      <s-banner heading="Create a support ticket" tone="info">
+        Save customer requests and images, then review and update their status below. Tickets are stored in this app; email notifications are not sent.
       </s-banner>
     </s-section>
     <form onSubmit={event => { event.preventDefault(); checkForm(); }} noValidate>
-      <s-stack gap="base">
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><s-stack gap="base">
         <s-section heading="Contact information">
           <s-stack gap="base">
             {textField("name", "Name")}
@@ -148,11 +179,11 @@ export default function HelpDeskForm() {
                 {select("issue", "Product issue", issues.slice(0, 3))}
                 {textField("details", "Issue details", true, "Share in detail", true)}
               </>}
-              {values.orderType === orderTypes[2] && textField("details", "Wrong product ordered", true, "Tell us which product you ordered and which product you intended to order", true)}
+              {values.orderType === orderTypes[2] && textField("details", "What did you receive instead?", true, "Describe the product you received and how it differs from what you ordered", true)}
             </>}
             {showImages && <div>
               <label htmlFor="help-desk-images">Upload images {imagesRequired(values) ? "(required)" : "(optional)"}</label>
-              <p id="help-desk-image-help">Up to 5 JPG, PNG or WebP images, 5 MB each. Files stay in this preview and are not uploaded.</p>
+              <p id="help-desk-image-help">Up to 5 JPG, PNG or WebP images, 5 MB each. Images are saved with the ticket.</p>
               <input key={fileKey} id="help-desk-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple required={imagesRequired(values)} aria-describedby="help-desk-image-help help-desk-image-error" aria-invalid={Boolean(errors.images)} onChange={event => { setFiles(Array.from((event.currentTarget as HTMLInputElement).files || [])); setChecked(false); setErrors({}); }} />
               <div id="help-desk-image-error">{errors.images && <s-text tone="critical">{errors.images}</s-text>}</div>
               {files.length > 0 && <><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</li>)}</ul><s-button type="button" onClick={() => { setFiles([]); setFileKey(previous => previous + 1); setChecked(false); setErrors({}); }}>Clear images</s-button></>}
@@ -163,16 +194,16 @@ export default function HelpDeskForm() {
         <s-section>
           <s-stack gap="base">
             <div ref={statusRef} tabIndex={-1} role="status">
-              {checked && (Object.keys(errors).length ? <s-banner tone="critical" heading="Check the required fields"><ul>{Object.entries(errors).map(([key, error]) => <li key={key}>{String(error)}</li>)}</ul></s-banner> : <s-banner tone="success" heading="Form validation passed">The form is complete. This preview has not saved or sent a request.</s-banner>)}
+              {savedTicket && <s-banner tone="success" heading="Ticket saved">Reference: {savedTicket}. You can review it in the ticket list below.</s-banner>}
+              {checked && Object.keys(errors).length > 0 && <s-banner tone="critical" heading="Check the required fields"><ul>{Object.entries(errors).map(([key, error]) => <li key={key}>{String(error)}</li>)}</ul></s-banner>}
             </div>
             <s-stack direction="inline" gap="base">
-              <s-button type="submit" variant="primary">Check form</s-button>
-              <s-button type="button" onClick={() => { setValues({}); setProducts({}); setFiles([]); setErrors({}); setChecked(false); setFileKey(previous => previous + 1); }}>Reset form</s-button>
+              <s-button type="submit" variant="primary" loading={saving}>Submit ticket</s-button>
+              <s-button type="button" onClick={() => { requestKey.current = ""; setSavedTicket(""); setValues({}); setProducts({}); setFiles([]); setErrors({}); setChecked(false); setFileKey(previous => previous + 1); }}>Reset form</s-button>
             </s-stack>
           </s-stack>
         </s-section>
-      </s-stack>
+      </s-stack></fieldset>
     </form>
   </s-page>;
 }
-

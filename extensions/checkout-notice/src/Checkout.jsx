@@ -22,6 +22,9 @@ function Extension() {
   // The checkout country follows the shipping address, so a notice limited to
   // Canada appears as soon as the buyer picks Canada and hides for the US.
   const country = shopify.localization.country.value?.isoCode;
+  // The province needs protected customer data access; without it a notice
+  // limited to certain states stays hidden rather than showing everywhere.
+  const province = shopify.shippingAddress?.value?.provinceCode?.toUpperCase();
   const entry = shopify.appMetafields.value.find(({target, metafield}) =>
     target.type === 'shop' && metafield.namespace === NAMESPACE && metafield.key === KEY);
   const notices = parseNotices(entry?.metafield.value).filter((notice) =>
@@ -29,7 +32,8 @@ function Extension() {
     notice.placement === placement &&
     notice.message.trim() &&
     country &&
-    notice.countries.includes(country));
+    notice.countries.includes(country) &&
+    (!notice.states[country] || (province && notice.states[country].includes(province))));
   if (!notices.length) return null;
 
   return (
@@ -39,7 +43,6 @@ function Extension() {
           key={notice.id}
           tone={TONES.has(notice.tone) ? notice.tone : 'info'}
           heading={notice.heading.trim() || undefined}
-          dismissible={notice.dismissible}
         >
           <s-stack gap="small-200">
             {notice.richMessage
@@ -113,6 +116,13 @@ function renderLeaf(node, index) {
   return <s-text key={index}>{content}</s-text>;
 }
 
+function parseStates(value) {
+  if (!value || typeof value !== 'object') return {};
+  return Object.fromEntries(Object.entries(value)
+    .filter(([, codes]) => Array.isArray(codes))
+    .map(([country, codes]) => [country, codes.map((code) => String(code).toUpperCase())]));
+}
+
 function parseNotices(value) {
   try {
     const data = typeof value === 'string' ? JSON.parse(value) : value;
@@ -125,7 +135,7 @@ function parseNotices(value) {
       tone: String(notice?.tone || 'info'),
       placement: String(notice?.placement || 'delivery'),
       countries: Array.isArray(notice?.countries) ? notice.countries.map(String) : [],
-      dismissible: Boolean(notice?.dismissible),
+      states: parseStates(notice?.states),
       richMessage: notice?.richMessage?.type === 'root' && Array.isArray(notice.richMessage.children)
         ? notice.richMessage
         : null,

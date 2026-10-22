@@ -1,0 +1,28 @@
+<div class="hd-chat" data-hd-chat hidden
+  data-endpoint="{{ block.settings.proxy_path | escape }}"
+  data-title="{{ block.settings.title | escape }}"
+  data-position="{{ block.settings.position }}"
+  style="--hdc-accent: {{ block.settings.accent_color }};">
+  {%- if customer -%}
+    {%- comment -%} Prefills the hand-off form for signed-in customers; order lookups use the signed proxy request. {%- endcomment -%}
+    <script type="application/json" data-hd-chat-customer>{"name": {{ customer.name | json }}, "email": {{ customer.email | json }}}</script>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "Help Desk chat",
+  "target": "body",
+  "stylesheet": "help-desk-chat.css",
+  "javascript": "help-desk-chat.js",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Chat title", "default": "Chat with us" },
+    { "type": "color", "id": "accent_color", "label": "Accent colour", "default": "#19213D" },
+    {
+      "type": "select", "id": "position", "label": "Position", "default": "right",
+      "options": [{ "value": "right", "label": "Bottom right" }, { "value": "left", "label": "Bottom left" }]
+    },
+    { "type": "text", "id": "proxy_path", "label": "App proxy path", "default": "/apps/help-desk", "info": "Match the app proxy path configured for this store." }
+  ]
+}
+{% endschema %}

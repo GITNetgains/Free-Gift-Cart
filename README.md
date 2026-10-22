@@ -1,13 +1,16 @@
 # Shopify App Template - React Router
 
-## Help Desk admin form
+## Help Desk
 
-- Open **Help Desk** in the embedded app navigation (`/app/help-desk`).
-- This first version is an admin-only form preview: **Check form** validates the active topic; it does not save tickets, send emails or upload images. Values are cleared when leaving/reloading the page.
-- Includes international shipping with paginated product search and multiple selections, wholesale/affiliate queries, order updates/issues, and returns/exchanges/refunds.
-- Images are required for defective/wrong products received and every return/exchange/refund issue. The preview accepts up to five JPG/PNG/WebP files of 5 MB each.
-- Storefront page assignment, signup links, submission storage/delivery and production deployment remain follow-up work.
-- Run `npm exec vitest run -- tests/help-desk.test.ts` for conditional validation coverage.
+- Customers submit requests through the **Help Desk form** theme app block. Staff review tickets and update their status at `/app/help-desk` inside the embedded admin app.
+- Tickets save contact details, topic-specific fields, selected product IDs and image attachments in SQLite. Review tickets in pages of 20 and change status to Open, In progress or Resolved.
+- Images are required for defective/wrong products received and every return/exchange/refund issue. Up to five JPG/PNG/WebP images of 5 MB each are supported, with server-side size, type and file signature validation.
+- Tickets and attachments are restricted to the authenticated store. Repeated submissions using the same request key do not create duplicate tickets.
+- Run `npm run setup` to generate Prisma and apply migrations. Production requires persistent database storage, including for the stored images.
+- The storefront block uses the signed Shopify app proxy at `/apps/help-desk`. Customer login is not required. The server derives the owning store from the verified proxy session; public requests cannot read tickets or change statuses. Saving a request does not email the customer or change their Shopify order.
+- Run `npm test -- tests/help-desk.test.ts tests/help-desk-storage.test.ts tests/help-desk-proxy.test.ts` for validation, persistence and public-route coverage.
+- To activate: deploy the app server and theme extension, apply migrations, deploy the app configuration with the `write_app_proxy` scope, then add **Help Desk form** to your support page in the theme editor. Set the wholesale and affiliate signup page URLs in the block settings. If the store customized its proxy path, match it in the block settings. Until signup URLs are configured, new partners can submit their query using the shared contact fields.
+- Product selection starts with 50 storefront products and supports searching for more using Shopify predictive search; selected products stay selected across searches. See [Shopify app proxies](https://shopify.dev/docs/apps/build/online-store/app-proxies) and [predictive search](https://shopify.dev/docs/api/ajax/reference/predictive-search).
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
 

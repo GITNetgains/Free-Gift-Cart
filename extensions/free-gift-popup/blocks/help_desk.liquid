@@ -1,0 +1,69 @@
+<div class="page-width help-desk-page">
+<div class="help-desk" data-help-desk
+  data-endpoint="{{ block.settings.proxy_path | escape }}"
+  data-wholesale-url="{{ block.settings.wholesale_url | escape }}"
+  data-affiliate-url="{{ block.settings.affiliate_url | escape }}"
+  style="--hd-accent: {{ block.settings.accent_color }}; --hd-text: {{ block.settings.text_color }};"
+  {{ block.shopify_attributes }}>
+  <div class="help-desk-header">
+    <h2>{{ block.settings.heading | escape }}</h2>
+    <p>{{ 'help_desk.intro' | t }}</p>
+  </div>
+  <div data-help-desk-status role="status" tabindex="-1">{{ 'help_desk.loading' | t }}</div>
+  <div data-help-desk-form></div>
+  <noscript>{{ 'help_desk.javascript_required' | t }}</noscript>
+  {%- if customer -%}
+    {%- comment -%} Only the signed-in customer's own page gets this; it prefills contact fields and lists their orders. {%- endcomment -%}
+    <script type="application/json" data-help-desk-customer>
+      {
+        "name": {{ customer.name | json }},
+        "email": {{ customer.email | json }},
+        "phone": {{ customer.phone | default: customer.default_address.phone | json }},
+        "orders": [
+          {%- for order in customer.orders limit: 20 -%}
+            {
+              "name": {{ order.name | json }},
+              "date": {{ order.created_at | date: '%b %-d, %Y' | json }},
+              "fulfillment": {{ order.fulfillment_status | json }},
+              "cancelled": {% if order.cancelled %}true{% else %}false{% endif %},
+              "items": [
+                {%- for item in order.line_items -%}
+                  {
+                    "id": {% if item.product_id %}{{ item.product_id | prepend: 'gid://shopify/Product/' | json }}{% else %}""{% endif %},
+                    "title": {{ item.product.title | default: item.title | json }},
+                    "variant": {% if item.variant.title != 'Default Title' %}{{ item.variant.title | json }}{% else %}""{% endif %},
+                    "quantity": {{ item.quantity | json }},
+                    "image": {% if item.image %}{{ item.image | image_url: width: 120 | json }}{% else %}""{% endif %}
+                  }{% unless forloop.last %},{% endunless %}
+                {%- endfor -%}
+              ]
+            }{% unless forloop.last %},{% endunless %}
+          {%- endfor -%}
+        ]
+      }
+    </script>
+  {%- endif -%}
+  <select data-help-desk-products hidden disabled aria-hidden="true">
+    {% for product in collections.all.products limit: 50 %}
+      <option value="gid://shopify/Product/{{ product.id }}"{% if product.featured_image %} data-image="{{ product.featured_image | image_url: width: 120 }}"{% endif %}>{{ product.title | escape }}</option>
+    {% endfor %}
+  </select>
+</div>
+</div>
+
+{% schema %}
+{
+  "name": "Help Desk form",
+  "target": "section",
+  "stylesheet": "help-desk.css",
+  "javascript": "help-desk.js",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "How can we help you?" },
+    { "type": "color", "id": "accent_color", "label": "Button and accent colour", "default": "#EF3A24" },
+    { "type": "color", "id": "text_color", "label": "Text colour", "default": "#19213D" },
+    { "type": "text", "id": "proxy_path", "label": "App proxy path", "default": "/apps/help-desk", "info": "Match the app proxy path configured for this store." },
+    { "type": "url", "id": "wholesale_url", "label": "Wholesale signup page" },
+    { "type": "url", "id": "affiliate_url", "label": "Affiliate signup page" }
+  ]
+}
+{% endschema %}

@@ -60,7 +60,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
       <s-button slot="secondary-actions" href="/app/dashboard">Back to dashboard</s-button>
       {notice && <s-banner heading="Inventory sync" tone="info">{notice}</s-banner>}
       {!workerEnabled && <s-banner heading="Sync worker is off" tone="warning">Links can be saved, but inventory will not change until the server&apos;s inventory sync worker is enabled.</s-banner>}
-      {(error || pickError) && <s-banner heading="Please check" tone="critical">{error || pickError}</s-banner>}
+      {(error || pickError) && <s-banner heading="Something needs fixing" tone="critical">{error || pickError}</s-banner>}
       <s-section>
         <s-stack gap="base">
           <s-stack direction="inline" gap="base" alignItems="center">
@@ -91,7 +91,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
               </s-box>;
             })}
           </s-grid>
-          <s-select label="Inventory location" value={location} disabled={busy || !locations.length} onChange={(event) => { setLocationId(event.currentTarget.value); setAcknowledged(false); }}>
+          <s-select label="Inventory location" value={location} disabled={busy || !locations.length} onChange={(event) => { setLocationId(event.currentTarget.value ?? ""); setAcknowledged(false); }}>
             {!locations.length && <s-option value="">No available locations</s-option>}
             {locations.map((entry) => <s-option key={entry.id} value={entry.id}>{entry.name}</s-option>)}
           </s-select>
@@ -110,7 +110,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
                 </s-table-header-row>
                 <s-table-body>{previewResult.matches.map((match) => <s-table-row key={match.originalId}>
                   <s-table-cell><s-stack direction="inline" gap="small" alignItems="center">
-                    <s-checkbox checked={Boolean(checked[match.originalId])} onChange={(event) => setChecked((prev) => ({ ...prev, [match.originalId]: event.currentTarget.checked }))} />
+                    <s-checkbox checked={Boolean(checked[match.originalId])} onChange={(event) => setChecked((prev) => ({ ...prev, [match.originalId]: (event.currentTarget.checked ?? false) }))} />
                     <s-text>{match.originalTitle} &rarr; {match.duplicateTitle}</s-text>
                   </s-stack></s-table-cell>
                   <s-table-cell>{match.originalQuantity}</s-table-cell>
@@ -122,7 +122,7 @@ export default function InventorySyncDashboard({ pairs, locations, workerEnabled
             {previewResult.unmatchedDuplicate.length > 0 && <s-banner heading="No matching original variant" tone="warning">{previewResult.unmatchedDuplicate.join(", ")}</s-banner>}
             {previewResult.invalid.length > 0 && <s-banner heading="Skipped &mdash; fix these first" tone="warning">{previewResult.invalid.join(" ")}</s-banner>}
             {previewResult.matches.length > 0 && <s-stack gap="base">
-              <s-checkbox label="Both listings represent the same physical stock. Replace each duplicate's starting available quantity with the original's quantity when sync runs." checked={acknowledged} onChange={(event) => setAcknowledged(event.currentTarget.checked)} />
+              <s-checkbox label="Both listings represent the same physical stock. Replace each duplicate's starting available quantity with the original's quantity when sync runs." checked={acknowledged} onChange={(event) => setAcknowledged((event.currentTarget.checked ?? false))} />
               <s-button variant="primary" disabled={busy || !selectedMatches.length || !acknowledged} loading={busy} onClick={() => {
                 onAction({ intent: "create-bulk", pairs: JSON.stringify(selectedMatches.map((match) => ({ originalId: match.originalId, duplicateId: match.duplicateId }))), locationId: location, acknowledged: "true" });
               }}>Save {selectedMatches.length || ""} inventory link{selectedMatches.length === 1 ? "" : "s"}</s-button>

@@ -8,7 +8,8 @@ import styles from "./styles.module.css";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
-  if (url.searchParams.get("shop")) {
+  // Anything opened from Shopify admin goes straight into the app (and on to the dashboard).
+  if (url.searchParams.get("shop") || url.searchParams.get("host") || url.searchParams.get("embedded")) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
@@ -21,9 +22,9 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Zion App</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Free gifts, a customer help desk and checkout tools for your Shopify store.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
@@ -39,16 +40,16 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Free gift offer</strong>. Reward carts over a set amount with a
+            free gift, added from a cart popup and discounted automatically.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Help Desk</strong>. A storefront support form with order lookup
+            and image uploads, with every request in one place.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Checkout tools</strong>. Country and state checkout notices,
+            discount protection and inventory sync.
           </li>
         </ul>
       </div>
