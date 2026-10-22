@@ -7,6 +7,7 @@ vi.mock("../app/shopify.server", () => ({ authenticate: { public: { appProxy: mo
 vi.mock("../app/db.server", () => ({ default: mocks.db }));
 vi.mock("../app/services/help-desk.server", () => ({
   readHelpDeskForm: mocks.read, submitTicket: mocks.submit, addCustomerMessage: mocks.reply, startChat: mocks.startChat, MAX_REPLY_IMAGES: 3,
+  customerCanReply: (ticket: { channel: string; status: string }) => ticket.channel === "chat" || ticket.status === "Waiting on customer",
 }));
 vi.mock("../app/services/help-desk-chat.server", () => ({ answerQuestion: mocks.ask, chatConfig: vi.fn() }));
 vi.mock("../app/services/help-desk-outbox.server", () => ({ queueEmail: mocks.queue, ensureWorker: vi.fn() }));

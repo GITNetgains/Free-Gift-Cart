@@ -206,6 +206,10 @@ export async function addStaffMessage(db: PrismaClient, shop: string, id: string
 // A customer's reply from their tracking page. Reopens waiting or resolved tickets.
 export const MAX_REPLY_IMAGES = 3;
 
+// Form tickets take customer messages only after the team has replied
+// (status "Waiting on customer"); live chats stay open so the chat keeps flowing.
+export const customerCanReply = (ticket: { channel: string; status: string }) => ticket.channel === "chat" || ticket.status === "Waiting on customer";
+
 export async function addCustomerMessage(db: PrismaClient, shop: string, token: string, text: string, files: File[] = []): Promise<MessageResult> {
   const body = text.trim();
   if (!/^[a-f0-9]{48}$/.test(token)) return { errors: { form: "This link is not valid." } };
@@ -219,6 +223,7 @@ export async function addCustomerMessage(db: PrismaClient, shop: string, token: 
   if ("error" in images) return { errors: { images: images.error } };
   const ticket = await db.helpDeskTicket.findFirst({ where: { shop, accessToken: token } });
   if (!ticket) return { errors: { form: "This request could not be found." } };
+  if (!customerCanReply(ticket)) return { errors: { form: "You can add a message once our team replies. We'll let you know when they do." } };
   const message = await db.helpDeskMessage.create({
     data: { ticketId: ticket.id, kind: "customer", author: ticket.name, body: body || `Sent ${files.length} image${files.length === 1 ? "" : "s"}` },
   });
@@ -228,4 +233,34 @@ export async function addCustomerMessage(db: PrismaClient, shop: string, token: 
   await db.helpDeskTicket.update({ where: { id: ticket.id }, data: { lastActivityAt: new Date(), unread: true } });
   if (ticket.status === "Waiting on customer" || ticket.status === "Resolved") await updateTickets(db, shop, [ticket.id], { status: "Open" }, ticket.name);
   return { errors: {}, messageId: message.id, ticketId: ticket.id };
+}
+
+// Permanently deletes the shop's tickets. Messages, images, image scans and
+// queued emails go with them (cascading relations). Returns how many were deleted.
+export async function deleteTickets(db: PrismaClient, shop: string, ids: string[]) {
+  const { count } = await db.helpDeskTicket.deleteMany({ where: { shop, id: { in: ids.slice(0, 100) } } });
+  return count;
+}
+
+// Privacy: a customer asked the store to erase their data (customers/redact).
+// Removes every ticket opened with their email or Shopify customer ID.
+export async function redactCustomer(db: PrismaClient, shop: string, customer: { email?: string | null; id?: string | number | null }) {
+  const email = customer.email?.trim();
+  const id = customer.id != null ? String(customer.id) : "";
+  const or = [...(email ? [{ email }] : []), ...(/^\d+$/.test(id) ? [{ customerId: id }] : [])];
+  if (!or.length) return 0;
+  const { count } = await db.helpDeskTicket.deleteMany({ where: { shop, OR: or } });
+  return count;
+}
+
+// Privacy: the store uninstalled the app 48 hours ago (shop/redact). Erases
+// all Help Desk data held for it.
+export async function purgeShop(db: PrismaClient, shop: string) {
+  await db.$transaction([
+    db.helpDeskTicket.deleteMany({ where: { shop } }),
+    db.helpDeskFaq.deleteMany({ where: { shop } }),
+    db.helpDeskBotQuestion.deleteMany({ where: { shop } }),
+    db.helpDeskMacro.deleteMany({ where: { shop } }),
+    db.helpDeskSettings.deleteMany({ where: { shop } }),
+  ]);
 }

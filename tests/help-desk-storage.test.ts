@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addCustomerMessage, addStaffMessage, CHAT_TOPIC, readHelpDeskForm, startChat, submitTicket, updateTickets, updateTicketStatus } from "../app/services/help-desk.server";
+import { addCustomerMessage, addStaffMessage, CHAT_TOPIC, deleteTickets, purgeShop, readHelpDeskForm, redactCustomer, startChat, submitTicket, updateTickets, updateTicketStatus } from "../app/services/help-desk.server";
 import { fillMacro, orderTypes, topics } from "../app/services/help-desk";
 import { defaultFaqs } from "../app/services/help-desk-bot";
 import { answerQuestion, ensureFaqs } from "../app/services/help-desk-chat.server";
@@ -130,6 +130,9 @@ describe("Help desk conversations", () => {
 
     expect((await addCustomerMessage(db, "other.myshopify.com", token!, "Still broken")).errors.form).toBeTruthy();
     expect((await addCustomerMessage(db, shop, "f".repeat(48), "Still broken")).errors.form).toBeTruthy();
+    // A resolved form ticket takes no more customer messages; the customer opens a new request.
+    expect((await addCustomerMessage(db, shop, token!, "Still broken")).errors.form).toMatch(/once our team replies/);
+    await addStaffMessage(db, shop, ticketId!, { kind: "reply", body: "Can you send a photo?", author: "Priya", status: "Waiting on customer" });
     expect((await addCustomerMessage(db, shop, token!, "Still broken")).messageId).toBeTruthy();
     ticket = await db.helpDeskTicket.findUniqueOrThrow({ where: { id: ticketId } });
     expect(ticket).toMatchObject({ status: "Open", unread: true, resolvedAt: null });
@@ -150,6 +153,9 @@ describe("Help desk conversations", () => {
   it("stores photos sent with a customer reply against that message", async () => {
     const { token, ticketId } = await submitTicket(db, shop, form());
     const png = new File([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6S8AAAAASUVORK5CYII=", "base64")], "proof.png", { type: "image/png" });
+    // Before the team replies, the customer can't add messages yet.
+    expect((await addCustomerMessage(db, shop, token!, "", [png])).errors.form).toBeTruthy();
+    await updateTicketStatus(db, shop, ticketId!, "Waiting on customer");
     const sent = await addCustomerMessage(db, shop, token!, "", [png]);
     expect(sent.errors).toEqual({});
     const files = await db.helpDeskAttachment.findMany({ where: { ticketId } });
@@ -188,6 +194,44 @@ describe("Help desk conversations", () => {
     expect(await answerQuestion(db, botShop, undefined, "where is order #1001")).toMatchObject({ result: "order", answer: expect.stringContaining("email") });
     expect(await answerQuestion(db, botShop, undefined, "do you sell gift cards")).toMatchObject({ result: "none" });
     expect((await db.helpDeskBotQuestion.findMany({ where: { shop: botShop } })).map(row => row.result).sort()).toEqual(["faq", "none", "order"]);
+  });
+  it("deletes tickets with everything attached, only for the owning shop", async () => {
+    const deleteShop = "delete.myshopify.com";
+    const { ticketId, token } = await submitTicket(db, deleteShop, form());
+    await addStaffMessage(db, deleteShop, ticketId!, { kind: "reply", body: "Send a photo please", author: "Priya" });
+    const png = new File([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6S8AAAAASUVORK5CYII=", "base64")], "p.png", { type: "image/png" });
+    const sent = await addCustomerMessage(db, deleteShop, token!, "here", [png]);
+    const file = await db.helpDeskAttachment.findFirstOrThrow({ where: { messageId: sent.messageId } });
+    await db.helpDeskImageScan.create({ data: { attachmentId: file.id, shop: deleteShop, status: "completed" } });
+    await db.helpDeskEmail.create({ data: { shop: deleteShop, ticketId: ticketId!, kind: "ack" } });
+
+    expect(await deleteTickets(db, "other.myshopify.com", [ticketId!])).toBe(0);
+    expect(await deleteTickets(db, deleteShop, [ticketId!])).toBe(1);
+    expect(await db.helpDeskTicket.findUnique({ where: { id: ticketId } })).toBeNull();
+    expect(await db.helpDeskMessage.count({ where: { ticketId } })).toBe(0);
+    expect(await db.helpDeskAttachment.count({ where: { ticketId } })).toBe(0);
+    expect(await db.helpDeskImageScan.count({ where: { attachmentId: file.id } })).toBe(0);
+    expect(await db.helpDeskEmail.count({ where: { ticketId } })).toBe(0);
+  });
+  it("erases a customer's tickets and a whole shop's data on privacy requests", async () => {
+    const privacyShop = "privacy.myshopify.com";
+    await submitTicket(db, privacyShop, form({ email: "erase@example.com" }));
+    await submitTicket(db, privacyShop, form({ email: "keep@example.com" }), "777");
+    await submitTicket(db, privacyShop, form({ email: "other@example.com" }), "777");
+    await submitTicket(db, "elsewhere.myshopify.com", form({ email: "erase@example.com" }));
+    expect(await redactCustomer(db, privacyShop, { email: "erase@example.com" })).toBe(1);
+    expect(await redactCustomer(db, privacyShop, { id: 777 })).toBe(2);
+    expect(await redactCustomer(db, privacyShop, {})).toBe(0);
+    expect(await db.helpDeskTicket.count({ where: { shop: "elsewhere.myshopify.com" } })).toBe(1);
+
+    await submitTicket(db, privacyShop, form());
+    await db.helpDeskFaq.create({ data: { shop: privacyShop, question: "Q", answer: "A" } });
+    await db.helpDeskSettings.create({ data: { shop: privacyShop } });
+    await purgeShop(db, privacyShop);
+    expect(await db.helpDeskTicket.count({ where: { shop: privacyShop } })).toBe(0);
+    expect(await db.helpDeskFaq.count({ where: { shop: privacyShop } })).toBe(0);
+    expect(await db.helpDeskSettings.count({ where: { shop: privacyShop } })).toBe(0);
+    expect(await db.helpDeskTicket.count({ where: { shop: "elsewhere.myshopify.com" } })).toBe(1);
   });
   it("fills saved reply placeholders and leaves unknown ones", () => {
     const text = fillMacro("Hi {{ customer.first_name }}, about {{ticket.number}} / {{ order.number }} from {{ store.name }} {{ unknown }}",

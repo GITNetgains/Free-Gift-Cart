@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { countries, countryName, fieldLabels, issues, MAX_MESSAGE_LENGTH, orderTypes, topics, updates } from "../services/help-desk";
-import { addCustomerMessage, MAX_REPLY_IMAGES, readHelpDeskForm, startChat, submitTicket } from "../services/help-desk.server";
+import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, startChat, submitTicket } from "../services/help-desk.server";
 import { answerQuestion, chatConfig } from "../services/help-desk-chat.server";
 import { customerOrders } from "../services/help-desk-orders.server";
 import { ensureWorker, queueEmail } from "../services/help-desk-outbox.server";
@@ -170,7 +170,7 @@ const STATUS_TEXT: Record<string, string> = {
   Open: "We've received your request and will reply soon.",
   "In progress": "Our team is working on your request.",
   "Waiting on customer": "We've replied and are waiting for your response.",
-  Resolved: "This request is resolved. Reply below if you still need help and we'll reopen it.",
+  Resolved: "This request is resolved.",
 };
 
 const STYLES = `<style>
@@ -241,11 +241,14 @@ async function trackingPage(shop: string, token: string, state: { sent?: boolean
 <p class="hdt-muted" style="margin-top:10px">${escape(STATUS_TEXT[ticket.status] ?? "")}</p>
 ${rows ? `<div class="hdt-card"><strong>Your request</strong><dl>${rows}</dl></div>` : ""}
 <div class="hdt-card"><strong>Conversation</strong><div class="hdt-thread">${thread}</div></div>
-<div class="hdt-card" id="reply"><strong>Add a message</strong>${note(state)}
+${customerCanReply(ticket) ? `<div class="hdt-card" id="reply"><strong>Add a message</strong>${note(state)}
 <form method="post" action="?ticket=${escape(ticket.accessToken)}#reply" enctype="multipart/form-data">
 <input type="hidden" name="intent" value="reply"><input type="hidden" name="token" value="${escape(ticket.accessToken)}">
 <label>Your message<textarea name="body" maxlength="${MAX_MESSAGE_LENGTH}">${escape(state.draft ?? "")}</textarea></label>
 <label>Add photos (optional, up to ${MAX_REPLY_IMAGES})<input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple></label>
 <button type="submit">Send message</button>
-</form></div>`);
+</form></div>` : `<div class="hdt-card" id="reply">${note(state)}<strong>${ticket.status === "Resolved" ? "This request is closed" : "Our team will reply soon"}</strong>
+<p class="hdt-muted" style="margin-top:6px">${ticket.status === "Resolved"
+    ? "If you still need help, please send us a new request."
+    : "You'll be able to add a message here once our team replies. We'll email you when they do."}</p></div>`}`);
 }

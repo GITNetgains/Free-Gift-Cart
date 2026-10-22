@@ -8,7 +8,7 @@ import db from "../db.server";
 import {
   CHAT_TOPIC, countryName, defaultMacros, fieldLabels as LABELS, fillMacro, macroPlaceholders, MAX_MESSAGE_LENGTH, priorities, ticketStatuses, topics,
 } from "../services/help-desk";
-import { addStaffMessage, readHelpDeskForm, submitTicket, updateTickets } from "../services/help-desk.server";
+import { addStaffMessage, deleteTickets, readHelpDeskForm, submitTicket, updateTickets } from "../services/help-desk.server";
 import { emailConfigured, loadProducts, loadShop, sendTestEmail, trackingUrl, type TicketProduct } from "../services/help-desk-email.server";
 import { ordersByEmail } from "../services/help-desk-orders.server";
 import { matchFaq, NO_ANSWER } from "../services/help-desk-bot";
@@ -28,12 +28,15 @@ const VIEWS = {
   urgent: { label: "High priority", where: { status: UNRESOLVED, priority: { in: ["High", "Urgent"] } } },
   waiting: { label: "Waiting on customer", where: { status: "Waiting on customer" } },
   resolved: { label: "Resolved", where: { status: "Resolved" } },
+  // Tickets with a photo the AI photo check flagged as AI-made or reused.
+  flagged: { label: "Flagged photos", where: { attachments: { some: { scan: { is: { overallVerdict: { in: ["likely_ai", "duplicate"] } } } } } } },
   all: { label: "All tickets", where: {} },
 } satisfies Record<string, { label: string; where: Prisma.HelpDeskTicketWhereInput }>;
 type View = keyof typeof VIEWS;
 const TOPICS = [...topics, CHAT_TOPIC];
 // Staff status changes that email the customer (when turned on in settings).
 const STATUS_EMAIL_STATUSES = ["In progress", "Resolved"];
+const PERIODS = { "": "Any time", today: "Today", "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" } as const;
 const SORTS = { activity: "Last activity", newest: "Newest first", oldest: "Oldest first" } as const;
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
@@ -144,12 +147,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const assignee = (url.searchParams.get("assignee") || "").slice(0, 80);
   const sort = (url.searchParams.get("sort") || "activity") in SORTS ? (url.searchParams.get("sort") || "activity") as keyof typeof SORTS : "activity";
   const q = (url.searchParams.get("q") || "").trim().slice(0, 100);
+  const period = (url.searchParams.get("period") || "") in PERIODS ? (url.searchParams.get("period") || "") as keyof typeof PERIODS : "";
+  const since = period === "today" ? new Date(new Date().setHours(0, 0, 0, 0)) : period ? new Date(Date.now() - Number(period) * DAY) : null;
   const number = /^#?\d{1,9}$/.test(q) ? Number(q.replace("#", "")) : null;
   const where: Prisma.HelpDeskTicketWhereInput = {
     shop, ...VIEWS[view].where,
     ...(topic ? { topic } : {}),
     ...(priority ? { priority } : {}),
     ...(assignee ? { assignee } : {}),
+    ...(since ? { createdAt: { gte: since } } : {}),
     // details holds every submitted field, so this also matches order numbers and messages.
     ...(q ? { OR: [{ id: q }, ...(number !== null ? [{ number }] : []), { name: { contains: q } }, { email: { contains: q } }, { details: { contains: q } }, { tags: { contains: q } }] } : {}),
   };
@@ -193,7 +199,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       avgResponse: responseTimes.length ? responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length : null, resolvedWeek, newToday,
       botAsked: (bot.faq ?? 0) + (bot.order ?? 0) + (bot.none ?? 0), botAnswered: (bot.faq ?? 0) + (bot.order ?? 0),
     },
-    filters: { view, topic, priority, assignee, sort, q },
+    filters: { view, topic, priority, assignee, sort, q, period },
   }, { headers });
 };
 
@@ -283,6 +289,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // Photos scanned before a key was added get the detector now.
         if (hasCredentials && next.aiDetectionEnabled) await rescanMissingKeyScans(db, shop);
         return data<ActionResult>({ errors: {}, notice });
+      }
+      case "delete": {
+        const ids = form.getAll("ids").map(String).filter(Boolean);
+        if (!ids.length) return fail("Choose tickets to delete.");
+        const deleted = await deleteTickets(db, shop, ids);
+        if (!deleted) return fail("These tickets no longer exist.");
+        return data<ActionResult>({ errors: {}, updated: deleted });
       }
       case "email-retry":
         if (!emailConfigured()) return fail("Email sending is not set up on the server yet.");
@@ -751,9 +764,22 @@ function TicketDetail({ screen }: { screen: TicketData }) {
   const replyEmails = new Map(ticket.emails.filter((email) => email.messageId).map((email) => [email.messageId!, email]));
   const otherEmails = ticket.emails.filter((email) => !(email.kind === "reply" && email.messageId));
   useLiveRefresh();
+  const navigate = useNavigate();
+  const remover = useFetcher<typeof action>();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => {
+    if (remover.state !== "idle" || !remover.data) return;
+    if (Object.keys(remover.data.errors).length) shopify.toast.show(Object.values(remover.data.errors)[0], { isError: true });
+    else { shopify.toast.show(`Ticket #${ticket.number} deleted`); navigate(listLink({ ticket: "" })); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remover.state, remover.data]);
   return <s-page heading={`#${ticket.number} · ${ticket.topic}`}>
     <s-link slot="breadcrumb-actions" href={listLink({ ticket: "" })}>Help Desk</s-link>
     {link && <s-button slot="secondary-actions" icon="external" href={link} target="_blank">Customer&apos;s request page</s-button>}
+
+    <s-button slot="secondary-actions" icon="delete" tone="critical" onClick={() => setConfirmDelete(true)}>Delete ticket</s-button>
+    {confirmDelete && <DeleteConfirm count={1} busy={remover.state !== "idle"} onCancel={() => setConfirmDelete(false)}
+      onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", ticket.id); void remover.submit(form, { method: "post" }); }} />}
 
     <s-section>
       <s-stack gap="base">
@@ -846,11 +872,36 @@ function TicketDetail({ screen }: { screen: TicketData }) {
 
 // ---------- List ----------
 
+// Asks before tickets are deleted for good.
+function DeleteConfirm({ count, busy, onCancel, onConfirm }: { count: number; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return <s-box paddingBlockStart="base">
+    <s-banner tone="critical" heading={`Delete ${count === 1 ? "this ticket" : `${count} tickets`} permanently?`}>
+      <s-stack gap="base">
+        <s-paragraph>The conversation, notes, photos and photo checks are deleted and can&apos;t be recovered. The customer&apos;s request page link stops working.</s-paragraph>
+        <s-stack direction="inline" gap="small-200">
+          <s-button tone="critical" variant="primary" loading={busy} onClick={onConfirm}>Delete permanently</s-button>
+          <s-button variant="tertiary" disabled={busy} onClick={onCancel}>Cancel</s-button>
+        </s-stack>
+      </s-stack>
+    </s-banner>
+  </s-box>;
+}
+
 function BulkBar({ ids, team, onDone }: { ids: string[]; team: string[]; onDone: () => void }) {
   const fetcher = useFetcher<typeof action>();
-  useResultToast(fetcher, (result) => `${result.updated ?? ids.length} ticket${(result.updated ?? ids.length) === 1 ? "" : "s"} updated`);
+  const [confirming, setConfirming] = useState(false);
+  const deleting = useRef(false);
+  const remove = (targets: string[]) => {
+    deleting.current = true;
+    const form = new FormData();
+    form.set("intent", "delete");
+    targets.forEach((id) => form.append("ids", id));
+    void fetcher.submit(form, { method: "post" });
+  };
+  useResultToast(fetcher, (result) => `${result.updated ?? ids.length} ticket${(result.updated ?? ids.length) === 1 ? "" : "s"} ${deleting.current ? "deleted" : "updated"}`);
   useEffect(() => { if (fetcher.state === "idle" && fetcher.data && !Object.keys(fetcher.data.errors).length) onDone(); }, [fetcher.state, fetcher.data, onDone]);
   const apply = (changes: Record<string, string>) => {
+    deleting.current = false;
     const form = new FormData();
     form.set("intent", "bulk");
     ids.forEach((id) => form.append("ids", id));
@@ -877,8 +928,10 @@ function BulkBar({ ids, team, onDone }: { ids: string[]; team: string[]; onDone:
         <s-option value="-">Unassigned</s-option>
         {team.map((name) => <s-option key={name} value={name}>{name}</s-option>)}
       </s-select>}
+      <s-button tone="critical" icon="delete" disabled={busy} onClick={() => setConfirming(true)}>Delete</s-button>
       <s-button variant="tertiary" disabled={busy} onClick={onDone}>Clear selection</s-button>
     </s-stack>
+    {confirming && <DeleteConfirm count={ids.length} busy={busy} onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); remove(ids); }} />}
   </s-box>;
 }
 
@@ -901,7 +954,7 @@ function TicketList({ screen }: { screen: ListData }) {
   useEffect(() => setSearch(filters.q), [filters.q]);
   useEffect(() => setSelected([]), [tickets]);
   const clearSelection = useRef(() => setSelected([])).current;
-  const filtered = Boolean(filters.topic || filters.priority || filters.assignee || filters.q);
+  const filtered = Boolean(filters.topic || filters.priority || filters.assignee || filters.q || filters.period);
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selected.includes(ticket.id));
   const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...new Set([...current, id])] : current.filter((value) => value !== id));
   return <s-page heading="Help Desk" inlineSize="large">
@@ -948,13 +1001,16 @@ function TicketList({ screen }: { screen: ListData }) {
               <s-option value="">Anyone</s-option>
               {team.map((name) => <s-option key={name} value={name}>{name}</s-option>)}
             </s-select>}
+            <s-select label="Created" labelAccessibilityVisibility="exclusive" value={filters.period} onChange={(event) => navigate(listLink({ period: event.currentTarget.value ?? "" }))}>
+              {Object.entries(PERIODS).map(([value, label]) => <s-option key={value} value={value}>{label}</s-option>)}
+            </s-select>
             <s-select label="Sort" labelAccessibilityVisibility="exclusive" value={filters.sort} onChange={(event) => navigate(listLink({ sort: event.currentTarget.value === "activity" ? "" : event.currentTarget.value ?? "" }))}>
               {Object.entries(SORTS).map(([value, label]) => <s-option key={value} value={value}>{label}</s-option>)}
             </s-select>
           </s-grid>
           {filtered && <s-stack direction="inline" gap="small-200" alignItems="center">
             <s-text color="subdued">{count} matching ticket{count === 1 ? "" : "s"}</s-text>
-            <s-button variant="tertiary" onClick={() => { setSearch(""); navigate(listLink({ q: "", topic: "", priority: "", assignee: "" })); }}>Clear filters</s-button>
+            <s-button variant="tertiary" onClick={() => { setSearch(""); navigate(listLink({ q: "", topic: "", priority: "", assignee: "", period: "" })); }}>Clear filters</s-button>
           </s-stack>}
         </s-stack>
       </s-box>

@@ -53,6 +53,11 @@ api_version = "2026-10"
   uri = "/webhooks/inventory_levels/update"
   topics = [ "inventory_levels/update" ]
 
+  # Mandatory privacy webhooks; the Help Desk stores customer data.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
 [auth]
 redirect_urls = [ "https://zion.netgains.org/api/auth" ]
 
