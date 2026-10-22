@@ -18,6 +18,20 @@ const MINUTE = 60_000;
 // Customer-visible message kinds; internal notes and the activity log stay private.
 const PUBLIC_KINDS = ["customer", "reply", "bot"];
 
+// Records that the storefront form or chat widget loaded, at most every 10
+// minutes, so the admin can tell whether they're live on the store.
+async function markSeen(shop: string, field: "formLastSeenAt" | "chatLastSeenAt") {
+  const stale = new Date(Date.now() - 10 * MINUTE);
+  try {
+    const { count } = await db.helpDeskSettings.updateMany({ where: { shop, OR: [{ [field]: null }, { [field]: { lt: stale } }] }, data: { [field]: new Date() } });
+    if (!count && !await db.helpDeskSettings.findUnique({ where: { shop }, select: { shop: true } })) {
+      await db.helpDeskSettings.create({ data: { shop, [field]: new Date() } });
+    }
+  } catch (error) {
+    console.error(`Help Desk could not record ${field} for ${shop}:`, error);
+  }
+}
+
 const json = (body: unknown, status = 200, extra: HeadersInit = headers) => Response.json(body, { status, headers: extra });
 const tooMany = () => json({ errors: { form: "Too many requests. Please wait a minute and try again." } }, 429);
 const files = (form: FormData) => form.getAll("images").filter((value): value is File => typeof value !== "string" && Boolean(value.name));
@@ -49,11 +63,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
       messages: ticket.messages.map(({ id, kind, author, body, createdAt }) => ({ id, kind, author: kind === "customer" ? "You" : author, body, createdAt, images: images.get(id) ?? 0 })),
     }, 200, privateHeaders);
   }
-  if (params.get("view") === "chat") return json(await chatConfig(db, shop), 200, privateHeaders);
+  if (params.get("view") === "chat") {
+    void markSeen(shop, "chatLastSeenAt");
+    return json(await chatConfig(db, shop), 200, privateHeaders);
+  }
 
   const token = params.get("ticket");
   if (token !== null) return trackingPage(shop, admin, token);
 
+  void markSeen(shop, "formLastSeenAt");
   const [orders, tickets] = await Promise.all([
     customerOrders(admin, customerId),
     /^\d+$/.test(customerId) ? db.helpDeskTicket.findMany({

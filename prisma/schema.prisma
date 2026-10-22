@@ -257,4 +257,10 @@ model HelpDeskSettings {
   sightengineUser     String  @default("")
   sightengineSecret   String  @default("")
   truthscanKey        String  @default("")
+  // When the storefront form and chat widget last loaded on the store, so the
+  // admin can show whether they're actually live.
+  formLastSeenAt      DateTime?
+  chatLastSeenAt      DateTime?
+  // Set once the merchant has saved a chatbot answer or chat setting.
+  faqsReviewed        Boolean @default(false)
 }

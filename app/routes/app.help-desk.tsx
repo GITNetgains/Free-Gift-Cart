@@ -15,6 +15,7 @@ import { matchFaq, NO_ANSWER } from "../services/help-desk-bot";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
 import { ensureFaqs } from "../services/help-desk-chat.server";
+import { FeatureCard, SetupChecklist, since, StatTile, type ChecklistItem } from "../components/HelpDeskUi";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 
 const PAGE_SIZE = 25;
@@ -27,6 +28,7 @@ const VIEWS = {
   unassigned: { label: "Unassigned", where: { status: UNRESOLVED, assignee: "" } },
   urgent: { label: "High priority", where: { status: UNRESOLVED, priority: { in: ["High", "Urgent"] } } },
   waiting: { label: "Waiting on customer", where: { status: "Waiting on customer" } },
+  chats: { label: "Live chats", where: { channel: "chat", status: UNRESOLVED } },
   resolved: { label: "Resolved", where: { status: "Resolved" } },
   // Tickets with a photo the AI photo check flagged as AI-made or reused.
   flagged: { label: "Flagged photos", where: { attachments: { some: { scan: { is: { overallVerdict: { in: ["likely_ai", "duplicate"] } } } } } } },
@@ -162,7 +164,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const orderBy: Prisma.HelpDeskTicketOrderByWithRelationInput[] = sort === "newest" ? [{ createdAt: "desc" }, { id: "desc" }]
     : sort === "oldest" ? [{ createdAt: "asc" }, { id: "asc" }] : [{ lastActivityAt: "desc" }, { createdAt: "desc" }];
   const now = Date.now();
-  const [tickets, count, viewCounts, responded, resolvedWeek, newToday, botResults] = await Promise.all([
+  const [tickets, count, viewCounts, responded, resolvedWeek, newToday, botResults, chatsWeek, scanGroups, unansweredQuestions, totalTickets] = await Promise.all([
     db.helpDeskTicket.findMany({
       where, orderBy, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
       select: {
@@ -176,7 +178,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     db.helpDeskTicket.count({ where: { shop, status: "Resolved", resolvedAt: { gte: new Date(now - 7 * DAY) } } }),
     db.helpDeskTicket.count({ where: { shop, createdAt: { gte: new Date(now - DAY) } } }),
     db.helpDeskBotQuestion.groupBy({ by: ["result"], where: { shop, createdAt: { gte: new Date(now - 30 * DAY) } }, _count: { _all: true } }),
+    db.helpDeskTicket.count({ where: { shop, channel: "chat", createdAt: { gte: new Date(now - 7 * DAY) } } }),
+    db.helpDeskImageScan.groupBy({ by: ["overallVerdict"], where: { shop, status: "completed", createdAt: { gte: new Date(now - 30 * DAY) } }, _count: { _all: true } }),
+    db.helpDeskBotQuestion.findMany({ where: { shop, result: "none", createdAt: { gte: new Date(now - 30 * DAY) } }, distinct: ["question"], select: { question: true }, take: 100 }),
+    db.helpDeskTicket.count({ where: { shop } }),
   ]);
+  const scans = Object.fromEntries(scanGroups.map((row) => [row.overallVerdict || "error", row._count._all])) as Record<string, number>;
   const bot = Object.fromEntries(botResults.map((row) => [row.result, row._count._all])) as Record<string, number>;
   const flaggedScans = await db.helpDeskImageScan.findMany({
     where: { shop, overallVerdict: { in: ["likely_ai", "duplicate"] }, attachment: { ticketId: { in: tickets.map((ticket) => ticket.id) } } },
@@ -200,6 +207,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       botAsked: (bot.faq ?? 0) + (bot.order ?? 0) + (bot.none ?? 0), botAnswered: (bot.faq ?? 0) + (bot.order ?? 0),
     },
     filters: { view, topic, priority, assignee, sort, q, period },
+    // What the overview cards and setup checklist show.
+    overview: {
+      apiKey: process.env.SHOPIFY_API_KEY || "",
+      formLastSeenAt: settings.formLastSeenAt, chatLastSeenAt: settings.chatLastSeenAt, chatEnabled: settings.chatEnabled, faqsReviewed: settings.faqsReviewed,
+      signature: Boolean(settings.signature), totalTickets,
+      chatsWeek, unanswered: unansweredQuestions.length,
+      aiEnabled: settings.aiDetectionEnabled,
+      detectorConnected: settings.aiDetectionProvider === "truthscan" ? Boolean(settings.truthscanKey) : Boolean(settings.sightengineUser && settings.sightengineSecret),
+      photos: {
+        checked: Object.values(scans).reduce((sum, value) => sum + value, 0), likelyAi: scans.likely_ai ?? 0, reused: scans.duplicate ?? 0,
+        uncertain: scans.uncertain ?? 0, genuine: scans.likely_real ?? 0,
+      },
+    },
   }, { headers });
 };
 
@@ -303,7 +323,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return data<ActionResult>({ errors: {} });
       case "chat-settings": {
         if (text("chatGreeting").length > 300) return fail("Use no more than 300 characters.", 400, "chatGreeting");
-        const values = { chatEnabled: text("chatEnabled") === "true", chatGreeting: text("chatGreeting").trim() };
+        const values = { chatEnabled: text("chatEnabled") === "true", chatGreeting: text("chatGreeting").trim(), faqsReviewed: true };
         await db.helpDeskSettings.upsert({ where: { shop }, update: values, create: { shop, ...values } });
         return data<ActionResult>({ errors: {} });
       }
@@ -320,6 +340,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         } else if (await db.helpDeskFaq.count({ where: { shop } }) >= 200) {
           return fail("You can save up to 200 answers.");
         } else await db.helpDeskFaq.create({ data: { shop, ...values } });
+        await db.helpDeskSettings.update({ where: { shop }, data: { faqsReviewed: true } });
         return data<ActionResult>({ errors: {} });
       }
       case "faq-delete":
@@ -952,8 +973,99 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   </s-box>;
 }
 
+// Store-side setup and the three product areas, above the ticket inbox.
+function HelpDeskOverview({ screen }: { screen: ListData }) {
+  const { overview, views, metrics, team, configured } = screen;
+  const navigate = useNavigate();
+  const listLink = useListLink();
+  const recently = (value: string | Date | null, days: number) => Boolean(value && Date.now() - new Date(value).getTime() < days * DAY);
+  const formLive = recently(overview.formLastSeenAt, 30);
+  const chatLive = overview.chatEnabled && recently(overview.chatLastSeenAt, 7);
+  // Theme editor deep links: add the form block to a page, switch the chat embed on.
+  const formLink = `shopify://admin/themes/current/editor?template=page&addAppBlockId=${overview.apiKey}/help_desk&target=newAppsSection`;
+  const chatLink = `shopify://admin/themes/current/editor?context=apps&activateAppId=${overview.apiKey}/help_desk_chat`;
+  const answeredRate = metrics.botAsked ? Math.round((metrics.botAnswered / metrics.botAsked) * 100) : null;
+  const flagged = overview.photos.likelyAi + overview.photos.reused;
+
+  const steps: ChecklistItem[] = [
+    {
+      id: "form", done: formLive, title: "Add the Help Desk form to your store",
+      description: formLive ? `Live on your store · last opened ${since(overview.formLastSeenAt)}.` : "Create a page such as Contact or Support, then add the Help Desk form block to it in your theme.",
+      action: formLive ? undefined : <s-stack direction="inline" gap="small-200">
+        <s-button href="shopify://admin/pages/new" target="_blank">Create page</s-button>
+        <s-button variant="primary" href={formLink} target="_blank">Add form block</s-button>
+      </s-stack>,
+    },
+    {
+      id: "chat", done: chatLive, title: "Turn on the chat widget",
+      description: chatLive ? `Live on your store · last loaded ${since(overview.chatLastSeenAt)}.`
+        : overview.chatEnabled ? "One click: open your theme editor with the Help Desk chat app embed switched on, then click Save." : "Chat is switched off on the Chatbot page.",
+      action: chatLive ? undefined : overview.chatEnabled
+        ? <s-button variant="primary" href={chatLink} target="_blank">Turn on in theme</s-button>
+        : <s-button href="/app/help-desk?chatbot=1">Open Chatbot</s-button>,
+    },
+    {
+      id: "faqs", done: overview.faqsReviewed, title: "Add your store's answers to the chatbot",
+      description: overview.faqsReviewed ? "Your answers are in. Keep adding the questions the chatbot couldn't answer." : "Add shipping times, your return policy and other common questions so the chatbot can answer them.",
+      action: overview.faqsReviewed ? undefined : <s-button href="/app/help-desk?chatbot=1">Edit answers</s-button>,
+    },
+    {
+      id: "team", done: team.length > 0 && overview.signature, title: "Add your team and reply signature",
+      description: team.length ? `${team.length} team member${team.length === 1 ? "" : "s"}${overview.signature ? " and a signature" : ". Add a reply signature too"}.` : "Add the names of the people who reply, so you can assign tickets and reply as them.",
+      action: team.length > 0 && overview.signature ? undefined : <s-button href="/app/help-desk?settings=1">Open settings</s-button>,
+    },
+    {
+      id: "email", done: configured, title: "Turn on email sending",
+      description: configured ? "Customers get confirmations and replies by email, and your team gets alerts." : "Needs your email (SMTP) details added on the app server. Until then tickets, chat and request pages work, but no emails are sent.",
+    },
+    {
+      id: "photos", done: overview.aiEnabled, title: "AI photo check",
+      description: overview.aiEnabled ? (overview.detectorConnected ? "On, with your AI detector connected." : "On with the free checks. Optional: connect Sightengine or TruthScan for a deeper check.") : "Switched off: customer photos aren't being checked.",
+      action: overview.aiEnabled && overview.detectorConnected ? undefined : <s-button href="/app/help-desk?settings=1">{overview.aiEnabled ? "Connect detector" : "Turn on"}</s-button>,
+    },
+  ];
+
+  return <>
+    {steps.some((step) => !step.done) && <SetupChecklist items={steps} />}
+
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))" gap="base">
+        <FeatureCard tone="blue" icon="chat" title="Live chat" status={chatLive ? "Live on store" : overview.chatEnabled ? "Not on store yet" : "Switched off"}
+          statusTone={chatLive ? "success" : overview.chatEnabled ? "warning" : "neutral"}
+          metrics={[{ label: "Open chats", value: String(views.chats) }, { label: "Chats this week", value: String(overview.chatsWeek) }]}
+          description="Shoppers ask the assistant first. When they need a person, the chat becomes a ticket here and you reply in the same chat.">
+          <s-button onClick={() => navigate(listLink({ view: "chats" }))}>View chats</s-button>
+          {!chatLive && overview.chatEnabled && <s-button variant="tertiary" href={chatLink} target="_blank">Turn on in theme</s-button>}
+        </FeatureCard>
+        <FeatureCard tone="red" icon="wand" title="Chatbot" status={answeredRate === null ? "No questions yet" : `${answeredRate}% answered`}
+          statusTone={answeredRate === null ? "neutral" : answeredRate >= 60 ? "success" : "warning"}
+          metrics={[{ label: "Questions (30 days)", value: String(metrics.botAsked) }, { label: "Couldn't answer", value: String(overview.unanswered) }]}
+          description="Answers from your FAQ and live order status, so shoppers get help instantly without waiting for your team.">
+          <s-button href="/app/help-desk?chatbot=1">{overview.unanswered ? "Improve answers" : "Open chatbot"}</s-button>
+        </FeatureCard>
+        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · free checks"}
+          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "info"}
+          metrics={[{ label: "Checked (30 days)", value: String(overview.photos.checked) }, { label: "Flagged", value: String(flagged) }]}
+          description="Every photo customers send is checked for AI generation, reuse from another request, and editing.">
+          <s-button href="/app/photo-checks">Review photos</s-button>
+          {flagged > 0 && <s-button variant="tertiary" onClick={() => navigate(listLink({ view: "flagged" }))}>Flagged tickets</s-button>}
+        </FeatureCard>
+      </s-grid>
+    </s-section>
+
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
+        <StatTile tone="red" icon="notification" label="Needs attention" value={String(views.open)} detail={`${views.unassigned} unassigned`} />
+        <StatTile tone="amber" icon="alert-triangle" label="High priority" value={String(views.urgent)} detail="Open high and urgent" />
+        <StatTile tone="blue" icon="clock" label="Avg. first response" value={metrics.avgResponse === null ? "—" : duration(metrics.avgResponse)} detail="Last 30 days" />
+        <StatTile tone="green" icon="check-circle" label="Resolved" value={String(metrics.resolvedWeek)} detail={`Last 7 days · ${metrics.newToday} new today`} />
+      </s-grid>
+    </s-section>
+  </>;
+}
+
 function TicketList({ screen }: { screen: ListData }) {
-  const { tickets, count, page, views, metrics, filters, team } = screen;
+  const { tickets, count, page, views, filters, team } = screen;
   const listLink = useListLink();
   const navigate = useNavigate();
   const [search, setSearch] = useState(filters.q);
@@ -972,17 +1084,16 @@ function TicketList({ screen }: { screen: ListData }) {
   const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...new Set([...current, id])] : current.filter((value) => value !== id));
   return <s-page heading="Help Desk" inlineSize="large">
     <s-button slot="secondary-actions" icon="chat" href="/app/help-desk?chatbot=1">Chatbot</s-button>
+    <s-button slot="secondary-actions" icon="image" href="/app/photo-checks">Photo checks</s-button>
     <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1">Settings</s-button>
 
+    <HelpDeskOverview screen={screen} />
+
     <s-section padding="base">
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(180px, 1fr))" gap="base">
-        <Metric label="Needs attention" value={String(views.open)} detail={`${views.unassigned} unassigned`} />
-        <Metric label="High priority" value={String(views.urgent)} detail="Open high and urgent" />
-        <Metric label="Avg. first response" value={metrics.avgResponse === null ? "—" : duration(metrics.avgResponse)} detail="Last 30 days" />
-        <Metric label="Resolved" value={String(metrics.resolvedWeek)} detail={`Last 7 days · ${metrics.newToday} new today`} />
-        <Metric label="Answered by chatbot" value={metrics.botAsked ? `${Math.round((metrics.botAnswered / metrics.botAsked) * 100)}%` : "—"}
-          detail={`${metrics.botAnswered} of ${metrics.botAsked} questions · 30 days`} />
-      </s-grid>
+      <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+        <s-heading>Tickets</s-heading>
+        <s-text color="subdued">{count} in this view</s-text>
+      </s-stack>
     </s-section>
 
     <s-section padding="none">
