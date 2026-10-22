@@ -42,9 +42,16 @@
     // Signed-in customers: the block renders their contact details and recent orders.
     let customer = null;
     try { customer = JSON.parse(root.querySelector('[data-help-desk-customer]')?.textContent || 'null'); } catch { customer = null; }
-    // Live orders from the app (signed proxy request) win over the theme's copy.
-    const sourceOrders = Array.isArray(config.orders) && config.orders.length ? config.orders : customer?.orders;
-    const orders = Array.isArray(sourceOrders) ? sourceOrders.filter(order => order?.name && !order.cancelled) : [];
+    // A signed-in customer's orders: live ones from the app (signed proxy
+    // request, up-to-date fulfillment) merged with the theme's copy, which also
+    // has orders older than the 60 days the app can read. Newest first.
+    const byName = new Map();
+    for (const order of [...(Array.isArray(customer?.orders) ? customer.orders : []), ...(Array.isArray(config.orders) ? config.orders : [])]) {
+      if (order?.name) byName.set(order.name, { ...byName.get(order.name), ...order });
+    }
+    const placed = order => Date.parse(order.date) || 0;
+    const orders = [...byName.values()].filter(order => !order.cancelled).sort((a, b) => placed(b) - placed(a));
+    const signedIn = Boolean(customer);
     const items = order => (Array.isArray(order?.items) ? order.items : []);
     const shipped = order => order.fulfillment === 'fulfilled' || order.fulfillment === 'partial';
     const itemLine = item => [item.title, item.variant].filter(Boolean).join(' - ') + ` × ${item.quantity || 1}`;
@@ -175,8 +182,19 @@
     // Signed-in customers pick from their orders (or type another number); the
     // chosen order's items are shown and passed to onPick. include narrows the list.
     function orderField(parent, onPick, include = () => true, showItems = true) {
-      const choices = orders.filter(include);
-      if (!choices.length) return field(parent, 'orderNumber', 'Order number', { placeholder: 'e.g. #1001' });
+      // Orders that suit this query come first; when none do, all orders are
+      // offered rather than asking a signed-in customer to type a number.
+      const matching = orders.filter(include);
+      const choices = matching.length ? matching : orders;
+      if (!choices.length) {
+        const input = field(parent, 'orderNumber', 'Order number', { placeholder: 'e.g. #1001' });
+        if (!signedIn) {
+          const hint = node('p', 'Signed in? We list your orders here so you can just pick one. ', { class: 'help-desk-hint' });
+          hint.append(node('a', 'Sign in', { href: `${window.Shopify?.routes?.root || '/'}account/login?return_url=${encodeURIComponent(location.pathname)}` }));
+          parent.append(hint);
+        }
+        return input;
+      }
       const count = order => items(order).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
       const pick = field(parent, 'orderNumber', 'Order number', {
         choices: [...choices.map(order => [order.name, `${order.name} · ${order.date} · ${count(order)} item${count(order) === 1 ? '' : 's'}`]), ['', "My order isn't listed"]],
