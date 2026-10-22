@@ -6,6 +6,7 @@ import { renderLookupPage, renderRequestPage } from "../services/help-desk-reque
 import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, startChat, submitTicket } from "../services/help-desk.server";
 import { answerQuestion, chatConfig } from "../services/help-desk-chat.server";
 import { customerOrders } from "../services/help-desk-orders.server";
+import { loadProducts } from "../services/help-desk-email.server";
 import { ensureWorker, queueEmail } from "../services/help-desk-outbox.server";
 import { queueTicketScans } from "../services/image-scan/scan.server";
 import { blocked, clear, clientKey, hit } from "../services/rate-limit.server";
@@ -51,7 +52,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (params.get("view") === "chat") return json(await chatConfig(db, shop), 200, privateHeaders);
 
   const token = params.get("ticket");
-  if (token !== null) return trackingPage(shop, token);
+  if (token !== null) return trackingPage(shop, admin, token);
 
   const [orders, tickets] = await Promise.all([
     customerOrders(admin, customerId),
@@ -111,7 +112,7 @@ export async function action({ request }: ActionFunctionArgs) {
     // A reply on the customer's own ticket, identified by its secret token.
     case "reply": {
       const token = text("token");
-      if (!hit(`reply|${client}`, 10, MINUTE)) return wantsJson ? tooMany() : trackingPage(shop, token, { error: "Too many messages. Please wait a minute.", draft: text("body") });
+      if (!hit(`reply|${client}`, 10, MINUTE)) return wantsJson ? tooMany() : trackingPage(shop, admin, token, { error: "Too many messages. Please wait a minute.", draft: text("body") });
       try {
         const result = await addCustomerMessage(db, shop, token, text("body"), files(form));
         if (result.messageId && result.ticketId) {
@@ -119,10 +120,10 @@ export async function action({ request }: ActionFunctionArgs) {
           void queueTicketScans(db, result.ticketId, result.messageId);
         }
         if (wantsJson) return json(result, result.messageId ? 200 : 400);
-        return trackingPage(shop, token, result.messageId ? { sent: true } : { error: Object.values(result.errors)[0], draft: text("body") });
+        return trackingPage(shop, admin, token, result.messageId ? { sent: true } : { error: Object.values(result.errors)[0], draft: text("body") });
       } catch {
         if (wantsJson) return json({ errors: { form: "Your message could not be sent. Please try again." } }, 500);
-        return trackingPage(shop, token, { error: "Your message could not be sent. Please try again.", draft: text("body") });
+        return trackingPage(shop, admin, token, { error: "Your message could not be sent. Please try again.", draft: text("body") });
       }
     }
     // Lost the link? Ticket number plus the email it was opened with finds it.
@@ -138,7 +139,7 @@ export async function action({ request }: ActionFunctionArgs) {
         return lookupPage({ error: "We couldn't find a request with that number and email.", number: text("number"), email: text("email") }, 404);
       }
       clear(key);
-      return trackingPage(shop, ticket.accessToken);
+      return trackingPage(shop, admin, ticket.accessToken);
     }
     case null:
     case undefined:
@@ -169,14 +170,27 @@ const liquid = (html: string, status = 200) => new Response(html, { status, head
 const lookupPage = (state: { error?: string; number?: string; email?: string } = {}, status = 200) => liquid(renderLookupPage(state), status);
 
 // The customer's private request page.
-async function trackingPage(shop: string, token: string, state: { sent?: boolean; error?: string; draft?: string } = {}) {
+type AdminClient = Parameters<typeof loadProducts>[0];
+const productIds = (value: string) => { try { const ids = JSON.parse(value); return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : []; } catch { return []; } };
+
+async function trackingPage(shop: string, admin: AdminClient | undefined, token: string, state: { sent?: boolean; error?: string; draft?: string } = {}) {
   if (!token) return lookupPage();
   const ticket = TOKEN.test(token) ? await db.helpDeskTicket.findFirst({
     where: { shop, accessToken: token },
-    include: { messages: { where: { kind: { in: PUBLIC_KINDS } }, orderBy: { createdAt: "asc" } }, attachments: { where: { messageId: { not: null } }, select: { messageId: true } } },
+    include: { messages: { where: { kind: { in: PUBLIC_KINDS } }, orderBy: { createdAt: "asc" } }, attachments: { select: { messageId: true } } },
   }) : null;
   if (!ticket) return lookupPage({ error: "This link is not valid or the request no longer exists. You can look it up with its number instead." }, 404);
-  const images = new Map<string, number>();
-  for (const file of ticket.attachments) images.set(file.messageId!, (images.get(file.messageId!) ?? 0) + 1);
-  return liquid(renderRequestPage(ticket, images, { canReply: customerCanReply(ticket), maxImages: MAX_REPLY_IMAGES, maxLength: MAX_MESSAGE_LENGTH, state }));
+  const imageCounts = new Map<string, number>();
+  let requestImages = 0;
+  for (const file of ticket.attachments) {
+    if (file.messageId) imageCounts.set(file.messageId, (imageCounts.get(file.messageId) ?? 0) + 1);
+    else requestImages++;
+  }
+  // Product names and pictures for shipping and wrong-item requests.
+  const [products, receivedProducts] = admin
+    ? await Promise.all([loadProducts(admin, productIds(ticket.products)), loadProducts(admin, productIds(ticket.receivedProducts))])
+    : [[], []];
+  return liquid(renderRequestPage(ticket, {
+    imageCounts, requestImages, products, receivedProducts, canReply: customerCanReply(ticket), maxImages: MAX_REPLY_IMAGES, maxLength: MAX_MESSAGE_LENGTH, state,
+  }));
 }
