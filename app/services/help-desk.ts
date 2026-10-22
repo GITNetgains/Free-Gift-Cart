@@ -4,7 +4,7 @@ export const updates = ["Change Product or Quantity", "Update Shipping Details"]
 export const issues = ["Defective product received", "Wrong product received", "Missing items", "Wrong item ordered"];
 export type HelpDeskValues = Record<string, string>;
 export type Attachment = { name: string; size: number; type: string };
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_IMAGES = 5;
 
 export function imagesRequired(values: HelpDeskValues) {
@@ -46,7 +46,7 @@ export function validateHelpDesk(values: HelpDeskValues, products: string[], fil
   if (allowsImages) {
     if (imagesRequired(values) && !files.length) errors.images = "Upload at least one image for this issue.";
     if (files.length > MAX_IMAGES) errors.images = `Upload no more than ${MAX_IMAGES} images.`;
-    if (files.some(file => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size === 0 || file.size > MAX_IMAGE_BYTES)) errors.images = "Use non-empty JPG, PNG or WebP images, up to 5 MB each.";
+    if (files.some(file => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size === 0 || file.size > MAX_IMAGE_BYTES)) errors.images = "Use non-empty JPG, PNG or WebP images, up to 10 MB each.";
   }
   return errors;
 }

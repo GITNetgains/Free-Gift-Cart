@@ -154,6 +154,8 @@ describe("Image scan verdict rules", () => {
     expect(detectorDecision({ mode: "manual" }).run).toBe(false);
     expect(detectorDecision({ mode: "manual", force: true }).run).toBe(true);
     expect(detectorDecision({ mode: "always", editing: original }).run).toBe(true);
+    // Default: layer 5 runs for every photo layers 1-4 couldn't settle.
+    expect(detectorDecision({ editing: original }).run).toBe(true);
     expect(reusableDetectorResult(JSON.stringify({ aiProbability: 20, provider: "sightengine" }), "truthscan")).toBeNull();
     expect(reusableDetectorResult({ aiProbability: 20, provider: "truthscan" }, "truthscan")?.aiProbability).toBe(20);
   });

@@ -123,7 +123,7 @@
 }
 .help-desk button:hover:not(:disabled) { filter: brightness(.93); box-shadow: 0 6px 18px color-mix(in srgb, var(--hd-accent) 30%, transparent); transform: translateY(-1px); }
 .help-desk button:disabled { opacity: .6; cursor: wait; }
-.help-desk button[type=submit] { margin-top: 8px; width: 100%; }
+.help-desk button[type=submit] { margin-top: 8px; width: 100%; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .help-desk :focus-visible { outline: 3px solid var(--hd-text); outline-offset: 3px; }
 
 /* Yes / No answers as pill buttons */

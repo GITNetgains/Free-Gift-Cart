@@ -215,7 +215,7 @@ ${productList("Received", extras.receivedProducts)}${productList(wrongItem ? "Wa
 <form method="post" action="?ticket=${escape(ticket.accessToken)}#reply" enctype="multipart/form-data">
 <input type="hidden" name="intent" value="reply"><input type="hidden" name="token" value="${escape(ticket.accessToken)}">
 <label>Reply to our team<textarea name="body" maxlength="${extras.maxLength}" placeholder="Write your reply...">${escape(state.draft ?? "")}</textarea></label>
-<label class="hdt-drop"><i aria-hidden="true">📷</i><span><strong>Add photos</strong><small>Optional · JPG, PNG or WebP · up to ${extras.maxImages}, 5 MB each</small></span>
+<label class="hdt-drop"><i aria-hidden="true">📷</i><span><strong>Add photos</strong><small>Optional · JPG, PNG or WebP · up to ${extras.maxImages}, 10 MB each</small></span>
 <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple aria-label="Add photos"></label>
 <div class="hdt-actions"><button type="submit">Send reply</button></div>
 </form></div>`

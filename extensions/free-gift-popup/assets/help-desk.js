@@ -134,7 +134,7 @@
       const drop = node('span', '', { class: 'help-desk-drop' });
       const upload = node('input', '', { type: 'file', name: 'images', accept: types.join(','), multiple: '' });
       const previews = node('div', '', { class: 'help-desk-previews' });
-      drop.append(node('span', '', { class: 'help-desk-drop-icon', 'aria-hidden': 'true' }), node('strong', 'Click to upload or drag and drop'), node('small', 'JPG, PNG or WebP · up to 5 images, 5 MB each'), upload);
+      drop.append(node('span', '', { class: 'help-desk-drop-icon', 'aria-hidden': 'true' }), node('strong', 'Click to upload or drag and drop'), node('small', 'JPG, PNG or WebP · up to 5 images, 10 MB each'), upload);
       label.append(title, drop);
       wrap.append(label, previews);
       parent.append(wrap);
@@ -144,12 +144,12 @@
         const transfer = new DataTransfer();
         files.forEach(file => transfer.items.add(file));
         upload.files = transfer.files;
-        upload.setCustomValidity(files.length > 5 || files.some(file => !types.includes(file.type) || !file.size || file.size > 5 * 1024 * 1024)
-          ? 'Choose up to five JPG, PNG or WebP images, no more than 5 MB each.' : '');
+        upload.setCustomValidity(files.length > 5 || files.some(file => !types.includes(file.type) || !file.size || file.size > 10 * 1024 * 1024)
+          ? 'Choose up to five JPG, PNG or WebP images, no more than 10 MB each.' : '');
         urls.forEach(url => URL.revokeObjectURL(url));
         urls = files.map(file => URL.createObjectURL(file));
         previews.replaceChildren(...files.map((file, index) => {
-          const item = node('figure', '', { class: file.size > 5 * 1024 * 1024 || !types.includes(file.type) ? 'help-desk-invalid' : '' });
+          const item = node('figure', '', { class: file.size > 10 * 1024 * 1024 || !types.includes(file.type) ? 'help-desk-invalid' : '' });
           const remove = node('button', '×', { type: 'button', 'aria-label': `Remove ${file.name}` });
           remove.onclick = () => { files.splice(index, 1); sync(); };
           item.append(node('img', '', { src: urls[index], alt: '' }), node('figcaption', file.name), remove);

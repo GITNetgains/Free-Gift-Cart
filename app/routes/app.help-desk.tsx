@@ -11,12 +11,20 @@ import {
 import { addStaffMessage, deleteTickets, readHelpDeskForm, submitTicket, updateTickets } from "../services/help-desk.server";
 import { emailConfigured, loadProducts, loadShop, sendTestEmail, trackingUrl, type TicketProduct } from "../services/help-desk-email.server";
 import { ordersByEmail } from "../services/help-desk-orders.server";
-import { matchFaq, NO_ANSWER } from "../services/help-desk-bot";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
-import { ensureFaqs } from "../services/help-desk-chat.server";
 import { FeatureCard, SetupChecklist, since, StatTile, type ChecklistItem } from "../components/HelpDeskUi";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
+import SectionNavigation from "../components/SectionNavigation";
+export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
+
+function HelpDeskNavigation({ current }: { current: string }) {
+  return <SectionNavigation label="Help Desk sections" current={current} items={[
+    { id: "tickets", label: "Tickets", href: "/app/help-desk" },
+    { id: "setup", label: "Setup & overview", href: "/app/help-desk?section=setup" },
+    { id: "settings", label: "Settings", href: "/app/help-desk?settings=1" },
+  ]} />;
+}
 
 const PAGE_SIZE = 25;
 const STATUS_TONE = { Open: "warning", "In progress": "info", "Waiting on customer": "caution", Resolved: "success" } as const;
@@ -28,7 +36,6 @@ const VIEWS = {
   unassigned: { label: "Unassigned", where: { status: UNRESOLVED, assignee: "" } },
   urgent: { label: "High priority", where: { status: UNRESOLVED, priority: { in: ["High", "Urgent"] } } },
   waiting: { label: "Waiting on customer", where: { status: "Waiting on customer" } },
-  chats: { label: "Live chats", where: { channel: "chat", status: UNRESOLVED } },
   resolved: { label: "Resolved", where: { status: "Resolved" } },
   // Tickets with a photo the AI photo check flagged as AI-made or reused.
   flagged: { label: "Flagged photos", where: { attachments: { some: { scan: { is: { overallVerdict: { in: ["likely_ai", "duplicate"] } } } } } } },
@@ -78,31 +85,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         enabled: settings.aiDetectionEnabled, mode: settings.aiDetectorMode, provider: settings.aiDetectionProvider,
         sightengineUser: settings.sightengineUser, hasSightengineSecret: Boolean(settings.sightengineSecret), hasTruthscanKey: Boolean(settings.truthscanKey),
       },
-    }, { headers });
-  }
-
-  if (url.searchParams.get("chatbot")) {
-    const chat = await ensureFaqs(db, shop);
-    const since = new Date(Date.now() - 30 * DAY);
-    const [faqs, results, unanswered, chats] = await Promise.all([
-      db.helpDeskFaq.findMany({ where: { shop }, orderBy: { createdAt: "asc" }, select: { id: true, question: true, keywords: true, answer: true } }),
-      db.helpDeskBotQuestion.groupBy({ by: ["result"], where: { shop, createdAt: { gte: since } }, _count: { _all: true } }),
-      db.helpDeskBotQuestion.findMany({ where: { shop, result: "none", createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 200, select: { question: true, createdAt: true } }),
-      db.helpDeskTicket.count({ where: { shop, channel: "chat", createdAt: { gte: since } } }),
-    ]);
-    const counts = Object.fromEntries(results.map((row) => [row.result, row._count._all])) as Record<string, number>;
-    // The same question asked several times is one row, most asked first.
-    const grouped = new Map<string, { question: string; count: number; last: Date }>();
-    for (const row of unanswered) {
-      const key = row.question.toLowerCase().replace(/s+/g, " ").trim();
-      const entry = grouped.get(key);
-      if (entry) entry.count += 1; else grouped.set(key, { question: row.question, count: 1, last: row.createdAt });
-    }
-    return data({
-      screen: "chatbot" as const, ...base, faqs,
-      chat: { chatEnabled: chat.chatEnabled, chatGreeting: chat.chatGreeting },
-      stats: { asked: (counts.faq ?? 0) + (counts.order ?? 0) + (counts.none ?? 0), answered: (counts.faq ?? 0) + (counts.order ?? 0), orders: counts.order ?? 0, chats },
-      unanswered: [...grouped.values()].sort((a, b) => b.count - a.count).slice(0, 15),
     }, { headers });
   }
 
@@ -164,7 +146,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const orderBy: Prisma.HelpDeskTicketOrderByWithRelationInput[] = sort === "newest" ? [{ createdAt: "desc" }, { id: "desc" }]
     : sort === "oldest" ? [{ createdAt: "asc" }, { id: "asc" }] : [{ lastActivityAt: "desc" }, { createdAt: "desc" }];
   const now = Date.now();
-  const [tickets, count, viewCounts, responded, resolvedWeek, newToday, botResults, chatsWeek, scanGroups, unansweredQuestions, totalTickets] = await Promise.all([
+  const [tickets, count, viewCounts, responded, resolvedWeek, newToday, scanGroups, totalTickets] = await Promise.all([
     db.helpDeskTicket.findMany({
       where, orderBy, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
       select: {
@@ -177,14 +159,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     db.helpDeskTicket.findMany({ where: { shop, firstResponseAt: { gte: new Date(now - 30 * DAY) } }, select: { createdAt: true, firstResponseAt: true }, take: 2000 }),
     db.helpDeskTicket.count({ where: { shop, status: "Resolved", resolvedAt: { gte: new Date(now - 7 * DAY) } } }),
     db.helpDeskTicket.count({ where: { shop, createdAt: { gte: new Date(now - DAY) } } }),
-    db.helpDeskBotQuestion.groupBy({ by: ["result"], where: { shop, createdAt: { gte: new Date(now - 30 * DAY) } }, _count: { _all: true } }),
-    db.helpDeskTicket.count({ where: { shop, channel: "chat", createdAt: { gte: new Date(now - 7 * DAY) } } }),
     db.helpDeskImageScan.groupBy({ by: ["overallVerdict"], where: { shop, status: "completed", createdAt: { gte: new Date(now - 30 * DAY) } }, _count: { _all: true } }),
-    db.helpDeskBotQuestion.findMany({ where: { shop, result: "none", createdAt: { gte: new Date(now - 30 * DAY) } }, distinct: ["question"], select: { question: true }, take: 100 }),
     db.helpDeskTicket.count({ where: { shop } }),
   ]);
   const scans = Object.fromEntries(scanGroups.map((row) => [row.overallVerdict || "error", row._count._all])) as Record<string, number>;
-  const bot = Object.fromEntries(botResults.map((row) => [row.result, row._count._all])) as Record<string, number>;
   const flaggedScans = await db.helpDeskImageScan.findMany({
     where: { shop, overallVerdict: { in: ["likely_ai", "duplicate"] }, attachment: { ticketId: { in: tickets.map((ticket) => ticket.id) } } },
     select: { overallVerdict: true, attachment: { select: { ticketId: true } } },
@@ -204,15 +182,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     count, page, views: Object.fromEntries(viewCounts) as Record<View, number>,
     metrics: {
       avgResponse: responseTimes.length ? responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length : null, resolvedWeek, newToday,
-      botAsked: (bot.faq ?? 0) + (bot.order ?? 0) + (bot.none ?? 0), botAnswered: (bot.faq ?? 0) + (bot.order ?? 0),
     },
     filters: { view, topic, priority, assignee, sort, q, period },
     // What the overview cards and setup checklist show.
     overview: {
       apiKey: process.env.SHOPIFY_API_KEY || "",
-      formLastSeenAt: settings.formLastSeenAt, chatLastSeenAt: settings.chatLastSeenAt, chatEnabled: settings.chatEnabled, faqsReviewed: settings.faqsReviewed,
-      signature: Boolean(settings.signature), totalTickets,
-      chatsWeek, unanswered: unansweredQuestions.length,
+      formLastSeenAt: settings.formLastSeenAt, signature: Boolean(settings.signature), totalTickets,
       aiEnabled: settings.aiDetectionEnabled,
       detectorConnected: settings.aiDetectionProvider === "truthscan" ? Boolean(settings.truthscanKey) : Boolean(settings.sightengineUser && settings.sightengineSecret),
       photos: {
@@ -230,7 +205,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = session;
   let form: FormData;
   try { form = await readHelpDeskForm(request); }
-  catch { return data<ActionResult>({ errors: { form: "Could not read the request. Use up to five images of 5 MB each." } }, { status: 400 }); }
+  catch { return data<ActionResult>({ errors: { form: "Could not read the request. Use up to five images of 10 MB each." } }, { status: 400 }); }
   const text = (key: string) => String(form.get(key) ?? "");
   const fail = (message: string, status = 400, key = "form") => data<ActionResult>({ errors: { [key]: message } }, { status });
   const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -286,8 +261,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       case "ai-settings": {
         const provider = text("provider") in PROVIDERS ? text("provider") : "sightengine";
-        const mode = (DETECTOR_MODES as readonly string[]).includes(text("mode")) ? text("mode") : "suspicious";
-        const current = await db.helpDeskSettings.findUniqueOrThrow({ where: { shop } });
+        const mode = (DETECTOR_MODES as readonly string[]).includes(text("mode")) ? text("mode") : "always";
+        // A store that never saved the general settings has no row yet.
+        const current = await db.helpDeskSettings.findUnique({ where: { shop } })
+          || { aiDetectionProvider: "", sightengineUser: "", sightengineSecret: "", truthscanKey: "" };
         // Blank secret fields keep the saved value.
         const next = {
           aiDetectionEnabled: text("enabled") === "true", aiDetectorMode: mode, aiDetectionProvider: provider,
@@ -305,7 +282,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           if (!check.valid) return fail(check.message || "These credentials don't work.", 400, "credentials");
           notice = "warning" in check && check.warning ? check.warning : "";
         }
-        await db.helpDeskSettings.update({ where: { shop }, data: next });
+        await db.helpDeskSettings.upsert({ where: { shop }, update: next, create: { shop, ...next } });
         // Photos scanned before a key was added get the detector now.
         if (hasCredentials && next.aiDetectionEnabled) await rescanMissingKeyScans(db, shop);
         return data<ActionResult>({ errors: {}, notice });
@@ -320,31 +297,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       case "email-retry":
         if (!emailConfigured()) return fail("Email sending is not set up on the server yet.");
         if (!await retryEmail(db, shop, text("id"), admin)) return fail("This email can't be retried.");
-        return data<ActionResult>({ errors: {} });
-      case "chat-settings": {
-        if (text("chatGreeting").length > 300) return fail("Use no more than 300 characters.", 400, "chatGreeting");
-        const values = { chatEnabled: text("chatEnabled") === "true", chatGreeting: text("chatGreeting").trim(), faqsReviewed: true };
-        await db.helpDeskSettings.upsert({ where: { shop }, update: values, create: { shop, ...values } });
-        return data<ActionResult>({ errors: {} });
-      }
-      case "faq-save": {
-        const values = { question: text("question").trim(), keywords: text("keywords").trim(), answer: text("answer").trim() };
-        const errors: Record<string, string> = {};
-        if (!values.question || values.question.length > 200) errors.question = "Enter a question of up to 200 characters.";
-        if (values.keywords.length > 500) errors.keywords = "Use no more than 500 characters.";
-        if (!values.answer || values.answer.length > 2000) errors.answer = "Enter an answer of up to 2,000 characters.";
-        if (Object.keys(errors).length) return data<ActionResult>({ errors }, { status: 400 });
-        if (text("id")) {
-          const { count } = await db.helpDeskFaq.updateMany({ where: { id: text("id"), shop }, data: values });
-          if (!count) return fail("This answer no longer exists.");
-        } else if (await db.helpDeskFaq.count({ where: { shop } }) >= 200) {
-          return fail("You can save up to 200 answers.");
-        } else await db.helpDeskFaq.create({ data: { shop, ...values } });
-        await db.helpDeskSettings.update({ where: { shop }, data: { faqsReviewed: true } });
-        return data<ActionResult>({ errors: {} });
-      }
-      case "faq-delete":
-        await db.helpDeskFaq.deleteMany({ where: { id: text("id"), shop } });
         return data<ActionResult>({ errors: {} });
       case "macro-save": {
         const title = text("title").trim();
@@ -413,6 +365,7 @@ function useListLink() {
   return (changes: Record<string, string>) => {
     const params = new URLSearchParams(searchParams);
     params.delete("status");
+    params.delete("section");
     for (const [key, value] of Object.entries(changes)) {
       if (value) params.set(key, value); else params.delete(key);
     }
@@ -760,18 +713,52 @@ function TicketProperties({ ticket, team }: { ticket: TicketData["ticket"]; team
   </s-section>;
 }
 
-// Reloads the page data every 15 seconds while the tab is visible, so new chat
-// messages and email results appear without a refresh. Typed text is kept.
-function useLiveRefresh(intervalMs = 15_000) {
+// Live updates, like a chat app: polls a cheap fingerprint of the screen every
+// few seconds (and as soon as the tab is back in view) and reloads the page data
+// only when it changed, so new customer messages and photo checks appear
+// without a refresh. Typed text is kept. `paused` holds off while the user is
+// mid-action (e.g. tickets selected for a bulk change).
+function useLiveRefresh({ ticketId = "", paused = false, intervalMs = 4_000 }: { ticketId?: string; paused?: boolean; intervalMs?: number } = {}) {
   const revalidator = useRevalidator();
-  const state = useRef(revalidator);
-  state.current = revalidator;
+  const pulse = useFetcher<{ stamp: string }>();
+  const live = useRef({ revalidator, pulse, paused });
+  live.current = { revalidator, pulse, paused };
+  const lastStamp = useRef<string | null>(null);
+  const url = `/app/help-desk-pulse${ticketId ? `?ticket=${encodeURIComponent(ticketId)}` : ""}`;
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible" && state.current.state === "idle") void state.current.revalidate();
-    }, intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
+    lastStamp.current = null;
+    const check = () => {
+      const { pulse: current, paused: hold } = live.current;
+      if (document.visibilityState === "visible" && current.state === "idle" && !hold) void current.load(url);
+    };
+    check();
+    const timer = setInterval(check, intervalMs);
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
+  }, [url, intervalMs]);
+
+  useEffect(() => {
+    const stamp = pulse.data?.stamp;
+    if (!stamp || pulse.state !== "idle") return;
+    // The first answer is the baseline for what's already on screen.
+    if (lastStamp.current !== null && stamp !== lastStamp.current && live.current.revalidator.state === "idle") void live.current.revalidator.revalidate();
+    lastStamp.current = stamp;
+  }, [pulse.data, pulse.state]);
+}
+
+// Tells staff when the customer writes while the ticket is open.
+function useNewMessageToast(messages: { id: string; kind: string }[]) {
+  const shopify = useAppBridge();
+  const seen = useRef(new Set(messages.map((message) => message.id)));
+  useEffect(() => {
+    const fresh = messages.filter((message) => !seen.current.has(message.id));
+    fresh.forEach((message) => seen.current.add(message.id));
+    if (fresh.some((message) => message.kind === "customer")) shopify.toast.show("New message from the customer");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 }
 
 function TicketDetail({ screen }: { screen: TicketData }) {
@@ -784,7 +771,8 @@ function TicketDetail({ screen }: { screen: TicketData }) {
   const readAt = ticket.readAt ? new Date(ticket.readAt).getTime() : 0;
   const replyEmails = new Map(ticket.emails.filter((email) => email.messageId).map((email) => [email.messageId!, email]));
   const otherEmails = ticket.emails.filter((email) => !(email.kind === "reply" && email.messageId));
-  useLiveRefresh();
+  useLiveRefresh({ ticketId: ticket.id });
+  useNewMessageToast(conversation);
   const navigate = useNavigate();
   const remover = useFetcher<typeof action>();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -963,28 +951,15 @@ function BulkBar({ ids, team, onDone }: { ids: string[]; team: string[]; onDone:
   </s-box>;
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return <s-box border="base" borderRadius="base" padding="base">
-    <s-stack gap="small-100">
-      <s-text color="subdued">{label}</s-text>
-      <s-heading>{value}</s-heading>
-      {detail && <s-text color="subdued">{detail}</s-text>}
-    </s-stack>
-  </s-box>;
-}
-
-// Store-side setup and the three product areas, above the ticket inbox.
+// Store-side setup and the AI photo check, above the ticket inbox.
 function HelpDeskOverview({ screen }: { screen: ListData }) {
   const { overview, views, metrics, team, configured } = screen;
   const navigate = useNavigate();
   const listLink = useListLink();
   const recently = (value: string | Date | null, days: number) => Boolean(value && Date.now() - new Date(value).getTime() < days * DAY);
   const formLive = recently(overview.formLastSeenAt, 30);
-  const chatLive = overview.chatEnabled && recently(overview.chatLastSeenAt, 7);
-  // Theme editor deep links: add the form block to a page, switch the chat embed on.
+  // Theme editor deep link: add the form block to a page.
   const formLink = `shopify://admin/themes/current/editor?template=page&addAppBlockId=${overview.apiKey}/help_desk&target=newAppsSection`;
-  const chatLink = `shopify://admin/themes/current/editor?context=apps&activateAppId=${overview.apiKey}/help_desk_chat`;
-  const answeredRate = metrics.botAsked ? Math.round((metrics.botAnswered / metrics.botAsked) * 100) : null;
   const flagged = overview.photos.likelyAi + overview.photos.reused;
 
   const steps: ChecklistItem[] = [
@@ -997,31 +972,20 @@ function HelpDeskOverview({ screen }: { screen: ListData }) {
       </s-stack>,
     },
     {
-      id: "chat", done: chatLive, title: "Turn on the chat widget",
-      description: chatLive ? `Live on your store · last loaded ${since(overview.chatLastSeenAt)}.`
-        : overview.chatEnabled ? "One click: open your theme editor with the Help Desk chat app embed switched on, then click Save." : "Chat is switched off on the Chatbot page.",
-      action: chatLive ? undefined : overview.chatEnabled
-        ? <s-button variant="primary" href={chatLink} target="_blank">Turn on in theme</s-button>
-        : <s-button href="/app/help-desk?chatbot=1">Open Chatbot</s-button>,
-    },
-    {
-      id: "faqs", done: overview.faqsReviewed, title: "Add your store's answers to the chatbot",
-      description: overview.faqsReviewed ? "Your answers are in. Keep adding the questions the chatbot couldn't answer." : "Add shipping times, your return policy and other common questions so the chatbot can answer them.",
-      action: overview.faqsReviewed ? undefined : <s-button href="/app/help-desk?chatbot=1">Edit answers</s-button>,
-    },
-    {
       id: "team", done: team.length > 0 && overview.signature, title: "Add your team and reply signature",
       description: team.length ? `${team.length} team member${team.length === 1 ? "" : "s"}${overview.signature ? " and a signature" : ". Add a reply signature too"}.` : "Add the names of the people who reply, so you can assign tickets and reply as them.",
       action: team.length > 0 && overview.signature ? undefined : <s-button href="/app/help-desk?settings=1">Open settings</s-button>,
     },
     {
       id: "email", done: configured, title: "Turn on email sending",
-      description: configured ? "Customers get confirmations and replies by email, and your team gets alerts." : "Needs your email (SMTP) details added on the app server. Until then tickets, chat and request pages work, but no emails are sent.",
+      description: configured ? "Customers get confirmations and replies by email, and your team gets alerts." : "Needs your email (SMTP) details added on the app server. Until then tickets and request pages work, but no emails are sent.",
     },
     {
-      id: "photos", done: overview.aiEnabled, title: "AI photo check",
-      description: overview.aiEnabled ? (overview.detectorConnected ? "On, with your AI detector connected." : "On with the free checks. Optional: connect Sightengine or TruthScan for a deeper check.") : "Switched off: customer photos aren't being checked.",
-      action: overview.aiEnabled && overview.detectorConnected ? undefined : <s-button href="/app/help-desk?settings=1">{overview.aiEnabled ? "Connect detector" : "Turn on"}</s-button>,
+      id: "photos", done: overview.aiEnabled && overview.detectorConnected, title: "Connect your AI detector",
+      description: !overview.aiEnabled ? "Switched off: customer photos aren't being checked."
+        : overview.detectorConnected ? "On, with your AI detector connected."
+        : "Only the free checks are running. Add your Sightengine or TruthScan API key so photos they can't settle get the AI detector's verdict.",
+      action: overview.aiEnabled && overview.detectorConnected ? undefined : <s-button href="/app/help-desk?settings=1&part=photos">{overview.aiEnabled ? "Connect detector" : "Turn on"}</s-button>,
     },
   ];
 
@@ -1030,21 +994,8 @@ function HelpDeskOverview({ screen }: { screen: ListData }) {
 
     <s-section padding="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))" gap="base">
-        <FeatureCard tone="blue" icon="chat" title="Live chat" status={chatLive ? "Live on store" : overview.chatEnabled ? "Not on store yet" : "Switched off"}
-          statusTone={chatLive ? "success" : overview.chatEnabled ? "warning" : "neutral"}
-          metrics={[{ label: "Open chats", value: String(views.chats) }, { label: "Chats this week", value: String(overview.chatsWeek) }]}
-          description="Shoppers ask the assistant first. When they need a person, the chat becomes a ticket here and you reply in the same chat.">
-          <s-button onClick={() => navigate(listLink({ view: "chats" }))}>View chats</s-button>
-          {!chatLive && overview.chatEnabled && <s-button variant="tertiary" href={chatLink} target="_blank">Turn on in theme</s-button>}
-        </FeatureCard>
-        <FeatureCard tone="red" icon="wand" title="Chatbot" status={answeredRate === null ? "No questions yet" : `${answeredRate}% answered`}
-          statusTone={answeredRate === null ? "neutral" : answeredRate >= 60 ? "success" : "warning"}
-          metrics={[{ label: "Questions (30 days)", value: String(metrics.botAsked) }, { label: "Couldn't answer", value: String(overview.unanswered) }]}
-          description="Answers from your FAQ and live order status, so shoppers get help instantly without waiting for your team.">
-          <s-button href="/app/help-desk?chatbot=1">{overview.unanswered ? "Improve answers" : "Open chatbot"}</s-button>
-        </FeatureCard>
-        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · free checks"}
-          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "info"}
+        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · detector not connected"}
+          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "warning"}
           metrics={[{ label: "Checked (30 days)", value: String(overview.photos.checked) }, { label: "Flagged", value: String(flagged) }]}
           description="Every photo customers send is checked for AI generation, reuse from another request, and editing.">
           <s-button href="/app/photo-checks">Review photos</s-button>
@@ -1082,12 +1033,12 @@ function TicketList({ screen }: { screen: ListData }) {
   useResultToast(rowRemover, () => `Ticket #${deletedNumber.current} deleted`);
   useEffect(() => { if (rowRemover.state === "idle" && rowRemover.data && !Object.keys(rowRemover.data.errors).length) setPendingDelete(null); }, [rowRemover.state, rowRemover.data]);
   const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...new Set([...current, id])] : current.filter((value) => value !== id));
-  return <s-page heading="Help Desk" inlineSize="large">
-    <s-button slot="secondary-actions" icon="chat" href="/app/help-desk?chatbot=1">Chatbot</s-button>
+  useLiveRefresh({ paused: selected.length > 0 || Boolean(pendingDelete) });
+  return <s-page heading="Help Desk tickets" inlineSize="large">
     <s-button slot="secondary-actions" icon="image" href="/app/photo-checks">Photo checks</s-button>
     <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1">Settings</s-button>
 
-    <HelpDeskOverview screen={screen} />
+    <HelpDeskNavigation current="tickets" />
 
     <s-section padding="base">
       <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
@@ -1288,8 +1239,8 @@ function SavedReplies({ macros }: { macros: SettingsData["macros"] }) {
 }
 
 const DETECTOR_MODE_LABELS: Record<string, { label: string; details: string }> = {
-  suspicious: { label: "Only when a photo looks suspicious (recommended)", details: "Clear camera originals skip the paid check; everything else the free checks can't settle is sent." },
-  always: { label: "Every photo the free checks can't settle", details: "Most thorough; uses the most checks on your plan." },
+  always: { label: "Every photo the free checks can't settle (recommended)", details: "Layers 1-4 (Content Credentials, watermarks, metadata, known-image match) run first and free; any photo they can't settle goes to your AI detector." },
+  suspicious: { label: "Skip clear camera originals", details: "Saves checks: photos with intact, consistent camera data aren't sent. Everything else the free checks can't settle is." },
   manual: { label: "Only when I click \"Check with AI detector\"", details: "No checks are used automatically." },
 };
 
@@ -1332,7 +1283,7 @@ function AiSettings({ ai }: { ai: SettingsData["ai"] }) {
       </>}
       <s-text color="subdued">{connected ? "Detector connected. Keys are checked with the provider when you save." : "Without a key the free checks still run; photos they can't settle show as \"Can't confirm\"."}</s-text>
       <s-select label="When to use the AI detector" value={values.mode} disabled={!values.enabled}
-        details={DETECTOR_MODE_LABELS[values.mode]?.details} onChange={(event) => set("mode", event.currentTarget.value || "suspicious")}>
+        details={DETECTOR_MODE_LABELS[values.mode]?.details} onChange={(event) => set("mode", event.currentTarget.value || "always")}>
         {Object.entries(DETECTOR_MODE_LABELS).map(([value, { label }]) => <s-option key={value} value={value}>{label}</s-option>)}
       </s-select>
       <s-stack direction="inline">
@@ -1344,6 +1295,9 @@ function AiSettings({ ai }: { ai: SettingsData["ai"] }) {
 }
 
 function SettingsScreen({ screen }: { screen: SettingsData }) {
+  const [params] = useSearchParams();
+  const requested = params.get("part") || "email";
+  const part = ["email", "team", "replies", "photos", "storefront"].includes(requested) ? requested : "email";
   const { settings, storeEmail, configured } = screen;
   const save = useFetcher<typeof action>();
   const test = useFetcher<typeof action>();
@@ -1359,6 +1313,15 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
     <s-button slot="primary-action" variant="primary" disabled={!dirty} loading={save.state !== "idle"}
       onClick={() => void save.submit({ intent: "settings", ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value)])) }, { method: "post" })}>Save</s-button>
 
+    <HelpDeskNavigation current="settings" />
+    <SectionNavigation label="Settings categories" current={part} items={[
+      { id: "email", label: "Email notifications", href: "/app/help-desk?settings=1" },
+      { id: "team", label: "Team", href: "/app/help-desk?settings=1&part=team" },
+      { id: "replies", label: "Saved replies", href: "/app/help-desk?settings=1&part=replies" },
+      { id: "photos", label: "Photo detection", href: "/app/help-desk?settings=1&part=photos" },
+      { id: "storefront", label: "Storefront form", href: "/app/help-desk?settings=1&part=storefront" },
+    ]} />
+    {part === "email" && <>
     {!configured && <s-banner tone="warning" heading="Email sending isn't set up yet">
       Add the SMTP settings (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and optionally SMTP_FROM) to the app server. Until then, tickets and replies still work in the app and on the customer&apos;s request page, but no emails are sent.
     </s-banner>}
@@ -1386,176 +1349,34 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
       </s-stack>
     </s-section>
 
-    <s-section heading="Team">
+    </>}
+    {part === "team" && <s-section heading="Team">
       <s-text-field label="Team members" value={values.team} placeholder="e.g. Priya, Rahul, Support team"
         details="Separate names with commas. You can assign tickets to these people and reply as them." onInput={(event) => set("team", event.currentTarget.value ?? "")} />
-    </s-section>
+    </s-section>}
 
-    <AiSettings ai={screen.ai} />
+    {part === "photos" && <AiSettings ai={screen.ai} />}
 
-    <SavedReplies macros={screen.macros} />
+    {part === "replies" && <SavedReplies macros={screen.macros} />}
 
-    <s-section slot="aside" heading="Storefront setup">
+    {part === "storefront" && <s-section heading="Storefront setup">
       <s-stack gap="small-200">
         <s-paragraph>In your theme editor, add the <s-text type="strong">Help Desk form</s-text> block to a page, such as a Contact or Support page.</s-paragraph>
         <s-paragraph color="subdued">Customers get a ticket number and a private request page where they can see replies and answer you. Signed-in customers also see their past requests in the form.</s-paragraph>
         <s-link href="shopify://admin/themes/current/editor" target="_blank">Open theme editor</s-link>
       </s-stack>
-    </s-section>
-  </s-page>;
-}
-
-// ---------- Chatbot ----------
-
-type ChatbotData = Extract<LoaderData, { screen: "chatbot" }>;
-type FaqEntry = ChatbotData["faqs"][number];
-
-function FaqEditor({ faq, prefill, onDone }: { faq?: FaqEntry; prefill?: string; onDone?: () => void }) {
-  const fetcher = useFetcher<typeof action>();
-  const [question, setQuestion] = useState(faq?.question ?? prefill ?? "");
-  const [keywords, setKeywords] = useState(faq?.keywords ?? "");
-  const [answer, setAnswer] = useState(faq?.answer ?? "");
-  useEffect(() => { if (prefill !== undefined) setQuestion(prefill); }, [prefill]);
-  useResultToast(fetcher, faq ? "Answer updated" : "Answer added");
-  useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || Object.keys(fetcher.data.errors).length) return;
-    if (!faq) { setQuestion(""); setKeywords(""); setAnswer(""); }
-    onDone?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetcher.state, fetcher.data]);
-  return <s-stack gap="base">
-    <s-text-field label="Customer question" value={question} maxLength={200} placeholder="e.g. How long does shipping take?"
-      error={fetcher.data?.errors.question} onInput={(event) => setQuestion(event.currentTarget.value ?? "")} />
-    <s-text-field label="Other ways customers ask" value={keywords} maxLength={500} placeholder="e.g. delivery time, when will it arrive, shipping days"
-      details="Comma-separated words and phrases. Exact phrases count the most." error={fetcher.data?.errors.keywords} onInput={(event) => setKeywords(event.currentTarget.value ?? "")} />
-    <s-text-area label="Answer" rows={4} value={answer} maxLength={2000} error={fetcher.data?.errors.answer} onInput={(event) => setAnswer(event.currentTarget.value ?? "")} />
-    <s-stack direction="inline" gap="small-200">
-      <s-button variant="primary" loading={fetcher.state !== "idle"} disabled={!question.trim() || !answer.trim()}
-        onClick={() => void fetcher.submit({ intent: "faq-save", id: faq?.id ?? "", question, keywords, answer }, { method: "post" })}>{faq ? "Save" : "Add answer"}</s-button>
-      {onDone && <s-button variant="tertiary" onClick={onDone}>Cancel</s-button>}
-    </s-stack>
-  </s-stack>;
-}
-
-// Runs the storefront matcher in the browser so answers can be checked before customers see them.
-function TryBot({ faqs }: { faqs: FaqEntry[] }) {
-  const [question, setQuestion] = useState("");
-  const [asked, setAsked] = useState("");
-  const match = asked ? matchFaq(asked, faqs) : null;
-  return <s-section heading="Try the chatbot">
-    <s-stack gap="base">
-      <form onSubmit={(event) => { event.preventDefault(); setAsked(question.trim()); }}>
-        <s-stack direction="inline" gap="small-200" alignItems="end">
-          <s-text-field label="Ask a question like a customer would" value={question} placeholder="e.g. can i send my order back?"
-            onInput={(event) => setQuestion(event.currentTarget.value ?? "")} />
-          <s-button type="submit" disabled={!question.trim()}>Ask</s-button>
-        </s-stack>
-      </form>
-      {asked && <s-box padding="base" border="base" borderRadius="base" background="subdued">
-        <s-stack gap="small-100">
-          <s-text color="subdued">{match ? `Matched "${match.question}"` : "No confident match: the customer is offered your team instead"}</s-text>
-          <div style={{ whiteSpace: "pre-wrap" }}>{match ? match.answer : NO_ANSWER}</div>
-        </s-stack>
-      </s-box>}
-      <s-paragraph color="subdued">Order questions (like &quot;where is order #1001, name@example.com&quot;) are answered from your live Shopify orders on the storefront.</s-paragraph>
-    </s-stack>
-  </s-section>;
-}
-
-function ChatbotScreen({ screen }: { screen: ChatbotData }) {
-  const { faqs, stats, unanswered } = screen;
-  const save = useFetcher<typeof action>();
-  const remove = useFetcher<typeof action>();
-  const [chat, setChat] = useState(screen.chat);
-  const [editing, setEditing] = useState("");
-  const [prefill, setPrefill] = useState<string | undefined>(undefined);
-  const addRef = useRef<HTMLDivElement>(null);
-  useEffect(() => setChat(screen.chat), [screen.chat]);
-  useResultToast(save, "Chat settings saved");
-  useResultToast(remove, "Answer deleted");
-  const dirty = chat.chatEnabled !== screen.chat.chatEnabled || chat.chatGreeting !== screen.chat.chatGreeting;
-  return <s-page heading="Chatbot">
-    <s-link slot="breadcrumb-actions" href="/app/help-desk">Help Desk</s-link>
-    <s-button slot="primary-action" variant="primary" disabled={!dirty} loading={save.state !== "idle"}
-      onClick={() => void save.submit({ intent: "chat-settings", chatEnabled: String(chat.chatEnabled), chatGreeting: chat.chatGreeting }, { method: "post" })}>Save</s-button>
-
-    <s-section padding="base">
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))" gap="base">
-        <Metric label="Questions asked" value={String(stats.asked)} detail="Last 30 days" />
-        <Metric label="Answered automatically" value={stats.asked ? `${Math.round((stats.answered / stats.asked) * 100)}%` : "—"} detail={`${stats.answered} answered`} />
-        <Metric label="Order status lookups" value={String(stats.orders)} detail="Answered from live orders" />
-        <Metric label="Chats sent to your team" value={String(stats.chats)} detail="Became tickets" />
-      </s-grid>
-    </s-section>
-
-    <s-section heading="Chat widget">
-      <s-stack gap="base">
-        <s-switch label="Show the chat widget on my store" checked={chat.chatEnabled} onChange={(event) => setChat((current) => ({ ...current, chatEnabled: event.currentTarget.checked ?? false }))} />
-        <s-text-field label="Greeting" value={chat.chatGreeting} maxLength={300} placeholder="Hi! Ask me anything, like where your order is, or tap a question below."
-          error={save.data?.errors.chatGreeting} onInput={(event) => setChat((current) => ({ ...current, chatGreeting: event.currentTarget.value ?? "" }))} />
-        <s-paragraph color="subdued">The widget answers from the questions below and from live order data. When it can&apos;t help, the customer can talk to your team and the chat becomes a ticket here, transcript included.</s-paragraph>
-      </s-stack>
-    </s-section>
-
-    {unanswered.length > 0 && <s-section heading="Questions the chatbot couldn't answer">
-      <s-stack gap="small-200">
-        <s-paragraph color="subdued">Add answers for these so the chatbot can handle them next time.</s-paragraph>
-        {unanswered.map((item) => (
-          <s-stack key={item.question} direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-            <s-stack gap="none">
-              <s-text>{item.question}</s-text>
-              <s-text color="subdued">Asked {item.count} time{item.count === 1 ? "" : "s"} · last <span suppressHydrationWarning>{formatDate(item.last)}</span></s-text>
-            </s-stack>
-            <s-button icon="plus" onClick={() => { setPrefill(item.question); addRef.current?.scrollIntoView({ behavior: "smooth" }); }}>Add answer</s-button>
-          </s-stack>
-        ))}
-      </s-stack>
     </s-section>}
-
-    <s-section heading={`Answers (${faqs.length})`}>
-      <s-stack gap="base">
-        {faqs.length === 0 && <s-paragraph color="subdued">No answers yet. Add the questions customers ask most, such as shipping times and your return policy.</s-paragraph>}
-        {faqs.map((faq) => editing === faq.id
-          ? <s-box key={faq.id} border="base" borderRadius="base" padding="base"><FaqEditor faq={faq} onDone={() => setEditing("")} /></s-box>
-          : <s-box key={faq.id} border="base" borderRadius="base" padding="base">
-            <s-stack direction="inline" gap="base" alignItems="start" justifyContent="space-between">
-              <s-stack gap="small-100">
-                <s-text type="strong">{faq.question}</s-text>
-                <s-text color="subdued">{faq.answer.replace(/\s+/g, " ").slice(0, 160)}{faq.answer.length > 160 ? "..." : ""}</s-text>
-                {faq.keywords && <s-text color="subdued">Also matches: {faq.keywords}</s-text>}
-              </s-stack>
-              <s-stack direction="inline" gap="small-100">
-                <s-button variant="tertiary" icon="edit" accessibilityLabel={`Edit ${faq.question}`} onClick={() => setEditing(faq.id)} />
-                <s-button variant="tertiary" tone="critical" icon="delete" accessibilityLabel={`Delete ${faq.question}`} disabled={remove.state !== "idle"}
-                  onClick={() => void remove.submit({ intent: "faq-delete", id: faq.id }, { method: "post" })} />
-              </s-stack>
-            </s-stack>
-          </s-box>)}
-        <s-divider />
-        <div ref={addRef}>
-          <s-stack gap="base">
-            <s-heading>Add an answer</s-heading>
-            <FaqEditor prefill={prefill} />
-          </s-stack>
-        </div>
-      </s-stack>
-    </s-section>
-
-    <TryBot faqs={faqs} />
-
-    <s-section slot="aside" heading="Add the chat to your store">
-      <s-stack gap="small-200">
-        <s-paragraph>In your theme editor, open <s-text type="strong">App embeds</s-text> and turn on <s-text type="strong">Help Desk chat</s-text>.</s-paragraph>
-        <s-link href="shopify://admin/themes/current/editor?context=apps" target="_blank">Open theme editor</s-link>
-      </s-stack>
-    </s-section>
   </s-page>;
 }
 
 export default function HelpDeskRoute() {
   const screen = useLoaderData<typeof loader>();
+  const [params] = useSearchParams();
   if (screen.screen === "settings") return <SettingsScreen screen={screen} />;
-  if (screen.screen === "chatbot") return <ChatbotScreen screen={screen} />;
   if (screen.screen === "ticket") return <TicketDetail key={screen.ticket.id} screen={screen} />;
+  if (params.get("section") === "setup") return <s-page heading="Help Desk setup & overview" inlineSize="large">
+    <HelpDeskNavigation current="setup" />
+    <HelpDeskOverview screen={screen} />
+  </s-page>;
   return <TicketList screen={screen} />;
 }

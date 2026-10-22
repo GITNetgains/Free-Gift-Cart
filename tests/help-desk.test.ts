@@ -41,7 +41,7 @@ describe("Help desk validation", () => {
   });
   it("rejects oversized, empty, unsupported and excessive images", () => {
     const values = { ...contact, topic: topics[3], orderType: orderTypes[1], issue: issues[2], orderNumber: "#1001", details: "Details" };
-    for (const files of [[{ ...image, size: 6 * 1024 * 1024 }], [{ ...image, size: 0 }], [{ ...image, type: "image/svg+xml" }], Array(6).fill(image)]) {
+    for (const files of [[{ ...image, size: 11 * 1024 * 1024 }], [{ ...image, size: 0 }], [{ ...image, type: "image/svg+xml" }], Array(6).fill(image)]) {
       expect(validateHelpDesk(values, [], files)).toHaveProperty("images");
     }
   });

@@ -248,11 +248,11 @@ model HelpDeskSettings {
   chatGreeting String  @default("")
   // Starter FAQs are added once, so deleting them sticks.
   faqsSeeded   Boolean @default(false)
-  // AI photo check. Mode: suspicious (detector only for photos that aren't
-  // clear camera originals), always, or manual. Detector credentials are the
-  // store's own; they're never sent back to the browser.
+  // AI photo check. Mode: always (detector for every photo layers 1-4 can't
+  // settle), suspicious (skips clear camera originals) or manual. Detector
+  // credentials are the store's own; they're never sent back to the browser.
   aiDetectionEnabled  Boolean @default(true)
-  aiDetectorMode      String  @default("suspicious")
+  aiDetectorMode      String  @default("always")
   aiDetectionProvider String  @default("sightengine")
   sightengineUser     String  @default("")
   sightengineSecret   String  @default("")

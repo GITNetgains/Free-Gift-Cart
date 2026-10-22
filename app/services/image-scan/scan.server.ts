@@ -13,7 +13,7 @@ import { analyzeC2pa, type C2paResult } from "./signatures.server";
 // asked only when they can't, and per the store's detector mode.
 
 export type Verdict = "likely_ai" | "duplicate" | "uncertain" | "likely_real" | "error";
-export const DETECTOR_MODES = ["suspicious", "always", "manual"] as const;
+export const DETECTOR_MODES = ["always", "suspicious", "manual"] as const;
 // A near-duplicate (re-saved, re-compressed, cropped) differs from the
 // original in only a few of the 64 dHash bits.
 const PERCEPTUAL_DISTANCE_THRESHOLD = 6;
@@ -95,10 +95,11 @@ export function combineLayers(layers: Layers): { overallVerdict: Verdict; overal
   return { overallVerdict: "error", overallConfidence: 0 };
 }
 
-// When the paid detector runs: 'suspicious' skips clear camera originals
-// (coherent, self-consistent camera data, nothing generator-like), 'always'
-// runs it for everything the local layers can't settle, 'manual' only on request.
-export function detectorDecision({ mode = "suspicious", editing, exif, force = false }: { mode?: string; editing?: Pick<EditResult, "level" | "cameraCoherence"> | null; exif?: Partial<ExifResult> | null; force?: boolean }) {
+// When the paid detector runs: 'always' (default) for every photo layers 1-4
+// can't settle; 'suspicious' also skips clear camera originals
+// (coherent, self-consistent camera data, nothing generator-like);
+// 'manual' only on request.
+export function detectorDecision({ mode = "always", editing, exif, force = false }: { mode?: string; editing?: Pick<EditResult, "level" | "cameraCoherence"> | null; exif?: Partial<ExifResult> | null; force?: boolean }) {
   if (force) return { run: true } as const;
   if (mode === "manual") return { run: false, skipReason: "manual", reason: "The AI detector runs only when you ask: use \"Check with AI detector\"." } as const;
   if (mode === "always") return { run: true } as const;
@@ -171,7 +172,7 @@ async function runScan(db: PrismaClient, attachmentId: string, options: { forceD
     } else if (reused) {
       classifier = reused;
     } else {
-      const decision = detectorDecision({ mode: settings?.aiDetectorMode || "suspicious", editing: structural, exif, force: options.forceDetector });
+      const decision = detectorDecision({ mode: settings?.aiDetectorMode || "always", editing: structural, exif, force: options.forceDetector });
       classifier = decision.run ? await runDetector() : { skipped: true, skipReason: decision.skipReason, reason: decision.reason, canRunDetector: true };
     }
     const editing = withClassifierEvidence(structural, classifier);

@@ -3,8 +3,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { countries, issues, MAX_MESSAGE_LENGTH, orderTypes, topics, updates } from "../services/help-desk";
 import { renderLookupPage, renderRequestPage } from "../services/help-desk-request-page";
-import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, startChat, submitTicket } from "../services/help-desk.server";
-import { answerQuestion, chatConfig } from "../services/help-desk-chat.server";
+import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, submitTicket } from "../services/help-desk.server";
 import { customerOrders } from "../services/help-desk-orders.server";
 import { loadProducts } from "../services/help-desk-email.server";
 import { ensureWorker, queueEmail } from "../services/help-desk-outbox.server";
@@ -18,9 +17,9 @@ const MINUTE = 60_000;
 // Customer-visible message kinds; internal notes and the activity log stay private.
 const PUBLIC_KINDS = ["customer", "reply", "bot"];
 
-// Records that the storefront form or chat widget loaded, at most every 10
-// minutes, so the admin can tell whether they're live on the store.
-async function markSeen(shop: string, field: "formLastSeenAt" | "chatLastSeenAt") {
+// Records that the storefront form loaded, at most every 10 minutes, so the
+// admin can tell whether it's live on the store.
+async function markSeen(shop: string, field: "formLastSeenAt") {
   const stale = new Date(Date.now() - 10 * MINUTE);
   try {
     const { count } = await db.helpDeskSettings.updateMany({ where: { shop, OR: [{ [field]: null }, { [field]: { lt: stale } }] }, data: { [field]: new Date() } });
@@ -46,27 +45,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const params = new URL(request.url).searchParams;
   // Signed by Shopify, so this is the shopper's own customer ID (empty when logged out).
   const customerId = params.get("logged_in_customer_id") || "";
-
-  // Live chat: the widget polls its conversation with the ticket's secret token.
-  const chat = params.get("chat");
-  if (chat !== null) {
-    if (!hit(`poll|${clientKey(request, shop)}`, 30, MINUTE)) return tooMany();
-    const ticket = TOKEN.test(chat) ? await db.helpDeskTicket.findFirst({
-      where: { shop, accessToken: chat },
-      include: { messages: { where: { kind: { in: PUBLIC_KINDS } }, orderBy: { createdAt: "asc" }, take: 200 }, attachments: { where: { messageId: { not: null } }, select: { messageId: true } } },
-    }) : null;
-    if (!ticket) return json({ error: "This conversation could not be found." }, 404);
-    const images = new Map<string, number>();
-    for (const file of ticket.attachments) images.set(file.messageId!, (images.get(file.messageId!) ?? 0) + 1);
-    return json({
-      ticket: { number: ticket.number, status: ticket.status, topic: ticket.topic },
-      messages: ticket.messages.map(({ id, kind, author, body, createdAt }) => ({ id, kind, author: kind === "customer" ? "You" : author, body, createdAt, images: images.get(id) ?? 0 })),
-    }, 200, privateHeaders);
-  }
-  if (params.get("view") === "chat") {
-    void markSeen(shop, "chatLastSeenAt");
-    return json(await chatConfig(db, shop), 200, privateHeaders);
-  }
 
   const token = params.get("ticket");
   if (token !== null) return trackingPage(shop, admin, token);
@@ -95,38 +73,11 @@ export async function action({ request }: ActionFunctionArgs) {
   const wantsJson = request.headers.get("Accept")?.includes("application/json");
   let form: FormData;
   try { form = await readHelpDeskForm(request); }
-  catch { return json({ errors: { form: "Could not read your request. Upload up to five images of 5 MB each." } }, 400); }
+  catch { return json({ errors: { form: "Could not read your request. Upload up to five images of 10 MB each." } }, 400); }
   if (form.get("website")) return json({ errors: { form: "Unable to submit this request." } }, 400);
   const text = (key: string) => String(form.get(key) ?? "");
 
   switch (form.get("intent")) {
-    // The chat bot: FAQ answers and order status. Nothing is saved but the question log.
-    case "ask": {
-      if (!hit(`ask|${client}`, 20, MINUTE)) return tooMany();
-      // Order lookups by number and email lock out after repeated misses, like a login.
-      if (blocked(`lookup-miss|${client}`, 5)) return json({ answer: "Too many order lookups didn't match. Please try again in 15 minutes, or tap \"Talk to our team\".", result: "none" });
-      const question = text("question").trim();
-      if (!question) return json({ errors: { question: "Type a question first." } }, 400);
-      const answer = await answerQuestion(db, shop, admin, question.slice(0, 500), customerId);
-      if (answer.orderNotFound) hit(`lookup-miss|${client}`, 5, 15 * MINUTE);
-      return json({ answer: answer.answer, result: answer.result, links: answer.links ?? [] });
-    }
-    // "Talk to our team": the chat becomes a ticket, transcript included.
-    case "chat-start": {
-      if (!hit(`ticket|${client}`, 5, MINUTE)) return tooMany();
-      let transcript: unknown = [];
-      try { transcript = JSON.parse(text("transcript") || "[]"); } catch { transcript = []; }
-      try {
-        const result = await startChat(db, shop, { name: text("name"), email: text("email"), message: text("body"), transcript, requestKey: text("requestKey"), customerId });
-        if (result.created && result.ticketId) {
-          queueEmail(db, { shop, ticketId: result.ticketId, kind: "new-ticket" }, admin);
-          queueEmail(db, { shop, ticketId: result.ticketId, kind: "ack" }, admin);
-        }
-        return json(result, result.ticketId ? 200 : 400);
-      } catch {
-        return json({ errors: { form: "Your message could not be sent. Please try again." } }, 500);
-      }
-    }
     // A reply on the customer's own ticket, identified by its secret token.
     case "reply": {
       const token = text("token");

@@ -183,7 +183,7 @@ export default function HelpDeskForm() {
             </>}
             {showImages && <div>
               <label htmlFor="help-desk-images">Upload images {imagesRequired(values) ? "(required)" : "(optional)"}</label>
-              <p id="help-desk-image-help">Up to 5 JPG, PNG or WebP images, 5 MB each. Images are saved with the ticket.</p>
+              <p id="help-desk-image-help">Up to 5 JPG, PNG or WebP images, 10 MB each. Images are saved with the ticket.</p>
               <input key={fileKey} id="help-desk-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple required={imagesRequired(values)} aria-describedby="help-desk-image-help help-desk-image-error" aria-invalid={Boolean(errors.images)} onChange={event => { setFiles(Array.from((event.currentTarget as HTMLInputElement).files || [])); setChecked(false); setErrors({}); }} />
               <div id="help-desk-image-error">{errors.images && <s-text tone="critical">{errors.images}</s-text>}</div>
               {files.length > 0 && <><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</li>)}</ul><s-button type="button" onClick={() => { setFiles([]); setFileKey(previous => previous + 1); setChecked(false); setErrors({}); }}>Clear images</s-button></>}

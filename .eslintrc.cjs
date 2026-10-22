@@ -19,7 +19,8 @@ module.exports = {
     commonjs: true,
     es6: true,
   },
-  ignorePatterns: ["!**/.server", "!**/.client"],
+  // Shopify CLI regenerates these ambient declarations during extension builds.
+  ignorePatterns: ["!**/.server", "!**/.client", "extensions/*/shopify.d.ts"],
 
   // Base config
   extends: ["eslint:recommended"],

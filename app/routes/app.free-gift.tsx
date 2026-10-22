@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useSearchParams } from "react-router";
+import SectionNavigation from "../components/SectionNavigation";
+export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
 import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -290,6 +292,9 @@ function SetupStep({ done, title, children }: { done: boolean; title: string; ch
 }
 
 export default function Index() {
+  const [params] = useSearchParams();
+  const requested = params.get("section") || "offer";
+  const section = ["offer", "products", "content", "colors", "setup"].includes(requested) ? requested : "offer";
   const initial = useLoaderData<typeof loader>().settings;
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -353,7 +358,14 @@ export default function Index() {
       <s-button slot="primary-action" variant="primary" icon="save" disabled={!dirty} onClick={submit} {...(saving ? { loading: true } : {})}>Save</s-button>
       <s-button slot="secondary-actions" icon="external" href="shopify://admin/themes/current/editor?context=apps" target="_blank">Theme app embeds</s-button>
 
-      <s-section>
+      <SectionNavigation label="Free gift sections" current={section} items={[
+        { id: "offer", label: "Offer rules", href: "/app/free-gift" },
+        { id: "products", label: "Gift products", href: "/app/free-gift?section=products" },
+        { id: "content", label: "Popup text", href: "/app/free-gift?section=content" },
+        { id: "colors", label: "Popup colors", href: "/app/free-gift?section=colors" },
+        { id: "setup", label: "Status & setup", href: "/app/free-gift?section=setup" },
+      ]} />
+      {section === "setup" && <s-section>
         <s-stack gap="base">
           <s-stack direction="inline" gap="small-200" alignItems="center">
             <s-heading>Gift offer</s-heading>
@@ -375,9 +387,9 @@ export default function Index() {
             </Metric>
           </s-grid>
         </s-stack>
-      </s-section>
+      </s-section>}
 
-      <s-section heading="Offer">
+      {section === "offer" && <s-section heading="Offer">
         <s-stack gap="base">
           <s-switch label="Enable free gift offer" details="Turn off to pause the popup and the checkout discount without losing your settings." checked={settings.enabled}
             onChange={(event) => update("enabled", event.currentTarget.checked ?? false)} />
@@ -389,9 +401,9 @@ export default function Index() {
               update("minimumSpend", wholeDollars * 100);
             }} />
         </s-stack>
-      </s-section>
+      </s-section>}
 
-      <s-section heading={`Gift products (${selectedProductCount}/${MAX_GIFT_PRODUCTS})`}>
+      {section === "products" && <s-section heading={`Gift products (${selectedProductCount}/${MAX_GIFT_PRODUCTS})`}>
         {settings.products.length === 0 ? (
           <s-box padding="large-200">
             <s-stack gap="base" alignItems="center">
@@ -436,9 +448,9 @@ export default function Index() {
             </s-stack>
           </s-stack>
         )}
-      </s-section>
+      </s-section>}
 
-      <s-section heading="Popup content">
+      {section === "content" && <s-section heading="Popup content">
         <s-stack gap="base">
           <s-text-field label="Heading" value={settings.heading} onInput={(event) => update("heading", event.currentTarget.value ?? "")} />
           <s-text-field label="Supporting text" value={settings.subheading} onInput={(event) => update("subheading", event.currentTarget.value ?? "")} />
@@ -447,9 +459,9 @@ export default function Index() {
             <s-text-field label="Success message" details="Shown after the gift is added to the cart." value={settings.successMessage} onInput={(event) => update("successMessage", event.currentTarget.value ?? "")} />
           </s-grid>
         </s-stack>
-      </s-section>
+      </s-section>}
 
-      <s-section heading="Popup colors">
+      {section === "colors" && <s-section heading="Popup colors">
         <s-grid gridTemplateColumns="1fr 1fr" gap="base">
           <s-color-field label="Background" value={settings.backgroundColor} onInput={(event) => update("backgroundColor", event.currentTarget.value)} />
           <s-color-field label="Text" value={settings.textColor} onInput={(event) => update("textColor", event.currentTarget.value)} />
@@ -457,16 +469,16 @@ export default function Index() {
           <s-color-field label="Button text" value={settings.buttonTextColor} onInput={(event) => update("buttonTextColor", event.currentTarget.value)} />
           <s-color-field label="Page overlay" value={settings.overlayColor} alpha onInput={(event) => update("overlayColor", event.currentTarget.value)} />
         </s-grid>
-      </s-section>
+      </s-section>}
 
-      <s-section slot="aside" heading="Preview">
+      {(section === "content" || section === "colors") && <s-section slot="aside" heading="Preview">
         <s-stack gap="small-200">
           <PopupPreview settings={settings} />
           <s-text color="subdued">{"Updates as you edit. Your theme's fonts are used on the storefront."}</s-text>
         </s-stack>
-      </s-section>
+      </s-section>}
 
-      <s-section slot="aside" heading="Setup checklist">
+      {section === "setup" && <s-section heading="Setup checklist">
         <s-stack gap="base">
           <SetupStep done={saved.enabled} title="Turn on the offer" />
           <SetupStep done={countGiftProducts(saved.products) > 0} title="Choose gift products" />
@@ -476,7 +488,7 @@ export default function Index() {
             <s-link href="shopify://admin/themes/current/editor?context=apps" target="_blank">Open theme editor</s-link>
           </SetupStep>
         </s-stack>
-      </s-section>
+      </s-section>}
     </s-page>
   );
 }

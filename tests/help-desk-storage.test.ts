@@ -3,10 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addCustomerMessage, addStaffMessage, CHAT_TOPIC, deleteTickets, purgeShop, readHelpDeskForm, redactCustomer, startChat, submitTicket, updateTickets, updateTicketStatus } from "../app/services/help-desk.server";
+import { addCustomerMessage, addStaffMessage, deleteTickets, purgeShop, readHelpDeskForm, redactCustomer, submitTicket, updateTickets, updateTicketStatus } from "../app/services/help-desk.server";
 import { fillMacro, orderTypes, topics } from "../app/services/help-desk";
-import { defaultFaqs } from "../app/services/help-desk-bot";
-import { answerQuestion, ensureFaqs } from "../app/services/help-desk-chat.server";
 import { processEmail, retryEmail } from "../app/services/help-desk-outbox.server";
 
 const temp = mkdtempSync(join(tmpdir(), "help-desk-test-"));
@@ -72,7 +70,7 @@ describe("Help desk persistence", () => {
     const body = form();
     const parsed = await readHelpDeskForm(new Request("https://example.com", { method: "POST", body }));
     expect(parsed.get("query")).toBe("Wholesale enquiry");
-    await expect(readHelpDeskForm(new Request("https://example.com", { method: "POST", body: new Uint8Array(26 * 1024 * 1024) }))).rejects.toThrow("Request too large");
+    await expect(readHelpDeskForm(new Request("https://example.com", { method: "POST", body: new Uint8Array(51 * 1024 * 1024) }))).rejects.toThrow("Request too large");
   });
   it("stores received and wanted products for a wrong delivery", async () => {
     const body = form({ topic: topics[3], orderType: orderTypes[2], orderNumber: "#1001", existing: "", query: "" });
@@ -137,19 +135,6 @@ describe("Help desk conversations", () => {
     ticket = await db.helpDeskTicket.findUniqueOrThrow({ where: { id: ticketId } });
     expect(ticket).toMatchObject({ status: "Open", unread: true, resolvedAt: null });
   });
-  it("turns a chat into a numbered ticket that keeps the bot transcript in order", async () => {
-    const result = await startChat(db, "chat.myshopify.com", {
-      name: "Rahul", email: "r@example.com", message: "I still need help", requestKey: crypto.randomUUID(), customerId: "7",
-      transcript: [{ from: "customer", text: "Do you ship to Canada?" }, { from: "bot", text: "Send us a query." }, { from: "staff", text: "forged" }, { from: "bot", text: "  " }],
-    });
-    expect(result).toMatchObject({ errors: {}, number: 1001, created: true });
-    const ticket = await db.helpDeskTicket.findUniqueOrThrow({ where: { id: result.ticketId }, include: { messages: { orderBy: { createdAt: "asc" } } } });
-    expect(ticket).toMatchObject({ channel: "chat", topic: CHAT_TOPIC, customerId: "7" });
-    expect(ticket.messages.map(message => [message.kind, message.author, message.body])).toEqual([
-      ["customer", "Rahul", "Do you ship to Canada?"], ["bot", "Assistant", "Send us a query."], ["customer", "Rahul", "I still need help"],
-    ]);
-    expect((await startChat(db, shop, { name: "", email: "bad", message: "", transcript: [], requestKey: "short" })).errors).toMatchObject({ name: expect.any(String), email: expect.any(String), body: expect.any(String), form: expect.any(String) });
-  });
   it("stores photos sent with a customer reply against that message", async () => {
     const { token, ticketId } = await submitTicket(db, shop, form());
     const png = new File([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6S8AAAAASUVORK5CYII=", "base64")], "proof.png", { type: "image/png" });
@@ -181,19 +166,6 @@ describe("Help desk conversations", () => {
     } finally {
       if (smtp !== undefined) process.env.SMTP_HOST = smtp;
     }
-  });
-  it("answers from the store's FAQs, logs every question and falls back to a person", async () => {
-    const botShop = "bot.myshopify.com";
-    await ensureFaqs(db, botShop);
-    expect(await db.helpDeskFaq.count({ where: { shop: botShop } })).toBe(defaultFaqs.length);
-    await db.helpDeskFaq.deleteMany({ where: { shop: botShop } });
-    await ensureFaqs(db, botShop);
-    expect(await db.helpDeskFaq.count({ where: { shop: botShop } })).toBe(0);
-    await db.helpDeskFaq.create({ data: { shop: botShop, question: "How long does shipping take?", keywords: "delivery time, shipping time", answer: "3-5 days" } });
-    expect(await answerQuestion(db, botShop, undefined, "what's the delivery time?")).toMatchObject({ result: "faq", answer: "3-5 days" });
-    expect(await answerQuestion(db, botShop, undefined, "where is order #1001")).toMatchObject({ result: "order", answer: expect.stringContaining("email") });
-    expect(await answerQuestion(db, botShop, undefined, "do you sell gift cards")).toMatchObject({ result: "none" });
-    expect((await db.helpDeskBotQuestion.findMany({ where: { shop: botShop } })).map(row => row.result).sort()).toEqual(["faq", "none", "order"]);
   });
   it("deletes tickets with everything attached, only for the owning shop", async () => {
     const deleteShop = "delete.myshopify.com";

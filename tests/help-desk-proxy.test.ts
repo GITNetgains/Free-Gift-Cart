@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(), submit: vi.fn(), read: vi.fn(), reply: vi.fn(), startChat: vi.fn(), ask: vi.fn(), queue: vi.fn(),
-  db: { helpDeskTicket: { findMany: vi.fn(), findFirst: vi.fn() } },
+  authenticate: vi.fn(), submit: vi.fn(), read: vi.fn(), reply: vi.fn(), queue: vi.fn(),
+  db: { helpDeskTicket: { findMany: vi.fn(), findFirst: vi.fn() }, helpDeskSettings: { updateMany: vi.fn() } },
 }));
 vi.mock("../app/shopify.server", () => ({ authenticate: { public: { appProxy: mocks.authenticate } } }));
 vi.mock("../app/db.server", () => ({ default: mocks.db }));
 vi.mock("../app/services/help-desk.server", () => ({
-  readHelpDeskForm: mocks.read, submitTicket: mocks.submit, addCustomerMessage: mocks.reply, startChat: mocks.startChat, MAX_REPLY_IMAGES: 3,
+  readHelpDeskForm: mocks.read, submitTicket: mocks.submit, addCustomerMessage: mocks.reply, MAX_REPLY_IMAGES: 3,
   customerCanReply: (ticket: { channel: string; status: string }) => ticket.channel === "chat" || ticket.status === "Waiting on customer",
 }));
-vi.mock("../app/services/help-desk-chat.server", () => ({ answerQuestion: mocks.ask, chatConfig: vi.fn() }));
 vi.mock("../app/services/help-desk-outbox.server", () => ({ queueEmail: mocks.queue, ensureWorker: vi.fn() }));
 vi.mock("../app/services/image-scan/scan.server", () => ({ queueTicketScans: vi.fn() }));
 import { action, loader } from "../app/routes/help-desk";
@@ -23,6 +22,7 @@ const post = (fields: Record<string, string>, headers: Record<string, string> = 
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.db.helpDeskSettings.updateMany.mockResolvedValue({ count: 1 });
   resetRateLimits();
   mocks.authenticate.mockResolvedValue({ session: { shop: "verified.myshopify.com" } });
   mocks.read.mockResolvedValue(new FormData());
@@ -113,44 +113,11 @@ describe("Storefront help desk endpoint", () => {
   });
 });
 
-describe("Storefront chat and request lookup", () => {
-  it("answers chat questions for the verified shop and rate limits each shopper", async () => {
-    mocks.ask.mockResolvedValue({ answer: "Order #1001 has shipped.", result: "order", links: [] });
-    const response = await post({ intent: "ask", question: "where is order #1001 a@b.co" });
-    expect(await response.json()).toEqual({ answer: "Order #1001 has shipped.", result: "order", links: [] });
-    expect(mocks.ask).toHaveBeenCalledWith(mocks.db, "verified.myshopify.com", undefined, "where is order #1001 a@b.co", "");
-    for (let index = 0; index < 19; index++) await post({ intent: "ask", question: "hi" });
-    expect((await post({ intent: "ask", question: "hi" })).status).toBe(429);
-    // Another shopper is unaffected.
-    expect((await post({ intent: "ask", question: "hi" }, { "x-forwarded-for": "198.51.100.2" })).status).toBe(200);
-  });
-  it("locks order lookups after repeated misses", async () => {
-    mocks.ask.mockResolvedValue({ answer: "Not found", result: "order", orderNotFound: true });
-    for (let index = 0; index < 5; index++) await post({ intent: "ask", question: "order #1 x@y.co" });
-    const locked = await (await post({ intent: "ask", question: "order #2 x@y.co" })).json();
-    expect(locked.answer).toMatch(/Too many order lookups/);
-    expect(mocks.ask).toHaveBeenCalledTimes(5);
-  });
-  it("turns a chat into a ticket and queues the store alert and confirmation", async () => {
-    mocks.startChat.mockResolvedValue({ errors: {}, ticketId: "t1", number: 1001, token: "a".repeat(48), created: true });
-    const transcript = JSON.stringify([{ from: "customer", text: "Do you ship to Canada?" }, { from: "bot", text: "..." }]);
-    const response = await post({ intent: "chat-start", name: "Rahul", email: "r@example.com", body: "Still need help", requestKey: "k".repeat(20), transcript });
-    expect(response.status).toBe(200);
-    expect(mocks.startChat).toHaveBeenCalledWith(mocks.db, "verified.myshopify.com", expect.objectContaining({ name: "Rahul", transcript: JSON.parse(transcript) }));
-    expect(mocks.queue.mock.calls.map(([, input]) => input.kind)).toEqual(["new-ticket", "ack"]);
-  });
-  it("returns only customer-visible chat messages for a valid token", async () => {
-    expect((await loader({ ...args("GET"), request: new Request("https://app.example/help-desk?chat=nope") })).status).toBe(404);
-    mocks.db.helpDeskTicket.findFirst.mockResolvedValue({
-      number: 1001, status: "Open", topic: "Live chat", attachments: [{ messageId: "m2" }],
-      messages: [{ id: "m1", kind: "customer", author: "Rahul", body: "Hi", createdAt: new Date() }, { id: "m2", kind: "reply", author: "Priya", body: "Hello", createdAt: new Date() }],
-    });
-    const data = await (await loader({ ...args("GET"), request: new Request(`https://app.example/help-desk?chat=${"d".repeat(48)}`) })).json();
-    expect(mocks.db.helpDeskTicket.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shop: "verified.myshopify.com", accessToken: "d".repeat(48) },
-      include: expect.objectContaining({ messages: expect.objectContaining({ where: { kind: { in: ["customer", "reply", "bot"] } } }) }),
-    }));
-    expect(data.messages.map((message: { author: string; images: number }) => [message.author, message.images])).toEqual([["You", 0], ["Priya", 1]]);
+describe("Storefront request lookup", () => {
+  it("rejects the removed chat widget endpoints", async () => {
+    expect((await post({ intent: "ask", question: "where is my order" })).status).toBe(400);
+    expect((await post({ intent: "chat-start", name: "Rahul", email: "r@example.com", body: "Hi" })).status).toBe(400);
+    expect(mocks.submit).not.toHaveBeenCalled();
   });
   it("finds a request by number and email, and locks out guessing", async () => {
     mocks.db.helpDeskTicket.findFirst.mockResolvedValue({ email: "Rahul@Example.com", accessToken: "e".repeat(48) });

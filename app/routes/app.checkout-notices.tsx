@@ -264,7 +264,8 @@ export default function CheckoutNotices() {
 
       {dirty && <s-banner tone="info">You have unsaved changes. Click Save to publish them to checkout.</s-banner>}
 
-      <s-section heading={`Blocks (${notices.length})`}>
+      {editing && <s-button onClick={() => setEditingId(null)} icon="arrow-left">Back to blocks</s-button>}
+      {!editing && <s-section heading={`Blocks (${notices.length})`}>
         <s-stack gap="base">
           {notices.length === 0 ? (
             <s-stack gap="base">
@@ -297,7 +298,7 @@ export default function CheckoutNotices() {
             </s-table>
           )}
         </s-stack>
-      </s-section>
+      </s-section>}
 
       {editing && (
         <s-section heading="Edit block">

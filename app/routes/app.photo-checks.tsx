@@ -62,7 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     totals: { all: Object.values(totals).reduce((sum, value) => sum + value, 0), likely_ai: totals.likely_ai ?? 0, duplicate: totals.duplicate ?? 0, uncertain: totals.uncertain ?? 0, likely_real: totals.likely_real ?? 0 },
     enabled: settings?.aiDetectionEnabled ?? true,
     detectorConnected: settings?.aiDetectionProvider === "truthscan" ? Boolean(settings?.truthscanKey) : Boolean(settings?.sightengineUser && settings?.sightengineSecret),
-    mode: settings?.aiDetectorMode ?? "suspicious",
+    mode: settings?.aiDetectorMode ?? "always",
     photos: scans.map((scan) => {
       const parsed = serializeScan(scan);
       return {
@@ -113,7 +113,7 @@ export default function PhotoChecks() {
   ];
   return <s-page heading="Photo checks" inlineSize="large">
     <s-link slot="breadcrumb-actions" href="/app/help-desk">Help Desk</s-link>
-    <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1">AI photo check settings</s-button>
+    <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1&part=photos">AI photo check settings</s-button>
 
     {!enabled && <s-banner tone="warning" heading="AI photo check is switched off">New customer photos aren&apos;t being checked. Turn it on in Help Desk settings.</s-banner>}
 

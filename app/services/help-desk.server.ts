@@ -107,31 +107,6 @@ async function createNumberedTicket(db: PrismaClient, data: NewTicket): Promise<
 }
 
 export { CHAT_TOPIC };
-export type ChatLine = { from: "customer" | "bot"; text: string };
-
-// Turns a chat-widget conversation into a ticket: the bot transcript is kept
-// as the opening messages so agents see what the customer already tried.
-export async function startChat(db: PrismaClient, shop: string, input: { name: string; email: string; message: string; transcript: unknown; requestKey: string; customerId?: string }): Promise<TicketResult> {
-  const name = input.name.trim().slice(0, 200);
-  const email = input.email.trim().slice(0, 200);
-  const message = input.message.trim();
-  const errors: Record<string, string> = {};
-  if (!name) errors.name = "Name is required.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address.";
-  if (checkBody(message)) errors.body = checkBody(message);
-  if (!/^[a-zA-Z0-9-]{16,80}$/.test(input.requestKey)) errors.form = "Reload the page and try again.";
-  if (Object.keys(errors).length) return { errors };
-  const transcript = (Array.isArray(input.transcript) ? input.transcript : [])
-    .filter((line): line is ChatLine => (line?.from === "customer" || line?.from === "bot") && typeof line.text === "string" && Boolean(line.text.trim()))
-    .slice(-30).map((line) => ({ kind: line.from, author: line.from === "bot" ? "Assistant" : name, body: line.text.trim().slice(0, 2000) }));
-  const start = Date.now() - transcript.length - 1;
-  return createNumberedTicket(db, {
-    shop, requestKey: input.requestKey, name, email, topic: CHAT_TOPIC, channel: "chat", details: JSON.stringify({ details: message }), products: "[]",
-    customerId: /^\d+$/.test(input.customerId || "") ? input.customerId : "",
-    // Distinct timestamps keep the transcript in order; the new message comes last.
-    messages: { create: [...transcript, { kind: "customer", author: name, body: message }].map((line, index) => ({ ...line, createdAt: new Date(start + index) })) },
-  });
-}
 
 export type TicketChanges = { status?: string; priority?: string; assignee?: string; tags?: string };
 
@@ -217,7 +192,7 @@ export async function addCustomerMessage(db: PrismaClient, shop: string, token: 
   if ((body || !files.length) && checkBody(body)) return { errors: { body: checkBody(body) } };
   if (files.length > MAX_REPLY_IMAGES) return { errors: { images: `Attach up to ${MAX_REPLY_IMAGES} images.` } };
   if (files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > MAX_IMAGE_BYTES)) {
-    return { errors: { images: "Use JPG, PNG or WebP images, up to 5 MB each." } };
+    return { errors: { images: "Use JPG, PNG or WebP images, up to 10 MB each." } };
   }
   const images = await readImages(files);
   if ("error" in images) return { errors: { images: images.error } };
