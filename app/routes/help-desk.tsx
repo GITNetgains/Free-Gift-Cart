@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { countries, countryName, fieldLabels, issues, MAX_MESSAGE_LENGTH, orderTypes, topics, updates } from "../services/help-desk";
+import { countries, issues, MAX_MESSAGE_LENGTH, orderTypes, topics, updates } from "../services/help-desk";
+import { renderLookupPage, renderRequestPage } from "../services/help-desk-request-page";
 import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, startChat, submitTicket } from "../services/help-desk.server";
 import { answerQuestion, chatConfig } from "../services/help-desk-chat.server";
 import { customerOrders } from "../services/help-desk-orders.server";
@@ -162,57 +163,12 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-// Escapes HTML and Liquid delimiters: these pages are rendered by the theme as Liquid.
-const escape = (value: string) => value.replace(/[&<>"'{}]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "{": "&#123;", "}": "&#125;" })[char]!);
-const multiline = (value: string) => escape(value).replace(/\r?\n/g, "<br>");
-const date = (value: Date) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(value) + " UTC";
-const STATUS_TEXT: Record<string, string> = {
-  Open: "We've received your request and will reply soon.",
-  "In progress": "Our team is working on your request.",
-  "Waiting on customer": "We've replied and are waiting for your response.",
-  Resolved: "This request is resolved.",
-};
-
-const STYLES = `<style>
-.hdt{max-width:760px;margin:clamp(24px,5vw,56px) auto;padding:0 16px;color:#19213d;font-size:16px;line-height:1.55}
-.hdt *{box-sizing:border-box}.hdt h1{margin:0 0 6px;font-size:clamp(24px,3.4vw,32px);line-height:1.2}
-.hdt-muted{color:#5b6275;font-size:14px;margin:0}.hdt-card{border:1px solid #e4e5ea;border-radius:16px;background:#fff;padding:clamp(18px,3vw,28px);margin-top:20px}
-.hdt-status{display:inline-block;padding:3px 12px;border-radius:999px;font-size:13px;font-weight:600;background:#eef0f4}
-.hdt-status[data-status="Resolved"]{background:#d9f5e3;color:#0c5132}.hdt-status[data-status="Waiting on customer"]{background:#e3effd;color:#003a80}
-.hdt-status[data-status="Open"]{background:#fff1d6;color:#5e4200}.hdt-status[data-status="In progress"]{background:#e3effd;color:#003a80}
-.hdt dl{display:grid;grid-template-columns:minmax(120px,30%) 1fr;gap:8px 16px;margin:16px 0 0}.hdt dt{color:#5b6275;font-size:14px}.hdt dd{margin:0;overflow-wrap:anywhere}
-.hdt-thread{display:grid;gap:14px;margin-top:20px}.hdt-msg{max-width:88%;padding:14px 16px;border-radius:14px;background:#f4f5f8}
-.hdt-msg[data-kind="reply"],.hdt-msg[data-kind="bot"]{justify-self:start;background:#fff;border:1px solid #e4e5ea}.hdt-msg[data-kind="customer"]{justify-self:end;background:#19213d;color:#fff}
-.hdt-msg small{display:block;margin-bottom:4px;font-size:12px;opacity:.75}.hdt-msg p{margin:0;overflow-wrap:anywhere}
-.hdt label{display:grid;gap:6px;margin-top:12px;font-size:14px;font-weight:600}
-.hdt textarea,.hdt input:not([type=file]){width:100%;padding:12px 14px;border:1px solid #d4d6dd;border-radius:10px;font:inherit}.hdt textarea{min-height:120px;resize:vertical}
-.hdt button{margin-top:14px;padding:12px 22px;border:0;border-radius:10px;background:#19213d;color:#fff;font:inherit;font-weight:600;cursor:pointer}
-.hdt-note{margin-top:16px;padding:12px 14px;border-radius:10px;font-size:14px}.hdt-note[data-tone="success"]{background:#d9f5e3;color:#0c5132}.hdt-note[data-tone="error"]{background:#fee8e7;color:#8e1f0b}
-@media (max-width:560px){.hdt dl{grid-template-columns:1fr}.hdt dd{margin-bottom:8px}.hdt-msg{max-width:100%}}
-</style>`;
-
-const page = (title: string, body: string, status = 200) => new Response(`{% layout 'theme' %}${STYLES}
-<section class="hdt" aria-label="${escape(title)}">${body}</section>`, { status, headers: { ...privateHeaders, "Content-Type": "application/liquid" } });
-
-const note = (state: { sent?: boolean; error?: string }) => state.sent ? `<div class="hdt-note" data-tone="success" role="status">Thanks, your message has been sent to our team.</div>`
-  : state.error ? `<div class="hdt-note" data-tone="error" role="alert">${escape(state.error)}</div>` : "";
+const liquid = (html: string, status = 200) => new Response(html, { status, headers: { ...privateHeaders, "Content-Type": "application/liquid" } });
 
 // Finding a request without its link: ticket number plus email.
-function lookupPage(state: { error?: string; number?: string; email?: string } = {}, status = 200) {
-  return page("Find your request", `
-<h1>Find your request</h1>
-<p class="hdt-muted">Enter your request number (from your confirmation email) and the email you used.</p>
-<div class="hdt-card">${note(state)}
-<form method="post" action="?ticket=">
-<input type="hidden" name="intent" value="lookup">
-<label>Request number<input name="number" required inputmode="numeric" placeholder="e.g. 1001" value="${escape(state.number ?? "")}"></label>
-<label>Email<input name="email" type="email" required autocomplete="email" value="${escape(state.email ?? "")}"></label>
-<button type="submit">Find request</button>
-</form></div>`, status);
-}
+const lookupPage = (state: { error?: string; number?: string; email?: string } = {}, status = 200) => liquid(renderLookupPage(state), status);
 
-// The customer's private request page, rendered inside the store's theme
-// (application/liquid) so it shares the store header, footer and fonts.
+// The customer's private request page.
 async function trackingPage(shop: string, token: string, state: { sent?: boolean; error?: string; draft?: string } = {}) {
   if (!token) return lookupPage();
   const ticket = TOKEN.test(token) ? await db.helpDeskTicket.findFirst({
@@ -220,35 +176,7 @@ async function trackingPage(shop: string, token: string, state: { sent?: boolean
     include: { messages: { where: { kind: { in: PUBLIC_KINDS } }, orderBy: { createdAt: "asc" } }, attachments: { where: { messageId: { not: null } }, select: { messageId: true } } },
   }) : null;
   if (!ticket) return lookupPage({ error: "This link is not valid or the request no longer exists. You can look it up with its number instead." }, 404);
-  const values = JSON.parse(ticket.details) as Record<string, string>;
-  const chat = ticket.channel === "chat";
-  const rows = chat ? "" : Object.keys(fieldLabels).filter(key => values[key])
-    .map(key => `<dt>${escape(fieldLabels[key])}</dt><dd>${multiline(key === "country" ? countryName(values[key]) : values[key])}</dd>`).join("");
   const images = new Map<string, number>();
   for (const file of ticket.attachments) images.set(file.messageId!, (images.get(file.messageId!) ?? 0) + 1);
-  const thread = [
-    ...(chat ? [] : [`<div class="hdt-msg" data-kind="customer"><small>You · ${escape(date(ticket.createdAt))}</small><p>Request submitted: ${escape(ticket.topic)}</p></div>`]),
-    ...ticket.messages.map(message => {
-      const count = images.get(message.id) ?? 0;
-      const who = message.kind === "customer" ? "You" : message.kind === "bot" ? "Assistant" : message.author;
-      return `<div class="hdt-msg" data-kind="${message.kind}"><small>${escape(who)} · ${escape(date(message.createdAt))}</small><p>${multiline(message.body)}</p>${count ? `<small style="margin-top:6px">${count} image${count === 1 ? "" : "s"} attached</small>` : ""}</div>`;
-    }),
-  ].join("");
-  return page(`Request #${ticket.number}`, `
-<p class="hdt-muted">Request #${ticket.number} · Submitted ${escape(date(ticket.createdAt))}</p>
-<h1>${escape(ticket.topic)}</h1>
-<span class="hdt-status" data-status="${escape(ticket.status)}">${escape(ticket.status)}</span>
-<p class="hdt-muted" style="margin-top:10px">${escape(STATUS_TEXT[ticket.status] ?? "")}</p>
-${rows ? `<div class="hdt-card"><strong>Your request</strong><dl>${rows}</dl></div>` : ""}
-<div class="hdt-card"><strong>Conversation</strong><div class="hdt-thread">${thread}</div></div>
-${customerCanReply(ticket) ? `<div class="hdt-card" id="reply"><strong>Add a message</strong>${note(state)}
-<form method="post" action="?ticket=${escape(ticket.accessToken)}#reply" enctype="multipart/form-data">
-<input type="hidden" name="intent" value="reply"><input type="hidden" name="token" value="${escape(ticket.accessToken)}">
-<label>Your message<textarea name="body" maxlength="${MAX_MESSAGE_LENGTH}">${escape(state.draft ?? "")}</textarea></label>
-<label>Add photos (optional, up to ${MAX_REPLY_IMAGES})<input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple></label>
-<button type="submit">Send message</button>
-</form></div>` : `<div class="hdt-card" id="reply">${note(state)}<strong>${ticket.status === "Resolved" ? "This request is closed" : "Our team will reply soon"}</strong>
-<p class="hdt-muted" style="margin-top:6px">${ticket.status === "Resolved"
-    ? "If you still need help, please send us a new request."
-    : "You'll be able to add a message here once our team replies. We'll email you when they do."}</p></div>`}`);
+  return liquid(renderRequestPage(ticket, images, { canReply: customerCanReply(ticket), maxImages: MAX_REPLY_IMAGES, maxLength: MAX_MESSAGE_LENGTH, state }));
 }
