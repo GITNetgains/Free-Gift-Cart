@@ -777,9 +777,6 @@ function TicketDetail({ screen }: { screen: TicketData }) {
     <s-link slot="breadcrumb-actions" href={listLink({ ticket: "" })}>Help Desk</s-link>
     {link && <s-button slot="secondary-actions" icon="external" href={link} target="_blank">Customer&apos;s request page</s-button>}
 
-    <s-button slot="secondary-actions" icon="delete" tone="critical" onClick={() => setConfirmDelete(true)}>Delete ticket</s-button>
-    {confirmDelete && <DeleteConfirm count={1} busy={remover.state !== "idle"} onCancel={() => setConfirmDelete(false)}
-      onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", ticket.id); void remover.submit(form, { method: "post" }); }} />}
 
     <s-section>
       <s-stack gap="base">
@@ -804,6 +801,16 @@ function TicketDetail({ screen }: { screen: TicketData }) {
     <Composer key={ticket.id} ticket={ticket} macros={screen.macros} storeName={screen.storeName} team={screen.team} configured={screen.configured} />
 
     <TicketProperties ticket={ticket} team={screen.team} />
+
+    <s-section slot="aside" heading="Delete ticket">
+      <s-stack gap="small-200">
+        <s-paragraph color="subdued">Removes this ticket, its conversation, photos and emails for good.</s-paragraph>
+        {confirmDelete
+          ? <DeleteConfirm count={1} busy={remover.state !== "idle"} onCancel={() => setConfirmDelete(false)}
+            onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", ticket.id); void remover.submit(form, { method: "post" }); }} />
+          : <s-button tone="critical" icon="delete" onClick={() => setConfirmDelete(true)}>Delete ticket</s-button>}
+      </s-stack>
+    </s-section>
 
     <s-section slot="aside" heading="Customer">
       <s-stack gap="small-200">
@@ -956,6 +963,12 @@ function TicketList({ screen }: { screen: ListData }) {
   const clearSelection = useRef(() => setSelected([])).current;
   const filtered = Boolean(filters.topic || filters.priority || filters.assignee || filters.q || filters.period);
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selected.includes(ticket.id));
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; number: number } | null>(null);
+  const rowRemover = useFetcher<typeof action>();
+  const deletedNumber = useRef(0);
+  if (pendingDelete) deletedNumber.current = pendingDelete.number;
+  useResultToast(rowRemover, () => `Ticket #${deletedNumber.current} deleted`);
+  useEffect(() => { if (rowRemover.state === "idle" && rowRemover.data && !Object.keys(rowRemover.data.errors).length) setPendingDelete(null); }, [rowRemover.state, rowRemover.data]);
   const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...new Set([...current, id])] : current.filter((value) => value !== id));
   return <s-page heading="Help Desk" inlineSize="large">
     <s-button slot="secondary-actions" icon="chat" href="/app/help-desk?chatbot=1">Chatbot</s-button>
@@ -1020,6 +1033,10 @@ function TicketList({ screen }: { screen: ListData }) {
           onChange={() => setSelected(allSelected ? [] : tickets.map((ticket) => ticket.id))} />
       </s-box>}
       {selected.length > 0 && <BulkBar ids={selected} team={team} onDone={clearSelection} />}
+      {pendingDelete && <s-box paddingInline="base" paddingBlockEnd="base">
+        <DeleteConfirm count={1} busy={rowRemover.state !== "idle"} onCancel={() => setPendingDelete(null)}
+          onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", pendingDelete.id); void rowRemover.submit(form, { method: "post" }); }} />
+      </s-box>}
 
       {tickets.length === 0 ? (
         <s-box padding="large-200">
@@ -1039,6 +1056,7 @@ function TicketList({ screen }: { screen: ListData }) {
             <s-table-header>Assignee</s-table-header>
             <s-table-header listSlot="secondary">Status</s-table-header>
             <s-table-header>Last activity</s-table-header>
+            <s-table-header>Delete</s-table-header>
           </s-table-header-row>
           <s-table-body>
             {tickets.map((ticket) => (
@@ -1078,6 +1096,12 @@ function TicketList({ screen }: { screen: ListData }) {
                     <span suppressHydrationWarning>{ago(ticket.lastActivityAt ?? ticket.createdAt)}</span>
                     {!ticket.firstResponseAt && ticket.status !== "Resolved" && <s-text tone="critical"><span suppressHydrationWarning>No reply yet · {duration(Date.now() - new Date(ticket.createdAt).getTime())}</span></s-text>}
                   </s-stack>
+                </s-table-cell>
+                <s-table-cell>
+                  <div onClick={(event) => event.stopPropagation()} role="presentation">
+                    <s-button variant="tertiary" tone="critical" icon="delete" accessibilityLabel={`Delete ticket #${ticket.number}`}
+                      onClick={() => setPendingDelete({ id: ticket.id, number: ticket.number })} />
+                  </div>
                 </s-table-cell>
               </s-table-row>
             ))}
