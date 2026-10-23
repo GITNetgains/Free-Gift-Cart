@@ -823,40 +823,51 @@ function TicketProperties({ ticket, team, suggestions }: { ticket: TicketData["t
   </s-section>;
 }
 
-// Live updates, like a chat app: polls a cheap fingerprint of the screen every
-// few seconds (and as soon as the tab is back in view) and reloads the page data
-// only when it changed, so new customer messages and photo checks appear
-// without a refresh. Typed text is kept. `paused` holds off while the user is
-// mid-action (e.g. tickets selected for a bulk change).
-function useLiveRefresh({ ticketId = "", paused = false, intervalMs = 4_000 }: { ticketId?: string; paused?: boolean; intervalMs?: number } = {}) {
+// Live updates, like a chat app: asks the server for a cheap fingerprint of
+// the screen every few seconds (faster on an open ticket, and at once when the
+// tab comes back into view) and reloads the page data only when it changed, so
+// new customer messages and photo checks appear without a refresh. A change
+// seen while a reload is still running is retried on the next tick, never
+// dropped, and a failed check (a deploy, a dropped connection) is ignored.
+// Typed text is kept. `paused` holds off while the user is mid-action.
+function useLiveRefresh({ ticketId = "", paused = false, intervalMs = ticketId ? 2_500 : 4_000 }: { ticketId?: string; paused?: boolean; intervalMs?: number } = {}) {
   const revalidator = useRevalidator();
-  const pulse = useFetcher<{ stamp: string }>();
-  const live = useRef({ revalidator, pulse, paused });
-  live.current = { revalidator, pulse, paused };
-  const lastStamp = useRef<string | null>(null);
-  const url = `/app/help-desk-pulse${ticketId ? `?ticket=${encodeURIComponent(ticketId)}` : ""}`;
+  const live = useRef({ revalidator, paused });
+  live.current = { revalidator, paused };
 
   useEffect(() => {
-    lastStamp.current = null;
-    const check = () => {
-      const { pulse: current, paused: hold } = live.current;
-      if (document.visibilityState === "visible" && current.state === "idle" && !hold) void current.load(url);
+    // App Bridge adds the session token to fetches to the app's own server.
+    const url = `/app/help-desk-pulse${ticketId ? `?ticket=${encodeURIComponent(ticketId)}` : ""}`;
+    let last: string | null = null;
+    let checking = false;
+    let stopped = false;
+    const check = async () => {
+      if (checking || stopped || live.current.paused || document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+        if (!response.ok) return;
+        const { stamp } = await response.json() as { stamp?: string };
+        if (!stamp || stopped) return;
+        if (last !== null && stamp !== last) {
+          // Still loading the previous change: leave `last` alone so the next tick picks this one up.
+          if (live.current.revalidator.state !== "idle") return;
+          await live.current.revalidator.revalidate();
+        }
+        last = stamp;
+      } catch {
+        // Offline, restarting or signed out: try again on the next tick.
+      } finally {
+        checking = false;
+      }
     };
-    check();
-    const timer = setInterval(check, intervalMs);
-    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    void check();
+    const timer = setInterval(() => void check(), intervalMs);
+    const onVisible = () => { if (document.visibilityState === "visible") void check(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
-  }, [url, intervalMs]);
-
-  useEffect(() => {
-    const stamp = pulse.data?.stamp;
-    if (!stamp || pulse.state !== "idle") return;
-    // The first answer is the baseline for what's already on screen.
-    if (lastStamp.current !== null && stamp !== lastStamp.current && live.current.revalidator.state === "idle") void live.current.revalidator.revalidate();
-    lastStamp.current = stamp;
-  }, [pulse.data, pulse.state]);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
+  }, [ticketId, intervalMs]);
 }
 
 // Tells staff when the customer writes while the ticket is open.

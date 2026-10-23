@@ -24,7 +24,7 @@ const STEPS = [
   { label: "Resolved", status: "Resolved" },
 ];
 // Short facts go in the summary; what the customer wrote goes in their message.
-const SUMMARY_FIELDS = ["orderNumber", "orderType", "update", "issue", "resolution", "existing", "registeredEmail", "country", "phone"];
+const SUMMARY_FIELDS = ["orderNumber", "orderType", "update", "issue", "resolution", "existing", "registeredEmail", "country"];
 const MESSAGE_FIELDS = ["details", "query", "orderDetails", "productDetails", "address", "otherDetails"];
 
 const STYLES = `<style>
@@ -59,8 +59,14 @@ const STYLES = `<style>
 .hdt-steps li[data-current]{font-weight:700}
 .hdt-steps li[data-current] b{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 0 0 5px rgba(239,58,36,.15)}
 .hdt-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-top:22px;align-items:start}
-.hdt-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px clamp(20px,3vw,30px);border-bottom:1px solid var(--line)}
-.hdt-section-head span{color:var(--muted);font-size:13px}
+.hdt-chat-head{display:flex;align-items:center;gap:12px;padding:14px clamp(16px,2.6vw,24px);background:#172351;color:#fff;border-bottom:1px solid rgba(255,255,255,.08)}
+.hdt-chat-avatar{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;box-shadow:0 0 0 3px rgba(239,58,36,.25)}
+.hdt-chat-avatar svg{width:22px;height:22px}
+.hdt .hdt-chat-head h2{color:#fff;font-size:16px;line-height:1.25}
+.hdt .hdt-chat-head p{display:flex;align-items:center;gap:7px;margin-top:2px;color:#c9d1ea;font-size:12.5px}
+.hdt-live{flex:none;width:8px;height:8px;border-radius:50%;background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.22)}
+.hdt-chat-head[data-closed] .hdt-live{background:#8a93ad;box-shadow:none}
+.hdt-count{margin-left:auto;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.12);color:#e8ebf5;font-size:12px;font-weight:600;white-space:nowrap}
 .hdt-thread{display:flex;flex-direction:column;gap:2px;max-height:min(64vh,640px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3e4c7a transparent;padding:16px clamp(12px,2.4vw,22px) 20px;background:#0f1730 radial-gradient(rgba(255,255,255,.045) 1px,transparent 1px);background-size:16px 16px}
 .hdt-thread::-webkit-scrollbar{width:6px}.hdt-thread::-webkit-scrollbar-thumb{background:#3e4c7a;border-radius:6px}.hdt-thread::-webkit-scrollbar-track{background:transparent}
 .hdt-msg{display:flex;margin-top:8px}
@@ -243,7 +249,7 @@ const SCRIPT = `<script>
         var stick = !fromTeam || atBottom();
         var thread = root.querySelector('.hdt-thread');
         var keep = thread ? thread.scrollTop : 0;
-        ['.hdt-hero', '.hdt-section-head', '.hdt-thread', '.hdt-aside'].forEach(function (selector) {
+        ['.hdt-hero', '.hdt-chat-head', '.hdt-thread', '.hdt-aside'].forEach(function (selector) {
           var current = root.querySelector(selector);
           var fresh = next.querySelector(selector);
           if (current && fresh) current.innerHTML = fresh.innerHTML;
@@ -314,7 +320,7 @@ const SCRIPT = `<script>
   enhance(document.querySelector('.hdt') || document);
   toBottom(false);
   if (root && token) {
-    setInterval(check, 5000);
+    setInterval(check, 3000);
     document.addEventListener('visibilitychange', check);
     window.addEventListener('focus', check);
   }
@@ -427,7 +433,9 @@ ${productList("Received", extras.receivedProducts)}${productList(wrongItem ? "Wa
 </div>
 <div class="hdt-layout">
 <div class="hdt-card">
-<div class="hdt-section-head"><h2>Conversation</h2><span>${count} message${count === 1 ? "" : "s"}</span></div>
+<div class="hdt-chat-head"${resolved ? " data-closed" : ""}><span class="hdt-chat-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+<div><h2>Chat with our support team</h2><p><i class="hdt-live" aria-hidden="true"></i>${resolved ? "This chat is closed" : extras.canReply ? "We've replied: it's your turn" : "Our team replies here · updates live"}</p></div>
+<span class="hdt-count">${count} message${count === 1 ? "" : "s"}</span></div>
 <div class="hdt-thread">${thread}</div>
 ${foot}
 </div>
