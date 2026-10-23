@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { data, useFetcher, useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { data, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Prisma } from "@prisma/client";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { serializeScan } from "../services/image-scan/scan.server";
 import { IconTile, TONES, type Tone } from "../components/HelpDeskUi";
+import { PhotoCheckButton, PhotoReportModal, PhotoThumb } from "../components/PhotoReport";
 
 // Every customer photo the AI photo check has looked at, newest first, with a
 // filter per verdict, so the team can review flagged evidence in one place.
@@ -68,35 +69,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return {
         id: scan.attachment.id, name: scan.attachment.name, ticket: scan.attachment.ticket, status: scan.status, verdict: scan.overallVerdict,
         confidence: scan.overallConfidence, checkedAt: scan.updatedAt, reason: mainReason(parsed),
-        edited: parsed?.layers.editing?.level === "edited",
+        edited: parsed?.layers.editing?.level === "edited", scan: parsed,
       };
     }),
   }, { headers: { "Cache-Control": "private, no-store" } });
 };
 
-type Photo = ReturnType<typeof useLoaderData<typeof loader>>["photos"][number];
-
-function Thumb({ id, name }: { id: string; name: string }) {
-  const fetcher = useFetcher<{ url?: string; error?: string }>();
-  useEffect(() => {
-    if (fetcher.state === "idle" && !fetcher.data) void fetcher.load(`/app/help-desk-attachment?thumb=1&id=${encodeURIComponent(id)}`);
-  }, [fetcher, id]);
-  return <div style={{ width: 64, height: 64, borderRadius: 10, overflow: "hidden", background: "#F1F2F4", display: "grid", placeItems: "center", flex: "none" }}>
-    {fetcher.data?.url ? <img src={fetcher.data.url} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : fetcher.data?.error ? <s-icon type="image" /> : <s-spinner size="base" />}
-  </div>;
-}
-
-function VerdictBadge({ photo }: { photo: Photo }) {
-  if (photo.status === "pending") return <s-badge tone="info">Checking</s-badge>;
-  if (photo.status === "failed") return <s-badge>Scan incomplete</s-badge>;
-  const verdict = VERDICTS[(photo.verdict || "") as Verdict];
-  if (!verdict || !photo.verdict) return <s-badge>Couldn&apos;t check</s-badge>;
-  return <s-badge tone={verdict.badge}>{verdict.label}</s-badge>;
-}
-
 export default function PhotoChecks() {
   const { photos, totals, verdict, page, count, enabled, detectorConnected, mode } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const [reportId, setReportId] = useState<string | null>(null);
+  const report = reportId ? photos.find((photo) => photo.id === reportId) ?? null : null;
   const [params] = useSearchParams();
   const go = (changes: Record<string, string>) => {
     const next = new URLSearchParams(params);
@@ -169,24 +152,25 @@ export default function PhotoChecks() {
           </s-table-header-row>
           <s-table-body>
             {photos.map((photo) => (
-              <s-table-row key={photo.id} clickDelegate={`photo-${photo.id}`}>
+              <s-table-row key={photo.id} clickDelegate={`report-${photo.id}`}>
                 <s-table-cell>
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <Thumb id={photo.id} name={photo.name} />
+                    <PhotoThumb id={photo.id} name={photo.name} />
                     <s-text>{photo.name}</s-text>
                   </div>
                 </s-table-cell>
                 <s-table-cell>
                   <s-stack gap="small-100">
-                    <VerdictBadge photo={photo} />
+                    <PhotoCheckButton scan={photo.scan} onOpen={() => setReportId(photo.id)} />
                     {typeof photo.confidence === "number" && photo.verdict && photo.verdict !== "error" && <s-text color="subdued">{Math.round(photo.confidence * 100)}% confidence</s-text>}
                     {photo.edited && <s-badge tone="warning">Edited</s-badge>}
+                    <s-button id={`report-${photo.id}`} variant="tertiary" icon="view" onClick={() => setReportId(photo.id)}>Full report</s-button>
                   </s-stack>
                 </s-table-cell>
                 <s-table-cell><div style={{ maxWidth: 380, whiteSpace: "normal" }}><s-text>{photo.reason}</s-text></div></s-table-cell>
                 <s-table-cell>
                   <s-stack gap="none">
-                    <s-link id={`photo-${photo.id}`} href={`/app/help-desk?ticket=${encodeURIComponent(photo.ticket.id)}`}>#{photo.ticket.number} {photo.ticket.topic}</s-link>
+                    <s-link href={`/app/help-desk?ticket=${encodeURIComponent(photo.ticket.id)}`}>#{photo.ticket.number} {photo.ticket.topic}</s-link>
                     <s-text color="subdued">{photo.ticket.name}</s-text>
                   </s-stack>
                 </s-table-cell>
@@ -206,5 +190,7 @@ export default function PhotoChecks() {
         </s-stack>
       </s-box>}
     </s-section>
+
+    <PhotoReportModal file={report} onClose={() => setReportId(null)} ticketLink={(ticketId) => `/app/help-desk?ticket=${encodeURIComponent(ticketId)}`} />
   </s-page>;
 }

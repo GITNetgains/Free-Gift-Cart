@@ -14,6 +14,7 @@ import { ordersByEmail } from "../services/help-desk-orders.server";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
 import { FeatureCard, SetupChecklist, since, StatTile, type ChecklistItem } from "../components/HelpDeskUi";
+import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 import SectionNavigation from "../components/SectionNavigation";
 export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
@@ -378,119 +379,53 @@ function useListLink() {
 // ---------- Ticket ----------
 
 type TicketFile = TicketData["ticket"]["attachments"][number];
-type Scan = NonNullable<TicketFile["scan"]>;
 
-const VERDICT: Record<string, { label: string; tone: "critical" | "warning" | "caution" | "success" | "neutral"; icon?: "alert-triangle" | "duplicate" | "check-circle" | "question-circle" }> = {
-  likely_ai: { label: "Likely AI-generated", tone: "critical", icon: "alert-triangle" },
-  duplicate: { label: "Reused photo", tone: "warning", icon: "duplicate" },
-  uncertain: { label: "Can't confirm", tone: "caution", icon: "question-circle" },
-  likely_real: { label: "Likely genuine", tone: "success", icon: "check-circle" },
-  error: { label: "Couldn't check", tone: "neutral" },
-};
-
-function ScanBadge({ scan }: { scan: Scan | null }) {
-  if (!scan || scan.status === "pending") return <s-badge tone="info">{scan ? "Checking photo" : "Not checked"}</s-badge>;
-  if (scan.status === "failed") return <s-badge tone="neutral">Scan incomplete</s-badge>;
-  const verdict = VERDICT[scan.overallVerdict || "error"] ?? VERDICT.error;
-  return <s-badge tone={verdict.tone} icon={verdict.icon}>{verdict.label}</s-badge>;
-}
-
-function Attachment({ file, onOpen }: { file: TicketFile; onOpen: (image: { url: string; name: string; id: string }) => void }) {
+function Attachment({ file, onOpen, onReport }: { file: TicketFile; onOpen: (image: { url: string; name: string; id: string }) => void; onReport: () => void }) {
   const fetcher = useFetcher<{ url?: string; name?: string; error?: string }>();
   useEffect(() => {
     if (fetcher.state === "idle" && !fetcher.data) void fetcher.load(`/app/help-desk-attachment?id=${encodeURIComponent(file.id)}`);
   }, [fetcher, file.id]);
   const url = fetcher.data?.url;
-  return <s-stack gap="small-100">
+  return <div style={{ display: "grid", gap: 6, width: 112, alignContent: "start" }}>
     <s-clickable border="base" borderRadius="base" padding="none" accessibilityLabel={`Open ${file.name}`} disabled={!url} onClick={() => { if (url) onOpen({ url, name: file.name, id: file.id }); }}>
       <div style={{ width: 112, height: 112, display: "grid", placeItems: "center", overflow: "hidden" }}>
         {url ? <img src={url} alt={file.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : fetcher.data?.error ? <s-text tone="critical">Unavailable</s-text> : <s-spinner size="base" />}
       </div>
     </s-clickable>
-    <ScanBadge scan={file.scan} />
-  </s-stack>;
+    <PhotoCheckButton scan={file.scan} onOpen={onReport} />
+  </div>;
 }
 
-// Everything the scan found, in plain language, strongest evidence first.
-function scanFindings(scan: Scan, listLink: (changes: Record<string, string>) => string) {
-  const { c2pa, watermark, exif, hash, classifier, editing } = scan.layers;
-  const lines: { tone: "critical" | "warning" | "neutral" | "success"; text: string; href?: string }[] = [];
-  if (c2pa?.isAiGenerated) {
-    lines.push({ tone: "critical", text: `Content Credentials (C2PA) declare it ${c2pa.aiActions?.[0]?.toLowerCase() || "AI-generated"}${c2pa.claimGenerator ? ` by ${c2pa.claimGenerator}` : ""}${c2pa.generatedAt ? ` on ${c2pa.generatedAt.slice(0, 10)}` : ""}.` });
-  } else if (c2pa?.present) {
-    lines.push({ tone: "neutral", text: `Carries Content Credentials${c2pa.claimGenerator ? ` from ${c2pa.claimGenerator}` : ""}${c2pa.actions?.length ? ` (${c2pa.actions.join(", ")})` : ""}.` });
-  }
-  if (watermark?.detected) lines.push({ tone: "critical", text: watermark.reason });
-  const match = hash?.match;
-  if (match) {
-    const where = match.sameTicket ? "another photo on this ticket" : `a photo on ticket #${match.ticketNumber}`;
-    lines.push({
-      tone: match.sameTicket ? "neutral" : match.previousVerdict === "likely_ai" ? "critical" : "warning",
-      text: `${match.matchType === "exact" ? "Identical to" : `Near-identical (${match.distance}/64 bits) to`} ${where} (${match.fileName})${match.previousVerdict === "likely_ai" ? ", which was identified as AI-generated" : ""}.`,
-      href: match.sameTicket ? undefined : listLink({ ticket: match.ticketId }),
-    });
-  }
-  for (const finding of exif?.findings ?? []) {
-    const strongFinding = /AI tool|source type|generation record|naming pattern/.test(finding);
-    lines.push({ tone: strongFinding ? "critical" : /Pixel count/.test(finding) ? "warning" : "neutral", text: finding });
-  }
-  if (classifier) {
-    if (typeof classifier.aiProbability === "number") {
-      lines.push({ tone: classifier.aiProbability >= 70 ? "critical" : classifier.aiProbability >= 40 ? "warning" : "success", text: `${classifier.reasoning}${classifier.reused ? " (earlier result for the same image, so no new check was used)" : ""}` });
-    } else if (classifier.error) {
-      lines.push({ tone: "warning", text: `${classifier.errorTitle || "The AI detector failed"}. ${classifier.errorHint || ""}` });
-    } else if (classifier.reason) {
-      lines.push({ tone: classifier.skipReason === "camera_original" ? "success" : "neutral", text: classifier.reason });
-    }
-  }
-  for (const signal of editing?.signals ?? []) {
-    lines.push({ tone: signal.strength === "strong" ? "warning" : "neutral", text: signal.detail });
-  }
-  return lines;
-}
-
-function ScanPanel({ file }: { file: TicketFile }) {
-  const fetcher = useFetcher<typeof action>();
+// A short summary under the opened photo; the popup has the full report.
+function ScanSummary({ file, onReport }: { file: TicketFile; onReport: () => void }) {
   const listLink = useListLink();
-  const pending = fetcher.state !== "idle";
-  const lastForce = useRef(false);
-  useResultToast(fetcher, () => lastForce.current ? "Checked with the AI detector" : "Photo re-scanned");
   const scan = file.scan;
-  const run = (force: boolean) => { lastForce.current = force; void fetcher.submit({ intent: "scan", id: file.id, force: String(force) }, { method: "post" }); };
-  const detectorRan = typeof scan?.layers.classifier?.aiProbability === "number" && !scan.layers.classifier.reused;
-  const exif = scan?.layers.exif;
-  const editing = scan?.layers.editing;
+  const verdict = scan?.status === "completed" ? PHOTO_VERDICT[scan.overallVerdict || "error"] ?? PHOTO_VERDICT.error : null;
+  const issues = scan?.status === "completed"
+    ? buildChecks(scan, { ticket: (ticketId) => listLink({ ticket: ticketId }), settings: "/app/help-desk?settings=1&part=photos" })
+      .flatMap((check) => check.findings).filter((finding) => finding.severity === "critical" || finding.severity === "warning")
+      .sort((a, b) => (a.severity === "critical" ? 0 : 1) - (b.severity === "critical" ? 0 : 1))
+    : [];
   return <s-box border="base" borderRadius="base" padding="base" background="subdued">
     <s-stack gap="small-200">
       <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent="space-between">
         <s-stack direction="inline" gap="small-200" alignItems="center">
-          <s-text type="strong">Photo check</s-text>
-          <ScanBadge scan={scan} />
-          {scan?.status === "completed" && typeof scan.overallConfidence === "number" && scan.overallVerdict !== "error" && <s-text color="subdued">{Math.round(scan.overallConfidence * 100)}% confidence</s-text>}
-          {editing?.level === "edited" && <s-badge tone="warning">Edited{editing.editor ? `: ${editing.editor}` : ""}</s-badge>}
-          {editing?.level === "not_original" && <s-badge>Not a camera original</s-badge>}
+          <s-text type="strong">AI photo check</s-text>
+          {verdict ? <s-badge tone={verdict.badge}>{verdict.label}</s-badge>
+            : <s-badge tone={scan?.status === "pending" ? "info" : "neutral"}>{!scan ? "Not checked" : scan.status === "pending" ? "Checking photo" : "Scan incomplete"}</s-badge>}
+          {verdict && typeof scan?.overallConfidence === "number" && scan.overallVerdict !== "error" && <s-text color="subdued">{Math.round(scan.overallConfidence * 100)}% confidence</s-text>}
+          {verdict && <s-text color="subdued">· {issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found` : "No issues found"}</s-text>}
         </s-stack>
-        <s-stack direction="inline" gap="small-100">
-          <s-button variant="tertiary" icon="refresh" loading={pending && !lastForce.current} disabled={pending} onClick={() => run(false)}>Re-scan</s-button>
-          {!detectorRan && <s-button icon="wand" loading={pending && lastForce.current} disabled={pending} onClick={() => run(true)}>Check with AI detector</s-button>}
-        </s-stack>
+        <s-button icon="view" onClick={onReport}>View full report</s-button>
       </s-stack>
-      {scan?.status === "failed" && <s-text tone="critical">{scan.error}</s-text>}
-      {scan?.status === "completed" && <s-unordered-list>
-        {scanFindings(scan, listLink).map((line, index) => (
-          <s-list-item key={index}>
-            <s-text tone={line.tone === "neutral" ? undefined : line.tone}>{line.text}</s-text>
-            {line.href && <> <s-link href={line.href}>Open ticket</s-link></>}
-          </s-list-item>
-        ))}
-      </s-unordered-list>}
-      {exif?.image && <s-text color="subdued">
-        {[exif.image.width && exif.image.height ? `${exif.image.width}×${exif.image.height} (${exif.image.megapixels} MP)` : "", exif.image.format?.toUpperCase(),
-          exif.camera?.make || exif.camera?.model ? [exif.camera.make, exif.camera.model].filter(Boolean).join(" ") : "No camera details",
-          editing?.cameraCoherence?.attested ? "camera hardware signature verified" : ""].filter(Boolean).join(" · ")}
-      </s-text>}
-      <s-text color="subdued">A finding is evidence, not proof: use it to decide whether to ask the customer for more photos. Metadata is often removed by messaging apps, so its absence doesn&apos;t count against a photo.</s-text>
+      {issues.slice(0, 3).map((issue, index) => (
+        <s-stack key={index} direction="inline" gap="small-200" alignItems="center">
+          <s-icon type={issue.severity === "critical" ? "alert-octagon" : "alert-triangle"} tone={issue.severity === "critical" ? "critical" : "warning"} size="small" />
+          <s-text>{issue.title}</s-text>
+        </s-stack>
+      ))}
+      {issues.length > 3 && <s-link onClick={onReport}>+ {issues.length - 3} more in the full report</s-link>}
     </s-stack>
   </s-box>;
 }
@@ -508,13 +443,16 @@ function ProductList({ heading, products }: { heading: string; products: TicketP
 }
 
 function Gallery({ files }: { files: TicketFile[] }) {
+  const listLink = useListLink();
   const [image, setImage] = useState<{ url: string; name: string; id: string } | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   if (!files.length) return null;
   const open = image && files.find((file) => file.id === image.id);
+  const report = reportId ? files.find((file) => file.id === reportId) ?? null : null;
   return <s-stack gap="small-200">
     <s-text type="strong">Images ({files.length})</s-text>
     <s-stack direction="inline" gap="base">
-      {files.map((file) => <Attachment key={file.id} file={file} onOpen={setImage} />)}
+      {files.map((file) => <Attachment key={file.id} file={file} onOpen={setImage} onReport={() => setReportId(file.id)} />)}
     </s-stack>
     {image && <s-box border="base" borderRadius="base" padding="base">
       <s-stack gap="small-200">
@@ -526,9 +464,10 @@ function Gallery({ files }: { files: TicketFile[] }) {
           </s-stack>
         </s-stack>
         <img src={image.url} alt={image.name} style={{ display: "block", maxWidth: "100%", maxHeight: 640, margin: "0 auto", borderRadius: 8 }} />
-        {open && <ScanPanel file={open} />}
+        {open && <ScanSummary file={open} onReport={() => setReportId(open.id)} />}
       </s-stack>
     </s-box>}
+    <PhotoReportModal file={report} onClose={() => setReportId(null)} ticketLink={(ticketId) => listLink({ ticket: ticketId })} />
   </s-stack>;
 }
 
@@ -653,8 +592,9 @@ function Composer({ ticket, macros, storeName, team, configured }: { ticket: Tic
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
         <s-select label="Insert a saved reply" value={macro} disabled={!macros.length} onChange={(event) => {
           const chosen = macros.find((item) => item.id === event.currentTarget.value);
-          setMacro("");
-          if (chosen) setBody((current) => (current.trim() ? `${current.trimEnd()}\n\n` : "") + fillMacro(chosen.body, ticket, storeName));
+          // Choosing a saved reply swaps in its text, replacing the previous one.
+          setMacro(chosen?.id ?? "");
+          if (chosen) setBody(fillMacro(chosen.body, ticket, storeName));
         }}>
           <s-option value="">{macros.length ? "Choose a saved reply" : "No saved replies yet"}</s-option>
           {macros.map((item) => <s-option key={item.id} value={item.id}>{item.title}</s-option>)}

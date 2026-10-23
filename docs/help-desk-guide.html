@@ -167,7 +167,7 @@
   <h3>Ticket kholne pe</h3>
   <ol class="steps">
     <li><b>Conversation padho.</b> Customer ki request, photos, replies, notes aur activity log ek hi timeline mein. Pichhli visit ke baad aaye customer messages pe <span class="pill p-info">New</span>.</li>
-    <li><b>Reply likho.</b> "Reply to customer" chuno. <b>Insert a saved reply</b> se ready jawab daalo: <code>{{ customer.first_name }}</code>, <code>{{ order.number }}</code> jaise placeholders apne aap bhar jaate hain. <b>Reply as</b> mein apna naam chuno.</li>
+    <li><b>Reply likho.</b> "Reply to customer" chuno. <b>Insert a saved reply</b> se ready jawab daalo (doosra saved reply chunoge toh pehle wala text hat ke naya aa jaata hai, judta nahi):<code>{{ customer.first_name }}</code>, <code>{{ order.number }}</code> jaise placeholders apne aap bhar jaate hain. <b>Reply as</b> mein apna naam chuno.</li>
     <li><b>Bhejo.</b> <b>Send reply</b> (status apne aap "Waiting on customer") ya <b>Send and resolve</b>.</li>
     <li><b>Internal note</b> sirf team ke liye (peela box), customer ko kabhi nahi dikhta.</li>
     <li><b>Right side:</b> Status, Priority, Assignee, Tags badlo. Customer ki details, uske recent Shopify orders (payment/fulfillment ke saath), uske purane tickets, aur saare emails ka status.</li>
@@ -206,7 +206,17 @@
     <tr><td><span class="pill p-ok">Likely genuine</span></td><td>Camera ki asli details theek hain, ya detector ne kam score diya.</td></tr>
     <tr><td><span class="pill p-n">Couldn't check / Scan incomplete</span></td><td><b>Re-scan</b> dabao.</td></tr>
   </table>
-  <p>Photo pe click karo → <b>Photo check</b> panel: verdict, confidence %, har check ne kya paaya, camera details, aur buttons <b>Re-scan</b> / <b>Check with AI detector</b>.</p>
+  <h3>Poori report (popup)</h3>
+  <p>Har photo ke neeche rangeen badge hai jisme <b>View report ›</b> likha hai. Uspe click karo (ya photo kholke <b>View full report</b>), toh <b>AI photo check report</b> popup khulta hai. Photo checks page pe bhi row pe click karne se ya <b>Full report</b> button se yahi popup khulta hai. Popup mein:</p>
+  <ul>
+    <li><b>Upar result:</b> photo, verdict (jaise "Likely AI-generated"), confidence % ki bar aur ek line mein matlab.</li>
+    <li><b>Teen numbers:</b> kitne issues mile, kitne checks pass hue, kitne checks nahi chale.</li>
+    <li><b>What to do:</b> is result pe aage kya karna hai (jaise customer se nayi photo maango).</li>
+    <li><b>Issues found:</b> har problem alag card mein: laal = <span class="pill p-bad">AI evidence</span> (pakka saboot), peela = <span class="pill p-warn">Suspicious</span> (shak). Har card pe likha hai kya mila aur kis check ne pakda ("Found by"). Reused photo ho toh doosre ticket ka link bhi.</li>
+    <li><b>Every check, step by step:</b> 6 checks (Content Credentials, AI watermarks, Metadata, Reused photo, AI detector, Edit check), har ek ka status: <span class="pill p-bad">AI evidence found</span> / <span class="pill p-warn">Suspicious</span> / <span class="pill p-ok">Passed</span> / Info only / Not run. Click karke dekho woh check kya dekhta hai aur usne kya paaya. Jin checks mein issue hai woh apne aap khule rehte hain. AI detector ka score ek bar pe dikhta hai (Genuine → Unsure → AI-generated) aur kaunse AI tool se bani hogi.</li>
+    <li><b>Photo details:</b> size, format, camera, kab li gayi, software, location data.</li>
+    <li>Neeche buttons: <b>Re-scan</b>, <b>Check with AI detector</b> (agar detector abhi tak nahi chala) aur <b>Done</b>.</li>
+  </ul>
   <h3>Detector kab chale (Settings → AI photo check)</h3>
   <ul>
     <li><b>Every photo the free checks can't settle</b> (recommended, default): layer 1-4 faisla na karein toh har photo detector ko jaati hai.</li>
