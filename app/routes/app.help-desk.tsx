@@ -495,7 +495,7 @@ function OriginalRequest({ ticket }: { ticket: TicketData["ticket"] }) {
     </s-stack>;
   }
   const rows = Object.keys(LABELS).filter((key) => key !== "phone" && values[key]);
-  return <div style={{ maxWidth: "min(700px, 90%)", padding: 12, borderRadius: "0 8px 8px 8px", background: "#fff", boxShadow: "0 1px 0.5px rgba(11,20,26,.13)" }}>
+  return <div style={{ maxWidth: "min(700px, 90%)", padding: 12, borderRadius: "4px 14px 14px 14px", background: "#fff", border: "1px solid #E4E7EC", boxShadow: "0 1px 2px rgba(16,24,40,.03)" }}>
     <s-stack gap="base">
       <s-stack direction="inline" gap="small-200" alignItems="center">
         <s-avatar initials={ticket.name.slice(0, 2).toUpperCase()} alt={ticket.name} size="small" />
@@ -556,7 +556,7 @@ const dayLabel = (value: string | Date) => {
 function Message({ message, files, email, isNew, grouped }: { message: TicketData["ticket"]["messages"][number]; files: TicketFile[]; email?: TicketEmail; isNew: boolean; grouped: boolean }) {
   if (message.kind === "event") {
     return <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#FFFFFFCC", color: "#54656F", fontSize: 12, textAlign: "center" }}>
+      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, textAlign: "center" }}>
         {message.body} · {message.author} · <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
       </span>
     </div>;
@@ -565,22 +565,24 @@ function Message({ message, files, email, isNew, grouped }: { message: TicketDat
   const customer = message.kind === "customer";
   const bot = message.kind === "bot";
   const mine = !customer && !bot;
-  const background = note ? "#FFF3C4" : mine ? "#D9FDD3" : "#FFFFFF";
+  // Zion colours: the customer in white, your team in Zion blue, notes in amber.
+  const team = mine && !note;
+  const background = note ? "#FFF4D6" : team ? "#334FB4" : "#FFFFFF";
   const delivery = note ? "🔒 Internal note" : !mine ? "" : email ? "" : message.emailed ? "✓✓ Emailed" : "✓ On request page";
   return <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginTop: grouped ? 2 : 10 }}>
     <div style={{
-      position: "relative", maxWidth: "min(620px, 78%)", minWidth: 120, padding: "6px 9px 4px", background, color: "#111B21",
-      borderRadius: grouped ? 8 : mine ? "8px 0 8px 8px" : "0 8px 8px 8px", boxShadow: "0 1px 0.5px rgba(11,20,26,.13)",
-      border: bot ? "1px dashed #B5B9C3" : note ? "1px solid #F0D983" : "none",
+      position: "relative", maxWidth: "min(620px, 78%)", minWidth: 120, padding: "8px 12px 6px", background, color: team ? "#FFFFFF" : "#1A1F36",
+      borderRadius: grouped ? 14 : mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", boxShadow: team ? "0 2px 6px rgba(51,79,180,.25)" : "0 1px 2px rgba(16,24,40,.06)",
+      border: bot ? "1px dashed #B5B9C3" : note ? "1px solid #F3D98B" : team ? "1px solid #334FB4" : "1px solid #E4E7EC",
     }}>
-      {!grouped && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 2, fontSize: 12.5, fontWeight: 600, color: note ? "#7A5600" : mine ? "#1E7A4C" : bot ? "#54656F" : "#B3261E" }}>
+      {!grouped && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 2, fontSize: 12.5, fontWeight: 650, color: note ? "#7A5600" : team ? "#DCE3FF" : bot ? "#5B6275" : "#172351" }}>
         {message.author}
         {isNew && <span style={{ padding: "0 6px", borderRadius: 6, background: "#E6EFFC", color: "#003A80", fontSize: 11 }}>New</span>}
-        {bot && <span style={{ fontWeight: 500, color: "#54656F" }}>· Automated answer</span>}
+        {bot && <span style={{ fontWeight: 500, color: "#5B6275" }}>· Automated answer</span>}
       </div>}
       <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 14, lineHeight: 1.45 }}>{message.body}</div>
       {files.length > 0 && <div style={{ marginTop: 6 }}><Gallery files={files} /></div>}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11, color: "#667781" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: team ? "rgba(255,255,255,.78)" : "#6B7280" }}>
         {delivery && <span>{delivery}</span>}
         <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
       </div>
@@ -624,12 +626,11 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
       if (pinned.current && unseen) setUnseen(0);
     }} style={{
-      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "none", padding: "12px 14px 16px", background: "#EFEAE2",
-      backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "18px 18px",
+      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#C3C8D4 transparent", padding: "14px 16px 18px", background: "#F6F7F9",
     }}>
       <div ref={content}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFFE6", color: "#54656F", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
+        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
       </div>
       <OriginalRequest ticket={ticket} />
       {ticket.messages.map((message) => {
@@ -641,7 +642,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
         lastAuthor = message.kind === "event" ? "" : author;
         return <div key={message.id}>
           {newDay && <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 4px" }}>
-            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFFE6", color: "#54656F", fontSize: 12, fontWeight: 600 }}>{dayLabel(message.createdAt)}</span>
+            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, fontWeight: 600 }}>{dayLabel(message.createdAt)}</span>
           </div>}
           <Message message={message} email={replyEmails.get(message.id)} grouped={grouped}
             files={ticket.attachments.filter((file) => file.messageId === message.id)}
@@ -715,11 +716,11 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
   const note = kind === "note";
   const pill = (value: "reply" | "note", label: string) => <button type="button" role="tab" aria-selected={kind === value} onClick={() => setKind(value)} style={{
     padding: "9px 18px", borderRadius: 10, font: "inherit", fontSize: 14, cursor: "pointer", fontWeight: kind === value ? 650 : 500,
-    color: kind === value ? "#fff" : "#303030", background: kind === value ? (value === "note" ? "#8A6100" : "#172351") : "#fff",
+    color: kind === value ? "#fff" : "#303030", background: kind === value ? (value === "note" ? "#B7791F" : "#334FB4") : "#fff",
     border: `1px solid ${kind === value ? "transparent" : "#D9D9D9"}`,
   }}>{label}</button>;
   // The reply box is the bottom bar of the chat window, like a messaging app.
-  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFF8DB" : "#F0F2F5", borderTop: "1px solid #DCD7CF" }}>
+  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFFAEB" : "#FFFFFF", borderTop: "1px solid #E4E7EC" }}>
     {ticket.status === "Resolved" && <s-text color="subdued">This ticket is resolved. If the customer replies, it reopens automatically.</s-text>}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <div role="tablist" aria-label="Message type" style={{ display: "flex", gap: 4 }}>
