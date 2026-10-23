@@ -86,14 +86,14 @@ const STYLES = `<style>
 .hdt-files{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:5px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:600}
 .hdt-system{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;color:#54656f;font-size:12px}
 .hdt-system::before,.hdt-system::after{content:"";flex:1;height:1px;background:rgba(0,0,0,.12)}
-.hdt-foot{padding:clamp(20px,3vw,30px);border-top:1px solid var(--line);background:#fbfbfd;border-radius:0 0 20px 20px}
+.hdt-foot{padding:14px clamp(14px,2.4vw,22px) 18px;border-top:1px solid #dcd7cf;background:#f0f2f5;border-radius:0 0 20px 20px}
 .hdt-wait{display:flex;gap:14px;align-items:flex-start}
 .hdt-wait i{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);font-style:normal;font-size:20px}
 .hdt-wait strong{display:block;font-size:15px}
 .hdt-wait p{margin-top:2px;color:var(--muted);font-size:14px}
 .hdt label{display:grid;gap:6px;font-size:14px;font-weight:600}
 .hdt textarea,.hdt input:not([type=file]){width:100%;margin:0;padding:13px 18px;border:1px solid #c4c7d0;border-radius:30px;background:#fff;color:var(--ink);font:inherit;font-weight:400}
-.hdt textarea{min-height:120px;resize:vertical;border-radius:20px}
+.hdt textarea{min-height:84px;resize:vertical;border-radius:20px}
 .hdt textarea:focus,.hdt input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 4px rgba(25,33,61,.12)}
 .hdt .hdt-drop{position:relative;display:flex;gap:12px;align-items:center;margin-top:12px;padding:12px 14px;border:1.5px dashed #c9ccd6;border-radius:20px;background:#fff;cursor:pointer;font-weight:400}
 .hdt .hdt-drop:hover,.hdt .hdt-drop:focus-within{border-color:var(--ink)}

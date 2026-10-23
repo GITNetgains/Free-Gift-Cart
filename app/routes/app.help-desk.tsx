@@ -614,7 +614,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
       if (pinned.current && unseen) setUnseen(0);
     }} style={{
-      maxHeight: "min(68vh, 680px)", overflowY: "auto", padding: "12px 14px 16px", borderRadius: 12, background: "#EFEAE2",
+      maxHeight: "min(62vh, 620px)", overflowY: "auto", padding: "12px 14px 16px", borderRadius: "12px 12px 0 0", background: "#EFEAE2",
       backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "18px 18px", border: "1px solid #E3E3E3",
     }}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
@@ -700,38 +700,53 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
     try { localStorage.setItem("help-desk-author", author); } catch { /* storage unavailable */ }
     void fetcher.submit({ intent: "message", id: ticket.id, kind, body, author, status, channel }, { method: "post" });
   };
-  return <s-section heading={kind === "reply" ? `Reply to ${ticket.name}` : "Add an internal note"}>
-    <s-stack gap="base">
-      <s-stack direction="inline" gap="small-200">
-        <s-button variant={kind === "reply" ? "secondary" : "tertiary"} icon="email" onClick={() => setKind("reply")}>Reply to customer</s-button>
-        <s-button variant={kind === "note" ? "secondary" : "tertiary"} icon="note" onClick={() => setKind("note")}>Internal note</s-button>
-      </s-stack>
-      {kind === "reply" && configured && <ChannelPicker value={channel} onChange={setChannel} email={ticket.email} />}
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
-        <s-select label="Insert a saved reply" value={macro} disabled={!macros.length} onChange={(event) => {
+  const note = kind === "note";
+  const pill = (value: "reply" | "note", label: string) => <button type="button" role="tab" aria-selected={kind === value} onClick={() => setKind(value)} style={{
+    padding: "6px 12px", borderRadius: 8, font: "inherit", fontSize: 13, cursor: "pointer", fontWeight: kind === value ? 650 : 500,
+    color: kind === value ? "#fff" : "#303030", background: kind === value ? (value === "note" ? "#8A6100" : "#172351") : "#fff",
+    border: `1px solid ${kind === value ? "transparent" : "#D9D9D9"}`,
+  }}>{label}</button>;
+  // The reply box is the bottom bar of the chat window, like a messaging app.
+  return <div style={{ display: "grid", gap: 8, padding: "10px 12px 12px", background: note ? "#FFF8DB" : "#F0F2F5", border: "1px solid #E3E3E3", borderTop: "none", borderRadius: "0 0 12px 12px" }}>
+    {ticket.status === "Resolved" && <s-text color="subdued">This ticket is resolved. If the customer replies, it reopens automatically.</s-text>}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+      <div role="tablist" aria-label="Message type" style={{ display: "flex", gap: 4 }}>
+        {pill("reply", `Reply to ${ticket.name.split(" ")[0] || "customer"}`)}
+        {pill("note", "Internal note")}
+      </div>
+      <div style={{ flex: "1 1 180px", minWidth: 160 }}>
+        <s-select label="Insert a saved reply" labelAccessibilityVisibility="exclusive" value={macro} disabled={!macros.length} onChange={(event) => {
           const chosen = macros.find((item) => item.id === event.currentTarget.value);
           // Choosing a saved reply swaps in its text, replacing the previous one.
           setMacro(chosen?.id ?? "");
           if (chosen) setBody(fillMacro(chosen.body, ticket, storeName));
         }}>
-          <s-option value="">{macros.length ? "Choose a saved reply" : "No saved replies yet"}</s-option>
+          <s-option value="">{macros.length ? "Insert a saved reply" : "No saved replies yet"}</s-option>
           {macros.map((item) => <s-option key={item.id} value={item.id}>{item.title}</s-option>)}
         </s-select>
-        <s-select label={kind === "reply" ? "Reply as" : "Note by"} value={author} onChange={(event) => setAuthor(event.currentTarget.value || authors[0])}>
-          {authors.map((name) => <s-option key={name} value={name}>{name}</s-option>)}
+      </div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}>
+        <s-select label={note ? "Note by" : "Reply as"} labelAccessibilityVisibility="exclusive" value={author} onChange={(event) => setAuthor(event.currentTarget.value || authors[0])}>
+          {authors.map((name) => <s-option key={name} value={name}>{note ? "Note by" : "Reply as"} {name}</s-option>)}
         </s-select>
-      </s-grid>
-      <s-text-area label={kind === "reply" ? "Message" : "Note"} labelAccessibilityVisibility="exclusive" rows={7} value={body} maxLength={MAX_MESSAGE_LENGTH}
-        placeholder={kind === "reply" ? `Write your reply to ${ticket.name}...` : "Only your team can see notes."}
-        error={fetcher.data?.errors.body} onInput={(event) => setBody(event.currentTarget.value ?? "")} />
-      <s-stack direction="inline" gap="small-200" justifyContent="end">
-        {kind === "reply" ? <>
+      </div>
+    </div>
+    {!note && configured && <ChannelPicker value={channel} onChange={setChannel} email={ticket.email} />}
+    <div role="presentation" onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && body.trim() && !sending) { event.preventDefault(); send(); } }}>
+    <s-text-area label={note ? "Note" : "Message"} labelAccessibilityVisibility="exclusive" rows={3} value={body} maxLength={MAX_MESSAGE_LENGTH}
+      placeholder={note ? "Write a note only your team can see..." : `Write a message to ${ticket.name}...`}
+      error={fetcher.data?.errors.body} onInput={(event) => setBody(event.currentTarget.value ?? "")} />
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+      <s-text color="subdued">{note ? "🔒 Only your team sees notes" : "The customer sees this in their chat on the request page"} · Ctrl + Enter to send</s-text>
+      <s-stack direction="inline" gap="small-200">
+        {note ? <s-button variant="primary" icon="note" disabled={!body.trim()} loading={sending} onClick={() => send()}>Add note</s-button> : <>
           <s-button disabled={!body.trim() || sending} onClick={() => send("Resolved")}>Send and resolve</s-button>
-          <s-button variant="primary" icon="send" disabled={!body.trim()} loading={sending} onClick={() => send()}>{channel === "email" ? "Send by email" : "Send reply"}</s-button>
-        </> : <s-button variant="primary" icon="note" disabled={!body.trim()} loading={sending} onClick={() => send()}>Add note</s-button>}
+          <s-button variant="primary" icon="send" disabled={!body.trim()} loading={sending} onClick={() => send()}>{channel === "email" ? "Send by email" : "Send"}</s-button>
+        </>}
       </s-stack>
-    </s-stack>
-  </s-section>;
+    </div>
+  </div>;
 }
 
 function TicketProperties({ ticket, team, suggestions }: { ticket: TicketData["ticket"]; team: string[]; suggestions: TicketData["tagSuggestions"] }) {
@@ -874,8 +889,9 @@ function TicketDetail({ screen }: { screen: TicketData }) {
           <s-heading>Conversation</s-heading>
           <s-text color="subdued">{conversation.filter((message) => message.kind !== "event").length + (ticket.channel === "chat" ? 0 : 1)} messages</s-text>
         </s-stack>
-        <ChatThread ticket={ticket} replyEmails={replyEmails} readAt={readAt} />
-        {ticket.status === "Resolved" && <s-banner tone="success">This ticket is resolved. If the customer replies, it reopens automatically.</s-banner>}
+        <div>
+          <ChatThread ticket={ticket} replyEmails={replyEmails} readAt={readAt} />
+              </div>
       </s-stack>
     </s-section>
 
