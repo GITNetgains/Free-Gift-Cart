@@ -13,7 +13,7 @@ import { emailConfigured, loadProducts, loadShop, sendTestEmail, trackingUrl, ty
 import { ordersByEmail } from "../services/help-desk-orders.server";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
-import { FeatureCard, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
+import { FeatureCard, IconTile, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
 import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 import { assignableTeam, listStaff, recordStaff } from "../services/help-desk-staff.server";
@@ -84,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ]);
     return data({
       screen: "settings" as const, ...base, macros: macros.map(({ id, title, body }) => ({ id, title, body })), storeEmail: store.email, staff,
+      storefront: { apiKey: process.env.SHOPIFY_API_KEY || "", formLastSeenAt: settings.formLastSeenAt },
       settings: { notify: settings.notify, notifyEmail: settings.notifyEmail, autoReply: settings.autoReply, statusEmails: settings.statusEmails, signature: settings.signature, team: settings.team },
       // Secrets never go to the browser, only whether they're saved.
       ai: {
@@ -1372,11 +1373,12 @@ function MacroEditor({ macro, onDone }: { macro?: { id: string; title: string; b
 
 function SavedReplies({ macros }: { macros: SettingsData["macros"] }) {
   const [editing, setEditing] = useState("");
+  const [adding, setAdding] = useState(macros.length === 0);
   const remove = useFetcher<typeof action>();
   useResultToast(remove, "Saved reply deleted");
   return <s-section heading="Saved replies">
     <s-stack gap="base">
-      <s-paragraph color="subdued">Insert these into a reply with one click. Placeholders are filled in with the ticket&apos;s details.</s-paragraph>
+      <s-paragraph color="subdued">Pick one from Insert a saved reply in any ticket. These placeholders fill in by themselves: {macroPlaceholders.map(([key]) => `{{ ${key} }}`).join(", ")}.</s-paragraph>
       {macros.map((macro) => editing === macro.id
         ? <s-box key={macro.id} border="base" borderRadius="base" padding="base"><MacroEditor macro={macro} onDone={() => setEditing("")} /></s-box>
         : <s-box key={macro.id} border="base" borderRadius="base" padding="base">
@@ -1392,9 +1394,12 @@ function SavedReplies({ macros }: { macros: SettingsData["macros"] }) {
             </s-stack>
           </s-stack>
         </s-box>)}
-      <s-divider />
-      <s-heading>Add a saved reply</s-heading>
-      <MacroEditor />
+      {adding ? <s-box border="base" borderRadius="base" padding="base" background="subdued">
+        <s-stack gap="base">
+          <s-heading>New saved reply</s-heading>
+          <MacroEditor onDone={() => setAdding(false)} />
+        </s-stack>
+      </s-box> : <s-stack direction="inline"><s-button icon="plus" onClick={() => setAdding(true)}>Add saved reply</s-button></s-stack>}
     </s-stack>
   </s-section>;
 }
@@ -1490,6 +1495,24 @@ function StaffList({ staff, me }: { staff: SettingsData["staff"]; me: string }) 
   </s-section>;
 }
 
+// The top of each settings tab: what it's for and how it stands right now.
+function SettingsIntro({ icon, tone, title, description, status, statusTone }: {
+  icon: "email" | "team" | "chat" | "image" | "store"; tone: "blue" | "navy" | "green" | "red" | "amber"; title: string; description: string; status: string; statusTone: "success" | "warning" | "info" | "neutral";
+}) {
+  return <s-section>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "center", flex: "1 1 320px", minWidth: 0 }}>
+        <IconTile icon={icon} tone={tone} size={46} />
+        <s-stack gap="small-100">
+          <s-heading>{title}</s-heading>
+          <s-text color="subdued">{description}</s-text>
+        </s-stack>
+      </div>
+      <s-badge tone={statusTone}>{status}</s-badge>
+    </div>
+  </s-section>;
+}
+
 function SettingsScreen({ screen }: { screen: SettingsData }) {
   const [params] = useSearchParams();
   const requested = params.get("part") || "email";
@@ -1504,6 +1527,8 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
   useResultToast(test, `Test email sent to ${recipient}`);
   const dirty = (Object.keys(settings) as (keyof typeof settings)[]).some((key) => settings[key] !== values[key]);
   const set = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues((current) => ({ ...current, [key]: value }));
+  const detectorConnected = screen.ai.provider === "truthscan" ? screen.ai.hasTruthscanKey : Boolean(screen.ai.sightengineUser && screen.ai.hasSightengineSecret);
+  const formLive = Boolean(screen.storefront.formLastSeenAt && Date.now() - new Date(screen.storefront.formLastSeenAt).getTime() < 30 * DAY);
   return <s-page heading="Help Desk settings">
     <s-link slot="breadcrumb-actions" href="/app/help-desk">Help Desk</s-link>
     {(part === "email" || part === "team") && <s-button slot="primary-action" variant="primary" disabled={!dirty} loading={save.state !== "idle"}
@@ -1518,8 +1543,10 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
       { id: "storefront", label: "Storefront form", href: "/app/help-desk?settings=1&part=storefront" },
     ]} />
     {part === "email" && <>
-    {!configured && <s-banner tone="warning" heading="Email sending isn't set up yet">
-      Add the SMTP settings (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and optionally SMTP_FROM) to the app server. Until then, tickets and replies still work in the app and on the customer&apos;s request page, but no emails are sent.
+    <SettingsIntro icon="email" tone="blue" title="Emails" description="Who gets alerts about new requests, and what customers receive by email."
+      status={configured ? "Sending on" : "Not set up yet"} statusTone={configured ? "success" : "warning"} />
+    {!configured && <s-banner tone="info" heading="Emails aren't being sent yet">
+      The app server needs a mailbox login (Gmail or Brevo) before it can send email. Until then, everything still works in the app and in the customer&apos;s chat on their request page. The Channels setup guide lists what&apos;s needed.
     </s-banner>}
 
     <s-section heading="Team notifications">
@@ -1547,6 +1574,8 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
 
     </>}
     {part === "team" && <>
+      <SettingsIntro icon="team" tone="navy" title="Team" description="People who can be assigned tickets and chosen in Reply as."
+        status={`${screen.team.length} ${screen.team.length === 1 ? "person" : "people"}`} statusTone={screen.team.length ? "success" : "warning"} />
       <StaffList staff={screen.staff} me={screen.me} />
       <s-section heading="Other names">
         <s-text-field label="Extra team members" value={values.team} placeholder="e.g. Priya, Warehouse team"
@@ -1554,17 +1583,45 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
       </s-section>
     </>}
 
-    {part === "photos" && <AiSettings ai={screen.ai} />}
+    {part === "photos" && <>
+      <SettingsIntro icon="image" tone="green" title="AI photo check" description="Checks every customer photo for AI generation, reuse from another request and editing."
+        status={!screen.ai.enabled ? "Off" : detectorConnected ? "Detector connected" : "Detector not connected"}
+        statusTone={!screen.ai.enabled ? "neutral" : detectorConnected ? "success" : "warning"} />
+      <AiSettings ai={screen.ai} />
+    </>}
 
-    {part === "replies" && <SavedReplies macros={screen.macros} />}
+    {part === "replies" && <>
+      <SettingsIntro icon="chat" tone="green" title="Saved replies" description="Ready answers your team can insert into any reply with one click."
+        status={`${screen.macros.length} saved`} statusTone={screen.macros.length ? "success" : "warning"} />
+      <SavedReplies macros={screen.macros} />
+    </>}
 
-    {part === "storefront" && <s-section heading="Storefront setup">
-      <s-stack gap="small-200">
-        <s-paragraph>In your theme editor, add the <s-text type="strong">Help Desk form</s-text> block to a page, such as a Contact or Support page.</s-paragraph>
-        <s-paragraph color="subdued">Customers get a ticket number and a private request page where they can see replies and answer you. Signed-in customers also see their past requests in the form.</s-paragraph>
-        <s-link href="shopify://admin/themes/current/editor" target="_blank">Open theme editor</s-link>
-      </s-stack>
-    </s-section>}
+    {part === "storefront" && <>
+      <SettingsIntro icon="store" tone="red" title="Storefront form" description="The form customers use to send requests, and their private chat page."
+        status={formLive ? "Live on your store" : "Not added yet"} statusTone={formLive ? "success" : "warning"} />
+      <s-section heading="Add the form to your store">
+        <s-stack gap="base">
+          <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 8 }}>
+            <li><s-text>Create a page, such as Contact or Support.</s-text></li>
+            <li><s-text>Add the Help Desk form block to it in the theme editor, then save.</s-text></li>
+            <li><s-text>Send a test request with a photo. It appears in your inbox within a few seconds.</s-text></li>
+          </ol>
+          <s-stack direction="inline" gap="small-200">
+            <s-button href="shopify://admin/pages/new" target="_blank" icon="page">Create page</s-button>
+            <s-button variant="primary" target="_blank" icon="theme-edit"
+              href={`shopify://admin/themes/current/editor?template=page&addAppBlockId=${screen.storefront.apiKey}/help_desk&target=newAppsSection`}>Add form block</s-button>
+          </s-stack>
+          {screen.storefront.formLastSeenAt && <s-text color="subdued">Last opened by a customer {since(screen.storefront.formLastSeenAt)}.</s-text>}
+        </s-stack>
+      </s-section>
+      <s-section heading="What customers get">
+        <s-unordered-list>
+          <s-list-item>A request number and a private page where they chat with your team, live.</s-list-item>
+          <s-list-item>Signed-in customers pick from their own orders and see their past requests.</s-list-item>
+          <s-list-item>Their photos are checked automatically by the AI photo check.</s-list-item>
+        </s-unordered-list>
+      </s-section>
+    </>}
   </s-page>;
 }
 
