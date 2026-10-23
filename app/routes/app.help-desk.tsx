@@ -489,13 +489,13 @@ function OriginalRequest({ ticket }: { ticket: TicketData["ticket"] }) {
   const values = ticket.details;
   const files = ticket.attachments.filter((file) => !file.messageId);
   if (ticket.channel === "chat") {
-    return <s-stack direction="inline" gap="small-200" alignItems="center">
+    return <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent="center">
       <s-icon type="chat" tone="neutral" size="small" />
       <s-text color="subdued">{ticket.name} started a chat from the storefront · <span suppressHydrationWarning>{formatDate(ticket.createdAt)}</span>. Earlier messages with the assistant are shown below.</s-text>
     </s-stack>;
   }
   const rows = Object.keys(LABELS).filter((key) => key !== "phone" && values[key]);
-  return <s-box border="base" borderRadius="base" padding="base">
+  return <div style={{ maxWidth: "min(700px, 90%)", padding: 12, borderRadius: "0 8px 8px 8px", background: "#fff", boxShadow: "0 1px 0.5px rgba(11,20,26,.13)" }}>
     <s-stack gap="base">
       <s-stack direction="inline" gap="small-200" alignItems="center">
         <s-avatar initials={ticket.name.slice(0, 2).toUpperCase()} alt={ticket.name} size="small" />
@@ -515,7 +515,7 @@ function OriginalRequest({ ticket }: { ticket: TicketData["ticket"] }) {
       {ticket.products.length > 0 && <ProductList heading={ticket.receivedProducts.length ? "Wanted instead" : "Products"} products={ticket.products} />}
       <Gallery files={files} />
     </s-stack>
-  </s-box>;
+  </div>;
 }
 
 type TicketEmail = TicketData["ticket"]["emails"][number];
@@ -540,72 +540,134 @@ function EmailStatus({ email }: { email: TicketEmail }) {
   </s-stack>;
 }
 
-function Message({ message, files, email, isNew }: { message: TicketData["ticket"]["messages"][number]; files: TicketFile[]; email?: TicketEmail; isNew: boolean }) {
-  const time = <span suppressHydrationWarning>{formatDate(message.createdAt)}</span>;
+const timeOnly = (value: string | Date) => new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
+const dayLabel = (value: string | Date) => {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date(Date.now() - DAY);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", year: date.getFullYear() === today.getFullYear() ? undefined : "numeric" }).format(date);
+};
+
+// WhatsApp-style bubble: the customer and the assistant on the left (white),
+// your team on the right (green), internal notes on the right (yellow).
+// Time and delivery sit inside the bubble.
+function Message({ message, files, email, isNew, grouped }: { message: TicketData["ticket"]["messages"][number]; files: TicketFile[]; email?: TicketEmail; isNew: boolean; grouped: boolean }) {
   if (message.kind === "event") {
-    return <s-stack direction="inline" gap="small-200" alignItems="center">
-      <s-icon type="clock" tone="neutral" size="small" />
-      <s-text color="subdued">{message.body} · {message.author} · {time}</s-text>
-    </s-stack>;
+    return <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
+      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#FFFFFFCC", color: "#54656F", fontSize: 12, textAlign: "center" }}>
+        {message.body} · {message.author} · <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
+      </span>
+    </div>;
   }
   const note = message.kind === "note";
   const customer = message.kind === "customer";
   const bot = message.kind === "bot";
-  // Chat layout: the customer (and the assistant) on the left, your team on the right.
   const mine = !customer && !bot;
-  return <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexDirection: mine ? "row-reverse" : "row" }}>
-    <s-avatar initials={bot ? "AI" : message.author.slice(0, 2).toUpperCase()} alt={message.author} size="small" />
-    <div style={{ display: "grid", gap: 6, minWidth: 0, maxWidth: "min(680px, 86%)", justifyItems: mine ? "end" : "start" }}>
-      <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent={mine ? "end" : "start"}>
-        <s-text type="strong">{message.author}</s-text>
-        {isNew && <s-badge tone="info">New</s-badge>}
-        {note ? <s-badge tone="caution" icon="lock">Internal note</s-badge>
-          : customer ? <s-badge tone="info">Customer</s-badge>
-          : bot ? <s-badge>Automated answer</s-badge>
-          : email ? <EmailStatus email={email} />
-          : <s-badge tone={message.emailed ? "success" : "neutral"} icon={message.emailed ? "email" : undefined}>{message.emailed ? "Emailed to customer" : "Shown on request page"}</s-badge>}
-        <s-text color="subdued">{time}</s-text>
-      </s-stack>
-      <div style={{
-        padding: "12px 15px", whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.5,
-        borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
-        background: note ? "#FFF8DB" : mine ? "#172351" : "#F1F2F4", color: mine && !note ? "#fff" : "#1A1A1A",
-        border: note ? "1px solid #F0D983" : bot ? "1px dashed #B5B9C3" : "1px solid transparent",
-      }}>{message.body}</div>
-      <Gallery files={files} />
+  const background = note ? "#FFF3C4" : mine ? "#D9FDD3" : "#FFFFFF";
+  const delivery = note ? "🔒 Internal note" : !mine ? "" : email ? "" : message.emailed ? "✓✓ Emailed" : "✓ On request page";
+  return <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginTop: grouped ? 2 : 10 }}>
+    <div style={{
+      position: "relative", maxWidth: "min(620px, 78%)", minWidth: 120, padding: "6px 9px 4px", background, color: "#111B21",
+      borderRadius: grouped ? 8 : mine ? "8px 0 8px 8px" : "0 8px 8px 8px", boxShadow: "0 1px 0.5px rgba(11,20,26,.13)",
+      border: bot ? "1px dashed #B5B9C3" : note ? "1px solid #F0D983" : "none",
+    }}>
+      {!grouped && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 2, fontSize: 12.5, fontWeight: 600, color: note ? "#7A5600" : mine ? "#1E7A4C" : bot ? "#54656F" : "#B3261E" }}>
+        {message.author}
+        {isNew && <span style={{ padding: "0 6px", borderRadius: 6, background: "#E6EFFC", color: "#003A80", fontSize: 11 }}>New</span>}
+        {bot && <span style={{ fontWeight: 500, color: "#54656F" }}>· Automated answer</span>}
+      </div>}
+      <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 14, lineHeight: 1.45 }}>{message.body}</div>
+      {files.length > 0 && <div style={{ marginTop: 6 }}><Gallery files={files} /></div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11, color: "#667781" }}>
+        {delivery && <span>{delivery}</span>}
+        <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
+      </div>
+      {email && mine && !note && <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}><EmailStatus email={email} /></div>}
     </div>
   </div>;
 }
 
+// The conversation as a chat window: fixed height, opens at the newest
+// message and stays there as new ones arrive, unless you've scrolled up to
+// read, then a button offers to jump down.
+function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticket"]; replyEmails: Map<string, TicketEmail>; readAt: number }) {
+  const box = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  const [unseen, setUnseen] = useState(0);
+  const count = ticket.messages.length;
+  const seenCount = useRef(count);
+  useEffect(() => {
+    const node = box.current;
+    if (!node) return;
+    if (pinned.current) { node.scrollTop = node.scrollHeight; setUnseen(0); }
+    else if (count > seenCount.current) setUnseen((value) => value + count - seenCount.current);
+    seenCount.current = count;
+  }, [count]);
+  const toBottom = () => { const node = box.current; if (node) node.scrollTo({ top: node.scrollHeight, behavior: "smooth" }); setUnseen(0); };
+  let lastDay = "";
+  let lastAuthor = "";
+  return <div style={{ position: "relative" }}>
+    <div ref={box} onScroll={(event) => {
+      const node = event.currentTarget;
+      pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+      if (pinned.current && unseen) setUnseen(0);
+    }} style={{
+      maxHeight: "min(68vh, 680px)", overflowY: "auto", padding: "12px 14px 16px", borderRadius: 12, background: "#EFEAE2",
+      backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "18px 18px", border: "1px solid #E3E3E3",
+    }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFFE6", color: "#54656F", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
+      </div>
+      <OriginalRequest ticket={ticket} />
+      {ticket.messages.map((message) => {
+        const day = new Date(message.createdAt).toDateString();
+        const newDay = day !== lastDay && day !== new Date(ticket.createdAt).toDateString();
+        const author = `${message.kind}:${message.author}`;
+        const grouped = !newDay && author === lastAuthor && message.kind !== "event";
+        lastDay = day;
+        lastAuthor = message.kind === "event" ? "" : author;
+        return <div key={message.id}>
+          {newDay && <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 4px" }}>
+            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFFE6", color: "#54656F", fontSize: 12, fontWeight: 600 }}>{dayLabel(message.createdAt)}</span>
+          </div>}
+          <Message message={message} email={replyEmails.get(message.id)} grouped={grouped}
+            files={ticket.attachments.filter((file) => file.messageId === message.id)}
+            isNew={Boolean(readAt) && message.kind === "customer" && new Date(message.createdAt).getTime() > readAt} />
+        </div>;
+      })}
+    </div>
+    {unseen > 0 && <button type="button" onClick={toBottom} style={{
+      position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)", padding: "7px 14px", border: 0, borderRadius: 999, cursor: "pointer",
+      background: "#172351", color: "#fff", font: "inherit", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 14px rgba(23,35,81,.3)",
+    }}>{unseen} new message{unseen === 1 ? "" : "s"} ↓</button>}
+  </div>;
+}
+
 // Where a reply goes. The request page always gets it (that's the chat the
-// customer sees in the store); email also sends it to their inbox. WhatsApp
-// and SMS need a messaging account connected first.
+// customer sees in the store); email also sends it to their inbox. Only
+// channels that are set up are offered; WhatsApp and SMS join this list once
+// a messaging account is connected.
 const CHANNELS = [
   { id: "page", label: "Request page", icon: "chat" },
   { id: "email", label: "Email", icon: "email" },
-  { id: "whatsapp", label: "WhatsApp", icon: "phone" },
-  { id: "sms", label: "SMS", icon: "mobile" },
 ] as const;
 
-function ChannelPicker({ value, onChange, emailReady, email, phone }: { value: "page" | "email"; onChange: (value: "page" | "email") => void; emailReady: boolean; email: string; phone: string }) {
+function ChannelPicker({ value, onChange, email }: { value: "page" | "email"; onChange: (value: "page" | "email") => void; email: string }) {
   const hint = value === "email" ? `Shown on their request page and emailed to ${email}.`
     : "Shown on the customer's private request page in your store. Choose Email to also send it to their inbox.";
   return <s-stack gap="small-100">
     <s-text color="subdued">Send via</s-text>
     <div role="radiogroup" aria-label="Send via" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {CHANNELS.map((channel) => {
-        const ready = channel.id === "page" || (channel.id === "email" && emailReady);
         const active = value === channel.id;
-        return <button key={channel.id} type="button" role="radio" aria-checked={active} disabled={!ready}
-          title={ready ? undefined : channel.id === "email" ? "Email sending isn't set up on the server yet" : `Connect a ${channel.label} account to message ${phone || "customers"} here`}
-          onClick={() => ready && onChange(channel.id as "page" | "email")} style={{
-            display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, font: "inherit", fontSize: 13,
-            cursor: ready ? "pointer" : "not-allowed", opacity: ready ? 1 : 0.55, fontWeight: active ? 650 : 500,
-            color: active ? "#fff" : "#303030", background: active ? "#172351" : "#fff", border: `1px solid ${active ? "#172351" : "#E3E3E3"}`,
-          }}>
+        return <button key={channel.id} type="button" role="radio" aria-checked={active} onClick={() => onChange(channel.id)} style={{
+          display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, font: "inherit", fontSize: 13, cursor: "pointer",
+          fontWeight: active ? 650 : 500, color: active ? "#fff" : "#303030", background: active ? "#172351" : "#fff", border: `1px solid ${active ? "#172351" : "#E3E3E3"}`,
+        }}>
           <s-icon type={channel.icon} size="small" />
           {channel.label}
-          {!ready && <span style={{ fontSize: 11, fontWeight: 600, color: "#8A6100" }}>{channel.id === "email" ? "Not set up" : "Connect"}</span>}
         </button>;
       })}
     </div>
@@ -644,7 +706,7 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
         <s-button variant={kind === "reply" ? "secondary" : "tertiary"} icon="email" onClick={() => setKind("reply")}>Reply to customer</s-button>
         <s-button variant={kind === "note" ? "secondary" : "tertiary"} icon="note" onClick={() => setKind("note")}>Internal note</s-button>
       </s-stack>
-      {kind === "reply" && <ChannelPicker value={channel} onChange={setChannel} emailReady={configured} email={ticket.email} phone={ticket.details.phone || ""} />}
+      {kind === "reply" && configured && <ChannelPicker value={channel} onChange={setChannel} email={ticket.email} />}
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
         <s-select label="Insert a saved reply" value={macro} disabled={!macros.length} onChange={(event) => {
           const chosen = macros.find((item) => item.id === event.currentTarget.value);
@@ -808,13 +870,11 @@ function TicketDetail({ screen }: { screen: TicketData }) {
           {ticket.channel === "chat" && <s-badge icon="chat">Live chat</s-badge>}
           {ticket.tags && ticket.tags.split(", ").map((tag) => <s-chip key={tag}>{tag}</s-chip>)}
         </s-stack>
-        <s-heading>Conversation</s-heading>
-        <OriginalRequest ticket={ticket} />
-        {conversation.map((message) => (
-          <Message key={message.id} message={message} email={replyEmails.get(message.id)}
-            files={ticket.attachments.filter((file) => file.messageId === message.id)}
-            isNew={Boolean(readAt) && message.kind === "customer" && new Date(message.createdAt).getTime() > readAt} />
-        ))}
+        <s-stack direction="inline" alignItems="center" justifyContent="space-between">
+          <s-heading>Conversation</s-heading>
+          <s-text color="subdued">{conversation.filter((message) => message.kind !== "event").length + (ticket.channel === "chat" ? 0 : 1)} messages</s-text>
+        </s-stack>
+        <ChatThread ticket={ticket} replyEmails={replyEmails} readAt={readAt} />
         {ticket.status === "Resolved" && <s-banner tone="success">This ticket is resolved. If the customer replies, it reopens automatically.</s-banner>}
       </s-stack>
     </s-section>

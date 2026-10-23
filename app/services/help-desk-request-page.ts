@@ -9,8 +9,7 @@ import { countryName, fieldLabels } from "./help-desk";
 const escape = (value: string) => value.replace(/[&<>"'{}]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "{": "&#123;", "}": "&#125;" })[char]!);
 const multiline = (value: string) => escape(value).replace(/\r?\n/g, "<br>");
 // Rendered in UTC on the server, then switched to the shopper's own time zone by the page script.
-const time = (value: Date, style: "full" | "date" = "full") => `<time datetime="${value.toISOString()}" data-hdt-time="${style}">${escape(new Intl.DateTimeFormat("en", style === "date" ? { dateStyle: "medium", timeZone: "UTC" } : { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(value))}</time>`;
-const initials = (name: string) => escape(name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "?");
+const time = (value: Date, style: "full" | "date" | "clock" = "full") => `<time datetime="${value.toISOString()}" data-hdt-time="${style}">${escape(new Intl.DateTimeFormat("en", style === "date" ? { dateStyle: "medium", timeZone: "UTC" } : style === "clock" ? { timeStyle: "short", timeZone: "UTC" } : { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(value))}</time>`;
 
 const STATUS_COPY: Record<string, { title: string; text: string }> = {
   Open: { title: "We've got your request", text: "Our team will look at it and reply soon. We'll email you as soon as they do." },
@@ -62,27 +61,19 @@ const STYLES = `<style>
 .hdt-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-top:22px;align-items:start}
 .hdt-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px clamp(20px,3vw,30px);border-bottom:1px solid var(--line)}
 .hdt-section-head span{color:var(--muted);font-size:13px}
-.hdt-thread{display:grid;gap:22px;padding:clamp(20px,3vw,30px)}
-.hdt-msg{display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start}
-.hdt-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700}
-.hdt-msg>div{min-width:0;max-width:min(600px,100%)}
-.hdt-msg[data-kind="customer"]{grid-template-columns:minmax(0,1fr) 38px}
-.hdt-msg[data-kind="customer"] .hdt-avatar{grid-column:2;grid-row:1;background:var(--accent);color:#fff}
-.hdt-msg[data-kind="customer"]>div{grid-column:1;grid-row:1;justify-self:end}
-.hdt-msg[data-kind="customer"] .hdt-who{justify-content:flex-end}
-.hdt-msg[data-kind="reply"] .hdt-avatar{background:var(--ink);color:#fff}
-.hdt-who{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:6px}
-.hdt-who strong{font-size:14px}
-.hdt-who span{color:var(--muted);font-size:12px}
-.hdt-tag{padding:1px 8px;border-radius:999px;background:var(--soft);font-size:11px;font-weight:700;color:var(--ink)}
-.hdt-msg[data-kind="reply"] .hdt-tag{background:var(--ink);color:#fff}
-.hdt-body{padding:14px 16px;border:1px solid var(--line);border-radius:4px 18px 18px 18px;background:#fff;overflow-wrap:anywhere}
-.hdt-msg[data-kind="customer"] .hdt-body{background:var(--ink);border-color:var(--ink);color:#fff;border-radius:18px 4px 18px 18px}
-.hdt-msg[data-kind="customer"] .hdt-group h3{color:rgba(255,255,255,.72)}
-.hdt-msg[data-kind="customer"] .hdt-product{color:var(--ink)}
-.hdt-msg[data-kind="customer"] .hdt-facts span,.hdt-msg[data-kind="customer"] .hdt-files{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff}
-.hdt-msg[data-kind="reply"] .hdt-body{border-color:#d7dbe6;box-shadow:0 4px 14px rgba(25,33,61,.05)}
-.hdt-msg[data-kind="bot"] .hdt-body{border-style:dashed}
+.hdt-thread{display:flex;flex-direction:column;gap:2px;max-height:min(64vh,640px);overflow-y:auto;overscroll-behavior:contain;padding:14px clamp(10px,2.4vw,22px) 18px;background:#efeae2 radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:18px 18px}
+.hdt-msg{display:flex;margin-top:8px}
+.hdt-msg[data-grouped]{margin-top:2px}
+.hdt-msg[data-kind="customer"]{justify-content:flex-end}
+.hdt-body{max-width:min(560px,84%);min-width:110px;padding:7px 10px 5px;border-radius:0 10px 10px 10px;background:#fff;color:#111b21;box-shadow:0 1px .5px rgba(11,20,26,.13);overflow-wrap:anywhere;font-size:14.5px;line-height:1.45}
+.hdt-msg[data-kind="customer"] .hdt-body{background:#d9fdd3;border-radius:10px 0 10px 10px}
+.hdt-msg[data-grouped] .hdt-body{border-radius:10px}
+.hdt-msg[data-kind="bot"] .hdt-body{border:1px dashed #b5b9c3}
+.hdt-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:2px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.hdt-msg[data-kind="customer"] .hdt-who{color:#1e7a4c}
+.hdt-tag{padding:0 7px;border-radius:999px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:700}
+.hdt-meta{display:block;margin-top:2px;text-align:right;color:#667781;font-size:11px;line-height:1.2}
+.hdt-day{align-self:center;margin:10px 0 2px;padding:4px 12px;border-radius:8px;background:rgba(255,255,255,.92);color:#54656f;font-size:12px;font-weight:600;box-shadow:0 1px .5px rgba(11,20,26,.1)}
 .hdt-body p+p{margin-top:10px}
 .hdt-facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .hdt-facts span{padding:3px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:600}
@@ -93,8 +84,8 @@ const STYLES = `<style>
 .hdt-product img,.hdt-product i{flex:none;width:48px;height:48px;border-radius:9px;object-fit:cover;background:var(--soft)}
 .hdt-product strong{font-size:14px;font-weight:600}
 .hdt-files{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:5px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:600}
-.hdt-system{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px}
-.hdt-system::before,.hdt-system::after{content:"";flex:1;height:1px;background:var(--line)}
+.hdt-system{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;color:#54656f;font-size:12px}
+.hdt-system::before,.hdt-system::after{content:"";flex:1;height:1px;background:rgba(0,0,0,.12)}
 .hdt-foot{padding:clamp(20px,3vw,30px);border-top:1px solid var(--line);background:#fbfbfd;border-radius:0 0 20px 20px}
 .hdt-wait{display:flex;gap:14px;align-items:flex-start}
 .hdt-wait i{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid var(--line);font-style:normal;font-size:20px}
@@ -127,7 +118,7 @@ const STYLES = `<style>
 .hdt-lookup{max-width:500px;margin:0 auto}
 .hdt-lookup form{display:grid;gap:14px;margin-top:20px}
 @media (max-width:880px){.hdt-layout{grid-template-columns:minmax(0,1fr)}.hdt-aside{position:static}}
-@media (max-width:560px){.hdt-steps li{font-size:11px}.hdt button{width:100%}.hdt-actions{display:block}.hdt-msg{grid-template-columns:32px minmax(0,1fr);gap:10px}.hdt-avatar{width:32px;height:32px;font-size:11px}}
+@media (max-width:560px){.hdt-steps li{font-size:11px}.hdt button{width:100%}.hdt-actions{display:block}.hdt-body{max-width:90%}}
 .hdt-toast{position:fixed;left:50%;bottom:24px;z-index:9999;transform:translateX(-50%);padding:12px 20px;border-radius:999px;background:#172351;color:#fff;font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(23,35,81,.3);transition:opacity .4s ease,transform .4s ease}
 .hdt-toast[data-hide]{opacity:0;transform:translate(-50%,10px)}
 .hdt-msg[data-fresh] .hdt-body{animation:hdt-fresh 2.4s ease}
@@ -142,11 +133,47 @@ const SCRIPT = `<script>
 (function () {
   var full = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   var day = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+  var clock = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+  var weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  function dayLabel(value) {
+    var today = new Date();
+    var yesterday = new Date(today.getTime() - 86400000);
+    if (value.toDateString() === today.toDateString()) return 'Today';
+    if (value.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return value.getFullYear() === today.getFullYear() ? weekday.format(value) : day.format(value);
+  }
+  // Day dividers in the shopper's own time zone, like a chat app.
+  function dividers(scope) {
+    var thread = scope.querySelector('.hdt-thread');
+    if (!thread) return;
+    thread.querySelectorAll('.hdt-day').forEach(function (node) { node.remove(); });
+    var last = '';
+    thread.querySelectorAll('.hdt-msg[data-at]').forEach(function (node) {
+      var value = new Date(node.getAttribute('data-at'));
+      if (isNaN(value) || value.toDateString() === last) return;
+      last = value.toDateString();
+      var label = document.createElement('p');
+      label.className = 'hdt-day';
+      label.textContent = dayLabel(value);
+      thread.insertBefore(label, node);
+      node.removeAttribute('data-grouped');
+    });
+  }
+  function toBottom(smooth) {
+    var thread = root && root.querySelector('.hdt-thread');
+    if (thread) thread.scrollTo({ top: thread.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
+  function atBottom() {
+    var thread = root && root.querySelector('.hdt-thread');
+    return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
+  }
   function enhance(scope) {
     scope.querySelectorAll('[data-hdt-time]').forEach(function (node) {
       var value = new Date(node.getAttribute('datetime'));
-      if (!isNaN(value)) node.textContent = (node.getAttribute('data-hdt-time') === 'date' ? day : full).format(value);
+      var style = node.getAttribute('data-hdt-time');
+      if (!isNaN(value)) node.textContent = (style === 'date' ? day : style === 'clock' ? clock : full).format(value);
     });
+    dividers(scope);
     scope.querySelectorAll('.hdt-drop input').forEach(function (input) {
       if (input.dataset.hdtBound) return;
       input.dataset.hdtBound = '1';
@@ -170,6 +197,7 @@ const SCRIPT = `<script>
     node.className = 'hdt-toast';
     node.setAttribute('role', 'status');
     node.textContent = text;
+    node.addEventListener('click', function () { toBottom(true); node.remove(); });
     document.body.appendChild(node);
     setTimeout(function () { node.setAttribute('data-hide', ''); }, 3500);
     setTimeout(function () { node.remove(); }, 4200);
@@ -201,6 +229,9 @@ const SCRIPT = `<script>
       .then(function (html) {
         var next = new DOMParser().parseFromString(html, 'text/html').querySelector('.hdt[data-hdt-stamp]');
         if (!next) return;
+        var stick = !fromTeam || atBottom();
+        var thread = root.querySelector('.hdt-thread');
+        var keep = thread ? thread.scrollTop : 0;
         ['.hdt-hero', '.hdt-section-head', '.hdt-thread', '.hdt-aside'].forEach(function (selector) {
           var current = root.querySelector(selector);
           var fresh = next.querySelector(selector);
@@ -212,8 +243,10 @@ const SCRIPT = `<script>
         stamp = next.getAttribute('data-hdt-stamp');
         root.setAttribute('data-hdt-stamp', stamp);
         enhance(root);
+        if (stick) toBottom(true);
+        else if (root.querySelector('.hdt-thread')) root.querySelector('.hdt-thread').scrollTop = keep;
         if (fromTeam) {
-          toast('New message from our team');
+          toast(stick ? 'New message from our team' : 'New message from our team ↓');
           var last = root.querySelector('.hdt-thread > .hdt-msg:last-of-type');
           if (last) last.setAttribute('data-fresh', '');
         }
@@ -268,6 +301,7 @@ const SCRIPT = `<script>
   }
 
   enhance(document.querySelector('.hdt') || document);
+  toBottom(false);
   if (root && token) {
     setInterval(check, 5000);
     document.addEventListener('visibilitychange', check);
@@ -327,11 +361,15 @@ export function renderRequestPage(ticket: RequestPageTicket, extras: RequestPage
     return `<li${done ? " data-done" : ""}${index === current && !resolved ? " data-current" : ""}><b>${done ? "✓" : index + 1}</b>${step.label}</li>`;
   }).join("");
 
+  // WhatsApp-style bubbles: the customer's own on the right (green), the team's on the left (white).
+  // Consecutive messages from the same person are grouped; the page script adds day dividers in local time.
+  let previous = "";
   const message = (kind: string, author: string, at: Date, body: string) => {
     const who = kind === "customer" ? "You" : kind === "bot" ? "Assistant" : author;
     const tag = kind === "reply" ? `<span class="hdt-tag">Support team</span>` : kind === "bot" ? `<span class="hdt-tag">Automated</span>` : "";
-    return `<div class="hdt-msg" data-kind="${kind}"><span class="hdt-avatar" aria-hidden="true">${kind === "bot" ? "AI" : kind === "customer" ? "You" : initials(author)}</span>
-<div><div class="hdt-who"><strong>${escape(who)}</strong>${tag}<span>${time(at)}</span></div><div class="hdt-body">${body}</div></div></div>`;
+    const grouped = previous === `${kind}:${author}`;
+    previous = `${kind}:${author}`;
+    return `<div class="hdt-msg" data-kind="${kind}" data-at="${at.toISOString()}"${grouped ? " data-grouped" : ""}><div class="hdt-body">${grouped ? "" : `<div class="hdt-who">${escape(who)}${tag}</div>`}${body}<span class="hdt-meta">${time(at, "clock")}</span></div></div>`;
   };
 
   // The customer's original request, as the first message of the conversation.

@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="hi-Latn">
+<head>
+<meta charset="utf-8">
+<title>Channels Setup Requirements</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+  :root { --ink: #19213d; --muted: #5b6275; --line: #e4e5ea; --accent: #ef3a24; --soft: #f5f6f8; --ok: #0c5132; --okbg: #e3f5ea; --warn: #5e4200; --warnbg: #fff4d6; --bad: #8e1f0b; --badbg: #fde8e6; --info: #003a80; --infobg: #e6effc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); font: 10.5pt/1.55 "Segoe UI", Roboto, Arial, sans-serif; }
+  h1 { font-size: 26pt; line-height: 1.15; margin: 0 0 8px; }
+  h2 { font-size: 15pt; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--ink); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 16px 0 6px; break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code { font-family: Consolas, "Courier New", monospace; font-size: 9pt; background: var(--soft); padding: 1px 4px; border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { background: var(--soft); font-weight: 600; }
+  tr { break-inside: avoid; }
+  section { break-before: page; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover .bar { width: 60px; height: 5px; background: var(--accent); border-radius: 3px; margin: 18px 0; }
+  .cover .sub { font-size: 13pt; color: var(--muted); max-width: 150mm; }
+  .meta { color: var(--muted); font-size: 9.5pt; }
+  .box { border-radius: 6px; padding: 9px 12px; margin: 8px 0 12px; break-inside: avoid; border-left: 4px solid; }
+  .box.tip { background: var(--okbg); border-color: #2f9e6a; }
+  .box.warn { background: var(--warnbg); border-color: #d9a100; }
+  .box.bad { background: var(--badbg); border-color: var(--accent); }
+  .box.info { background: var(--infobg); border-color: #2c6ecb; }
+  .box b:first-child { display: block; margin-bottom: 2px; }
+  .steps { counter-reset: s; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 30px; margin: 7px 0; break-inside: avoid; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9pt; font-weight: 600; display: grid; place-items: center; }
+  .check { list-style: none; padding-left: 0; }
+  .check li { position: relative; padding-left: 26px; margin: 6px 0; break-inside: avoid; }
+  .check li::before { content: ""; position: absolute; left: 0; top: 2px; width: 14px; height: 14px; border: 2px solid var(--ink); border-radius: 3px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 8.8pt; font-weight: 600; white-space: nowrap; }
+  .p-ok { background: var(--okbg); color: var(--ok); } .p-warn { background: var(--warnbg); color: var(--warn); } .p-info { background: var(--infobg); color: var(--info); } .p-bad { background: var(--badbg); color: var(--bad); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .two > div { break-inside: avoid; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .two h3 { margin-top: 0; }
+  .small { font-size: 9pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div>
+    <p class="meta">Zion App · Help Desk</p>
+    <div class="bar"></div>
+    <h1>Email, WhatsApp aur SMS<br>jodne ke liye kya chahiye</h1>
+    <p class="sub">Help Desk se customers ko Email, WhatsApp aur SMS pe reply bhejne ke liye kaunse accounts banane hain, unse kya-kya details leni hain, aur kya decide karna hai. Step by step, Hinglish mein.</p>
+    <div style="margin-top:26px">
+      <table>
+        <tr><th style="width:24%">Section</th><th>Kya hai</th></tr>
+        <tr><td>1. Ek nazar mein</td><td>Teeno channels: kitna kaam, kitna time, kisko karna hai</td></tr>
+        <tr><td>2. Email</td><td>Gmail ya Brevo: kya chahiye</td></tr>
+        <tr><td>3. WhatsApp</td><td>Meta direct ya partner company: kya chahiye</td></tr>
+        <tr><td>4. SMS</td><td>MSG91 (India) ya Twilio (bahar): kya chahiye</td></tr>
+        <tr><td>5. Details kaise deni hain</td><td>Passwords aur keys safely kaise dein</td></tr>
+        <tr><td>6. Decide karna hai</td><td>Aapke faisle aur aage kya banega</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="meta">Abhi ka haal: replies customer ke store wale request page pe chat mein jaate hain. Email ka code ready hai (sirf mailbox login chahiye). WhatsApp aur SMS ka code account milne ke baad banega. Tab tak yeh options app mein chhupe hue hain.<br>Bana: 23 October 2026</p>
+</div>
+
+<section>
+  <h2>1. Ek nazar mein</h2>
+  <table>
+    <tr><th style="width:15%">Channel</th><th style="width:27%">Aapko kya karna hai</th><th style="width:16%">Kitna time</th><th style="width:20%">Kharcha (lagbhag)</th><th>Uske baad developer</th></tr>
+    <tr><td><b>Email</b></td><td>Gmail App Password banana, ya Brevo account</td><td>10-30 minute</td><td>Gmail: free (Workspace ka plan) · Brevo: free 300/din</td><td>Server pe daal ke test: ~1 ghanta</td></tr>
+    <tr><td><b>WhatsApp</b></td><td>Meta Business verification, naya number, message template approve karwana</td><td>2-7 din (verification)</td><td>Har message/conversation ka Meta charge, partner ho toh mahine ki fees</td><td>Integration banana: 2-3 din</td></tr>
+    <tr><td><b>SMS</b></td><td>MSG91 + DLT registration (India), ya Twilio (bahar)</td><td>DLT: 2-7 din · Twilio: same din</td><td>Har SMS ka charge, Twilio number ka mahine ka charge</td><td>Integration banana: 1-2 din</td></tr>
+  </table>
+  <div class="box tip"><b>Sabse pehle Email karo</b>Iska code pehle se bana hua hai. Sirf mailbox ka login chahiye, aur usi din chalu ho jaayega. Customers ko ticket ka confirmation, aapke replies aur status updates email pe milne lagenge.</div>
+  <div class="box info"><b>Kharche ke baare mein</b>Upar ke kharche andaaze hain. Har company ki pricing page pe aaj ka rate dekh lena: Meta (WhatsApp Business pricing), MSG91, Twilio, Brevo.</div>
+
+  <h3>Reply kaise jaayega (sab jud jaane ke baad)</h3>
+  <table>
+    <tr><th style="width:22%">Channel</th><th>Customer ko kya milega</th><th style="width:30%">Customer jawab de toh</th></tr>
+    <tr><td>Request page (abhi chal raha)</td><td>Store ke private page pe chat mein reply</td><td>Usi page se, seedha ticket mein</td></tr>
+    <tr><td>Email</td><td>Reply inbox mein, request page ke link ke saath</td><td>Request page ke link se</td></tr>
+    <tr><td>WhatsApp</td><td>Reply WhatsApp pe</td><td>WhatsApp pe jawab seedha ticket mein (yeh banaya jaayega)</td></tr>
+    <tr><td>SMS</td><td>Chhota message + request page ka link</td><td>Request page ke link se</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>2. Email</h2>
+  <p>Do mein se koi ek chuno. Dono mein email aapke apne address se jaata hai, jaise <code>support@zioncases.com</code>.</p>
+  <div class="two">
+    <div>
+      <h3>Option A: Gmail / Google Workspace</h3>
+      <p class="small">Agar support email Google pe hai.</p>
+      <ol class="steps">
+        <li>Us Google account mein login karo jisse email bhejna hai.</li>
+        <li><b>Google Account → Security → 2-Step Verification</b> on karo.</li>
+        <li>Wahin <b>App passwords</b> kholo → naam likho "Zion Help Desk" → <b>Create</b>.</li>
+        <li>16 letters ka password dikhega. Use copy karke safe rakho.</li>
+      </ol>
+      <div class="box warn"><b>Limit</b>Gmail se din ke lagbhag 500 emails (Workspace mein 2,000). Normal password nahi chalega, sirf App Password.</div>
+    </div>
+    <div>
+      <h3>Option B: Brevo</h3>
+      <p class="small">Free plan: 300 emails/din. Emails spam mein jaane ke chances kam.</p>
+      <ol class="steps">
+        <li>brevo.com pe free account banao.</li>
+        <li><b>Senders, Domains &amp; Dedicated IPs</b> mein support email add karke verify karo.</li>
+        <li>Domain zioncases.com authenticate karo: Brevo jo DNS records (DKIM, DMARC) bataye, unhe domain ke DNS mein daalo.</li>
+        <li><b>SMTP &amp; API → SMTP</b> tab se <b>SMTP login</b> aur ek naya <b>SMTP key</b> banao.</li>
+      </ol>
+    </div>
+  </div>
+  <h3>Developer ko yeh dena hai</h3>
+  <table>
+    <tr><th style="width:32%">Cheez</th><th>Gmail</th><th>Brevo</th></tr>
+    <tr><td>SMTP host</td><td><code>smtp.gmail.com</code></td><td><code>smtp-relay.brevo.com</code></td></tr>
+    <tr><td>Port</td><td><code>587</code></td><td><code>587</code></td></tr>
+    <tr><td>User</td><td>Poora email address</td><td>Brevo ka SMTP login</td></tr>
+    <tr><td>Password</td><td>16 letters ka App Password</td><td>SMTP key</td></tr>
+    <tr><td>From address</td><td>Wahi email</td><td>Brevo mein verified sender email</td></tr>
+    <tr><td>Team alerts kis email pe</td><td colspan="2">Naye ticket aur customer reply ki khabar kis email pe chahiye (Help Desk Settings mein bhi daal sakte ho)</td></tr>
+  </table>
+  <div class="box tip"><b>Uske baad</b>Developer yeh server pe daal ke app restart karega aur Settings se test email bhejega. Phir reply box mein <b>Send via → Email</b> apne aap dikhne lagega.</div>
+</section>
+
+<section>
+  <h2>3. WhatsApp</h2>
+  <div class="box warn"><b>WhatsApp ke 2 zaroori rule</b>(1) Customer ko pehla message, ya 24 ghante ki chuppi ke baad ka message, sirf Meta se <b>approve hue template</b> se ja sakta hai. (2) Customer ne pichhle 24 ghante mein message kiya ho, tabhi aap normal text reply bhej sakte ho. Isliye ek template chahiye jaise: "Hi {{1}}, we've replied to your request #{{2}}. Tap to view: {{3}}".</div>
+  <div class="two">
+    <div>
+      <h3>Option A: Meta WhatsApp Cloud API (direct)</h3>
+      <p class="small">Sabse sasta, sirf Meta ka per-message charge. Setup thoda lamba.</p>
+      <ol class="steps">
+        <li><b>business.facebook.com</b> pe Meta Business account banao, aur <b>Business verification</b> karo (GST / company documents).</li>
+        <li>Ek <b>naya phone number</b> lo jo kisi WhatsApp ya WhatsApp Business app pe active na ho.</li>
+        <li><b>developers.facebook.com</b> → Create App → <b>Business</b> → WhatsApp product add karo → number jodo.</li>
+        <li><b>Business Settings → System users</b> → ek system user banao → permanent token banao, permission <code>whatsapp_business_messaging</code> aur <code>whatsapp_business_management</code> ke saath.</li>
+        <li><b>WhatsApp Manager → Message templates</b> mein upar jaisa template banao aur approve karwao (category: Utility).</li>
+        <li>Payment method add karo (Meta per conversation/message charge karta hai).</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Option B: Partner (Interakt / AiSensy / Twilio)</h3>
+      <p class="small">Setup aasaan, unki team madad karti hai. Mahine ki fees + message charge.</p>
+      <ol class="steps">
+        <li>Partner ki site pe account banao aur unka WhatsApp onboarding pura karo (woh Meta verification aur number mein madad karte hain).</li>
+        <li>Unke dashboard mein template banao aur approve karwao.</li>
+        <li>Unke dashboard se <b>API key</b> lo.</li>
+      </ol>
+      <div class="box info"><b>Agar pehle se koi partner use ho raha hai</b>Toh wahi le lo. Developer usi ke hisaab se integration banayega.</div>
+    </div>
+  </div>
+  <h3>Developer ko yeh dena hai</h3>
+  <table>
+    <tr><th style="width:38%">Cheez</th><th>Meta direct</th><th style="width:28%">Partner</th></tr>
+    <tr><td>Phone Number ID</td><td>developers.facebook.com → WhatsApp → API Setup</td><td rowspan="3">Partner ki API key + account ID</td></tr>
+    <tr><td>WhatsApp Business Account ID</td><td>Usi page pe</td></tr>
+    <tr><td>Permanent access token</td><td>System user ka token (step 4)</td></tr>
+    <tr><td>App Secret</td><td>Meta app → Settings → Basic (customer ke jawab safely lene ke liye)</td><td>Partner ka webhook secret</td></tr>
+    <tr><td>Approved template ka naam aur language</td><td colspan="2">Jaise <code>request_reply_update</code>, English</td></tr>
+    <tr><td>Business ka WhatsApp number</td><td colspan="2">Jo customers ko dikhega</td></tr>
+  </table>
+  <div class="box tip"><b>Developer kya karega</b>Webhook (callback) URL dega jo Meta/partner ke dashboard mein daalna hai, taaki customer ke WhatsApp jawab seedha ticket mein aayein. Reply box mein WhatsApp option chalu hoga, aur har message ka status dikhega: bheja gaya, pahuncha, padha, fail.</div>
+</section>
+
+<section>
+  <h2>4. SMS</h2>
+  <p>SMS chhota hota hai, isliye isme reply ka chhota hissa aur request page ka link jaata hai. Customer jawab request page se deta hai.</p>
+  <div class="two">
+    <div>
+      <h3>India ke customers: MSG91</h3>
+      <ol class="steps">
+        <li><b>DLT registration</b> (sarkari rule, zaroori): Jio / Airtel / Vi / BSNL ke kisi DLT portal pe company register karo (PAN, GST, letter of authorisation).</li>
+        <li>DLT pe <b>Sender ID / Header</b> approve karwao (6 letters, jaise <code>ZIONCS</code>).</li>
+        <li>DLT pe <b>SMS template</b> approve karwao, jaise: "Hi {#var#}, we replied to your request #{#var#}. View: {#var#} - Zion Cases".</li>
+        <li><b>msg91.com</b> pe account banao, DLT details jodo, credit daalo.</li>
+        <li>MSG91 → API se <b>Auth Key</b> lo, aur template ka <b>Template ID</b> note karo.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Bahar ke customers: Twilio</h3>
+      <ol class="steps">
+        <li><b>twilio.com</b> pe account banao aur verify karo.</li>
+        <li>Ek phone number kharido jo SMS bhej sake (US/UK jaisa).</li>
+        <li>Console se <b>Account SID</b> aur <b>Auth Token</b> lo.</li>
+        <li>US numbers ke liye A2P 10DLC registration lagta hai (Twilio console batata hai).</li>
+      </ol>
+    </div>
+  </div>
+  <h3>Developer ko yeh dena hai</h3>
+  <table>
+    <tr><th style="width:38%">MSG91</th><th>Twilio</th></tr>
+    <tr><td>Auth Key</td><td>Account SID</td></tr>
+    <tr><td>Sender ID (DLT approved)</td><td>Auth Token</td></tr>
+    <tr><td>Template ID (DLT approved)</td><td>Twilio phone number</td></tr>
+    <tr><td>DLT Entity ID (MSG91 maang sakta hai)</td><td>Kaunse countries mein SMS jaana hai</td></tr>
+  </table>
+  <div class="box warn"><b>Phone number zaroori</b>SMS aur WhatsApp tabhi jaa sakte hain jab customer ne form mein phone number diya ho, country code ke saath. Zaroorat ho toh form mein phone ko zaroori banaya ja sakta hai.</div>
+</section>
+
+<section>
+  <h2>5. Details kaise deni hain (safety)</h2>
+  <div class="box bad"><b>Passwords aur keys WhatsApp, email ya chat mein mat bhejo</b>Jiske paas key hogi, woh aapke account se messages bhej sakta hai aur kharcha karwa sakta hai.</div>
+  <ol class="steps">
+    <li><b>Sabse sahi:</b> developer Help Desk mein <b>Settings → Channels</b> page banayega. Aap khud wahan key paste karke <b>Connect</b> dabaoge. Key turant check hogi aur sirf server pe safe rahegi; browser ko kabhi wapas nahi bheji jaati.</li>
+    <li><b>Email ke liye abhi:</b> server ki <code>.env</code> file mein khud daal sakte ho (developer steps dega), ya password manager (Bitwarden / 1Password) ke share link se do.</li>
+    <li>Kaam hone ke baad koi key leak hone ka shak ho, toh provider ke dashboard se naya key bana ke purana band (revoke) kar do.</li>
+  </ol>
+
+  <h2 style="margin-top:22px">6. Decide karna hai</h2>
+  <ul class="check">
+    <li><b>Email:</b> Gmail / Google Workspace ya Brevo? Kaunse address se email jaaye?</li>
+    <li><b>WhatsApp:</b> Meta direct ya partner (Interakt / AiSensy / Twilio)? Pehle se koi WhatsApp Business account hai? Kaunsa number use hoga?</li>
+    <li><b>SMS:</b> customers zyada India ke hain (MSG91) ya bahar ke (Twilio), ya dono?</li>
+    <li><b>Customer ke jawab:</b> WhatsApp pe customer jawab de toh woh seedha usi ticket mein aaye? (Recommended: haan.)</li>
+    <li><b>Phone number:</b> form mein phone zaroori karna hai?</li>
+  </ul>
+  <h3>Aage kya banega</h3>
+  <table>
+    <tr><th style="width:30%">Kab</th><th>Kya</th></tr>
+    <tr><td>Email login milte hi</td><td>Server pe setup, test email, reply box mein <b>Send via → Email</b>.</td></tr>
+    <tr><td>WhatsApp account ready hone pe</td><td>Settings → Channels, WhatsApp se reply (template + 24 ghante wala rule), customer ke WhatsApp jawab ticket mein, message status.</td></tr>
+    <tr><td>SMS account ready hone pe</td><td>SMS se chhota reply + request page ka link, delivery status.</td></tr>
+  </table>
+  <p class="small">Tab tak WhatsApp aur SMS ke options app mein chhupe rahenge, taaki team confuse na ho. Replies request page pe chalte rahenge.</p>
+</section>
+
+</body>
+</html>
