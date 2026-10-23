@@ -13,10 +13,12 @@ import { emailConfigured, loadProducts, loadShop, sendTestEmail, trackingUrl, ty
 import { ordersByEmail } from "../services/help-desk-orders.server";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
-import { FeatureCard, IconTile, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
+import { IconTile, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
 import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 import { assignableTeam, listStaff, recordStaff } from "../services/help-desk-staff.server";
+import { DASHBOARD_RANGES, loadDashboard, type DashboardRange } from "../services/help-desk-dashboard.server";
+import { BarList, hoursLabel, KpiCard, TrendChart } from "../components/HelpDeskDashboard";
 import SectionNavigation from "../components/SectionNavigation";
 export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
 
@@ -179,6 +181,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const flagged = new Map<string, string>();
   for (const scan of flaggedScans) if (flagged.get(scan.attachment.ticketId) !== "likely_ai") flagged.set(scan.attachment.ticketId, scan.overallVerdict!);
   const responseTimes = responded.map((ticket) => ticket.firstResponseAt!.getTime() - ticket.createdAt.getTime());
+  // The overview page gets its charts; the inbox doesn't need them.
+  const requestedRange = Number(url.searchParams.get("range"));
+  const range: DashboardRange = (DASHBOARD_RANGES as readonly number[]).includes(requestedRange) ? requestedRange as DashboardRange : 30;
+  const dashboard = url.searchParams.get("section") === "setup" ? await loadDashboard(db, shop, range) : null;
   return data({
     screen: "list" as const, ...base,
     tickets: tickets.map(({ details, _count, ...ticket }) => {
@@ -193,6 +199,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       avgResponse: responseTimes.length ? responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length : null, resolvedWeek, newToday,
     },
     filters: { view, topic, priority, assignee, sort, q, period },
+    dashboard,
     // What the overview cards and setup checklist show.
     overview: {
       apiKey: process.env.SHOPIFY_API_KEY || "",
@@ -1106,34 +1113,102 @@ function setupSteps(screen: ListData): ChecklistItem[] {
   ];
 }
 
-// Store-side setup, the AI photo check and the numbers, on their own page.
+function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return <div style={{ display: "grid", gap: 12, alignContent: "start", height: "100%", padding: 16, background: "#fff", border: "1px solid #E3E3E3", borderRadius: 12, boxShadow: "0 1px 0 rgba(26,26,26,.05)" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <s-heading>{title}</s-heading>
+      {action}
+    </div>
+    {children}
+  </div>;
+}
+
+// The Help Desk dashboard, like Shopify's analytics: the period's numbers
+// against the one before, trends per day, and what needs someone now.
 function HelpDeskOverview({ screen }: { screen: ListData }) {
-  const { overview, views, metrics } = screen;
   const navigate = useNavigate();
   const listLink = useListLink();
-  const flagged = overview.photos.likelyAi + overview.photos.reused;
   const steps = setupSteps(screen);
+  const dashboard = screen.dashboard;
+  if (!dashboard) return null;
+  const { created, resolved, response, open, photos } = dashboard;
+  const go = (changes: Record<string, string>) => navigate(listLink({ section: "", ...changes }));
+  const flagged = photos.likelyAi + photos.reused;
   return <>
-    <SetupChecklist items={steps} />
+    <s-section padding="base">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+        <s-stack gap="none">
+          <s-heading>How your Help Desk is doing</s-heading>
+          <s-text color="subdued">Compared with the {dashboard.range} days before</s-text>
+        </s-stack>
+        <div style={{ minWidth: 180 }}>
+          <s-select label="Date range" labelAccessibilityVisibility="exclusive" value={String(dashboard.range)}
+            onChange={(event) => navigate(listLink({ section: "setup", range: event.currentTarget.value === "30" ? "" : event.currentTarget.value ?? "" }))}>
+            {DASHBOARD_RANGES.map((value) => <s-option key={value} value={String(value)}>Last {value} days</s-option>)}
+          </s-select>
+        </div>
+      </div>
+    </s-section>
+
+    {steps.some((step) => !step.done) && <SetupChecklist items={steps} />}
 
     <s-section padding="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
-        <StatTile tone="red" icon="notification" label="Needs attention" value={String(views.open)} detail={`${views.unassigned} unassigned`} />
-        <StatTile tone="amber" icon="alert-triangle" label="High priority" value={String(views.urgent)} detail="Open high and urgent" />
-        <StatTile tone="blue" icon="clock" label="Avg. first response" value={metrics.avgResponse === null ? "—" : duration(metrics.avgResponse)} detail="Last 30 days" />
-        <StatTile tone="green" icon="check-circle" label="Resolved" value={String(metrics.resolvedWeek)} detail={`Last 7 days · ${metrics.newToday} new today`} />
+        <KpiCard label="New tickets" value={String(created.total)} current={created.total} previous={created.previous} series={created.series} color="#334FB4" />
+        <KpiCard label="Resolved" value={String(resolved.total)} current={resolved.total} previous={resolved.previous} series={resolved.series} color="#EB6834" />
+        <KpiCard label="Avg. first reply" value={hoursLabel(response.hours)} current={response.hours} previous={response.previous} lowerIsBetter series={response.series} color="#334FB4"
+          detail={response.hours === null ? "No replies in this period" : undefined} />
+        <KpiCard label="Open right now" value={String(open.total)} current={null} previous={null}
+          detail={`${open.unassigned} unassigned · ${open.waiting} waiting on customer`} onClick={() => go({ view: "" })} />
       </s-grid>
     </s-section>
 
     <s-section padding="base">
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))" gap="base">
-        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · detector not connected"}
-          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "warning"}
-          metrics={[{ label: "Checked (30 days)", value: String(overview.photos.checked) }, { label: "Flagged", value: String(flagged) }]}
-          description="Every photo customers send is checked for AI generation, reuse from another request, and editing.">
-          <s-button href="/app/photo-checks">Review photos</s-button>
-          {flagged > 0 && <s-button variant="tertiary" onClick={() => navigate(listLink({ view: "flagged", section: "" }))}>Flagged tickets</s-button>}
-        </FeatureCard>
+      <Card title="Tickets over time">
+        <TrendChart dashboard={dashboard} />
+      </Card>
+    </s-section>
+
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap="base">
+        <Card title="Waiting longest for a reply" action={open.noReply.length > 0 ? <s-link onClick={() => go({ view: "" })}>View all</s-link> : undefined}>
+          {open.noReply.length === 0 ? <s-stack direction="inline" gap="small-200" alignItems="center"><s-icon type="check-circle" tone="success" /><s-text>Every open request has a reply. Nice work!</s-text></s-stack>
+            : <div style={{ display: "grid" }}>
+              {open.noReply.map((ticket, index) => <s-clickable key={ticket.id} onClick={() => go({ ticket: ticket.id })} accessibilityLabel={`Open ticket ${ticket.number}`}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: index ? "1px solid #F1F1F1" : "none" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#303030" }}>#{ticket.number} {ticket.topic}</div>
+                    <div style={{ fontSize: 12.5, color: "#616161" }}>{ticket.name}</div>
+                  </div>
+                  <span style={{ flex: "none", fontSize: 12.5, fontWeight: 600, color: "#B3261E" }} suppressHydrationWarning>{duration(Date.now() - new Date(ticket.createdAt).getTime())}</span>
+                </div>
+              </s-clickable>)}
+            </div>}
+        </Card>
+        <Card title="Tickets by topic">
+          <BarList items={dashboard.topics} empty="No new tickets in this period." onSelect={(topic) => go({ topic, view: "all" })} />
+        </Card>
+        <Card title="Open tickets by person">
+          <BarList items={dashboard.workload} empty="Nothing open right now." color="#6B7FD7"
+            onSelect={(name) => go(name === "Unassigned" ? { view: "unassigned" } : { assignee: name })} />
+        </Card>
+        <Card title="AI photo check" action={<s-link href="/app/photo-checks">Review photos</s-link>}>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontSize: 24, fontWeight: 700, color: "#303030" }}>{photos.checked}</span>
+              <s-text color="subdued">photos checked</s-text>
+            </div>
+            {[
+              { label: "Likely AI-generated", value: photos.likelyAi, tone: "critical" as const },
+              { label: "Reused photo", value: photos.reused, tone: "warning" as const },
+              { label: "Can't confirm", value: photos.uncertain, tone: "caution" as const },
+              { label: "Likely genuine", value: photos.genuine, tone: "success" as const },
+            ].map((row) => <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <s-badge tone={row.tone}>{row.label}</s-badge><b style={{ fontSize: 13 }}>{row.value}</b>
+            </div>)}
+            {flagged > 0 && <s-link onClick={() => go({ view: "flagged" })}>See {flagged} flagged ticket{flagged === 1 ? "" : "s"}</s-link>}
+          </div>
+        </Card>
       </s-grid>
     </s-section>
   </>;
@@ -1630,7 +1705,8 @@ export default function HelpDeskRoute() {
   const [params] = useSearchParams();
   if (screen.screen === "settings") return <SettingsScreen screen={screen} />;
   if (screen.screen === "ticket") return <TicketDetail key={screen.ticket.id} screen={screen} />;
-  if (params.get("section") === "setup") return <s-page heading="Help Desk setup & overview" inlineSize="large">
+  if (params.get("section") === "setup") return <s-page heading="Help Desk overview" inlineSize="large">
+    <s-button slot="secondary-actions" icon="image" href="/app/photo-checks">Photo checks</s-button>
     <HelpDeskNavigation current="setup" />
     <HelpDeskOverview screen={screen} />
   </s-page>;
