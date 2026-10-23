@@ -133,3 +133,30 @@ describe("Storefront request lookup", () => {
     expect((await post({ intent: "lookup", number: "1001", email: "rahul@example.com" })).status).toBe(429);
   });
 });
+
+describe("Live request page", () => {
+  const token = "f".repeat(48);
+  const get = (query: string) => loader({ ...args("GET"), request: new Request(`https://app.example/help-desk?${query}`, { headers: { "x-forwarded-for": "203.0.113.9" } }) });
+  it("answers the live check with a stamp built only from messages the customer can see", async () => {
+    mocks.db.helpDeskTicket.findFirst.mockResolvedValue({ status: "Waiting on customer", _count: { messages: 2 }, messages: [{ id: "m2" }] });
+    const response = await get(`ticket=${token}&pulse=1`);
+    expect(await response.json()).toEqual({ stamp: "Waiting on customer:2:m2" });
+    const query = mocks.db.helpDeskTicket.findFirst.mock.calls[0][0];
+    expect(query.where).toEqual({ shop: "verified.myshopify.com", accessToken: token });
+    expect(query.select.messages.where).toEqual({ kind: { in: ["customer", "reply", "bot"] } });
+  });
+  it("rejects malformed tokens and unknown tickets", async () => {
+    expect((await get("ticket=not-a-token&pulse=1")).status).toBe(404);
+    mocks.db.helpDeskTicket.findFirst.mockResolvedValue(null);
+    expect((await get(`ticket=${token}&pulse=1`)).status).toBe(404);
+  });
+  it("marks the page with the same stamp so it knows when to refresh", async () => {
+    mocks.db.helpDeskTicket.findFirst.mockResolvedValue({
+      number: 1001, topic: "Order Queries", status: "Open", channel: "form", createdAt: new Date(), accessToken: token, details: "{}", products: "[]", receivedProducts: "[]",
+      messages: [{ id: "m1", kind: "reply", author: "Priya", body: "Hi", createdAt: new Date() }], attachments: [],
+    });
+    const html = await (await get(`ticket=${token}`)).text();
+    expect(html).toContain(`data-hdt-stamp="Open:1:m1"`);
+    expect(html).toContain(`data-hdt-token="${token}"`);
+  });
+});

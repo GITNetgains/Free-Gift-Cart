@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { countries, issues, MAX_MESSAGE_LENGTH, orderTypes, topics, updates } from "../services/help-desk";
-import { renderLookupPage, renderRequestPage } from "../services/help-desk-request-page";
+import { liveStamp, renderLookupPage, renderRequestPage } from "../services/help-desk-request-page";
 import { addCustomerMessage, customerCanReply, MAX_REPLY_IMAGES, readHelpDeskForm, submitTicket } from "../services/help-desk.server";
 import { customerOrders } from "../services/help-desk-orders.server";
 import { loadProducts } from "../services/help-desk-email.server";
@@ -47,6 +47,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const customerId = params.get("logged_in_customer_id") || "";
 
   const token = params.get("ticket");
+  if (token !== null && params.get("pulse")) return pulse(shop, token, clientKey(request, shop));
   if (token !== null) return trackingPage(shop, admin, token);
 
   void markSeen(shop, "formLastSeenAt");
@@ -131,6 +132,22 @@ export async function action({ request }: ActionFunctionArgs) {
   } catch {
     return json({ errors: { form: "Your request could not be saved. Please try again." } }, 500);
   }
+}
+
+// The open request page asks every few seconds whether anything the customer
+// can see has changed, so new replies appear like a chat. Only public messages
+// count: an internal note never shows up as activity.
+async function pulse(shop: string, token: string, client: string) {
+  if (!hit(`pulse|${client}`, 40, MINUTE)) return json({ error: "Too many requests." }, 429);
+  const ticket = TOKEN.test(token) ? await db.helpDeskTicket.findFirst({
+    where: { shop, accessToken: token },
+    select: {
+      status: true, _count: { select: { messages: { where: { kind: { in: PUBLIC_KINDS } } } } },
+      messages: { where: { kind: { in: PUBLIC_KINDS } }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true } },
+    },
+  }) : null;
+  if (!ticket) return json({ error: "Not found." }, 404);
+  return json({ stamp: liveStamp(ticket.status, ticket._count.messages, ticket.messages[0]?.id) }, 200, privateHeaders);
 }
 
 const liquid = (html: string, status = 200) => new Response(html, { status, headers: { ...privateHeaders, "Content-Type": "application/liquid" } });

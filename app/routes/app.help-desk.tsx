@@ -16,6 +16,7 @@ import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.se
 import { FeatureCard, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
 import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
+import { assignableTeam, listStaff, recordStaff } from "../services/help-desk-staff.server";
 import SectionNavigation from "../components/SectionNavigation";
 export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
 
@@ -69,8 +70,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   ensureWorker(db);
   const settings = await ensureMacros(shop);
-  const team = teamList(settings.team);
-  const base = { configured: emailConfigured(), team };
+  // Whoever is using the app is recorded as staff, so tickets can be assigned to them.
+  const me = await recordStaff(db, shop, session.onlineAccessInfo?.associated_user);
+  const staff = await listStaff(db, shop);
+  const team = assignableTeam(staff, teamList(settings.team));
+  const base = { configured: emailConfigured(), team, me };
   const headers = { "Cache-Control": "private, no-store" };
 
   if (url.searchParams.get("settings")) {
@@ -79,7 +83,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       loadShop(admin).catch(() => ({ name: "", email: "", url: "" })),
     ]);
     return data({
-      screen: "settings" as const, ...base, macros: macros.map(({ id, title, body }) => ({ id, title, body })), storeEmail: store.email,
+      screen: "settings" as const, ...base, macros: macros.map(({ id, title, body }) => ({ id, title, body })), storeEmail: store.email, staff,
       settings: { notify: settings.notify, notifyEmail: settings.notifyEmail, autoReply: settings.autoReply, statusEmails: settings.statusEmails, signature: settings.signature, team: settings.team },
       // Secrets never go to the browser, only whether they're saved.
       ai: {
@@ -317,6 +321,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         } else if (await db.helpDeskMacro.count({ where: { shop } }) >= 100) {
           return fail("You can save up to 100 replies.");
         } else await db.helpDeskMacro.create({ data: { shop, title, body } });
+        return data<ActionResult>({ errors: {} });
+      }
+      case "staff-visibility": {
+        const { count } = await db.helpDeskStaff.updateMany({ where: { id: text("id"), shop }, data: { hidden: text("hidden") === "true" } });
+        if (!count) return fail("This staff member is no longer listed.");
         return data<ActionResult>({ errors: {} });
       }
       case "macro-delete":
@@ -604,15 +613,17 @@ function ChannelPicker({ value, onChange, emailReady, email, phone }: { value: "
   </s-stack>;
 }
 
-function Composer({ ticket, macros, storeName, team, configured }: { ticket: TicketData["ticket"]; macros: TicketData["macros"]; storeName: string; team: string[]; configured: boolean }) {
+function Composer({ ticket, macros, storeName, team, configured, me }: { ticket: TicketData["ticket"]; macros: TicketData["macros"]; storeName: string; team: string[]; configured: boolean; me: string }) {
   const fetcher = useFetcher<typeof action>();
   const [kind, setKind] = useState<"reply" | "note">("reply");
   const [body, setBody] = useState("");
   const [macro, setMacro] = useState("");
   const [channel, setChannel] = useState<"page" | "email">("page");
-  const authors = [...new Set([...team, `${storeName} Support`])];
-  const [author, setAuthor] = useState(() => ticket.assignee && authors.includes(ticket.assignee) ? ticket.assignee : authors[0]);
+  const authors = [...new Set([...(me ? [me] : []), ...team, `${storeName} Support`])];
+  // Replies go out as the staff member signed in to Shopify; a choice made on this device is remembered when they aren't known.
+  const [author, setAuthor] = useState(() => me || (ticket.assignee && authors.includes(ticket.assignee) ? ticket.assignee : authors[0]));
   useEffect(() => {
+    if (me) return;
     try { const saved = localStorage.getItem("help-desk-author"); if (saved && authors.includes(saved)) setAuthor(saved); } catch { /* storage unavailable */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -808,7 +819,7 @@ function TicketDetail({ screen }: { screen: TicketData }) {
       </s-stack>
     </s-section>
 
-    <Composer key={ticket.id} ticket={ticket} macros={screen.macros} storeName={screen.storeName} team={screen.team} configured={screen.configured} />
+    <Composer key={ticket.id} ticket={ticket} macros={screen.macros} storeName={screen.storeName} team={screen.team} configured={screen.configured} me={screen.me} />
 
     <TicketProperties ticket={ticket} team={screen.team} suggestions={screen.tagSuggestions} />
 
@@ -1336,6 +1347,41 @@ function AiSettings({ ai }: { ai: SettingsData["ai"] }) {
   </s-section>;
 }
 
+// Shopify staff who have opened the Help Desk, each one assignable or not.
+function StaffList({ staff, me }: { staff: SettingsData["staff"]; me: string }) {
+  const fetcher = useFetcher<typeof action>();
+  useResultToast(fetcher, "Team updated");
+  return <s-section heading="Shopify staff">
+    <s-stack gap="base">
+      <s-paragraph color="subdued">
+        Everyone with access to your Shopify admin is added here the first time they open the Help Desk, so you can assign tickets to them.
+        Replies are sent as the person who is signed in. Ask a staff member to open Apps → Zion App → Help Desk once to add them.
+      </s-paragraph>
+      {staff.length === 0 ? <s-paragraph>No staff yet. They appear here after opening the Help Desk.</s-paragraph>
+        : staff.map((member) => (
+          <s-box key={member.id} border="base" borderRadius="base" padding="base">
+            <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+              <s-stack direction="inline" gap="small-200" alignItems="center">
+                <s-avatar initials={member.name.slice(0, 2).toUpperCase()} alt={member.name} size="small" />
+                <s-stack gap="none">
+                  <s-stack direction="inline" gap="small-100" alignItems="center">
+                    <s-text type="strong">{member.name}</s-text>
+                    {member.name === me && <s-badge tone="info">You</s-badge>}
+                    {member.accountOwner && <s-badge>Store owner</s-badge>}
+                    {member.hidden && <s-badge tone="neutral">Not assignable</s-badge>}
+                  </s-stack>
+                  <s-text color="subdued">{[member.email, `last opened ${since(member.lastSeenAt)}`].filter(Boolean).join(" · ")}</s-text>
+                </s-stack>
+              </s-stack>
+              <s-switch label="Can be assigned tickets" labelAccessibilityVisibility="exclusive" checked={!member.hidden} disabled={fetcher.state !== "idle"}
+                onChange={(event) => void fetcher.submit({ intent: "staff-visibility", id: member.id, hidden: String(!event.currentTarget.checked) }, { method: "post" })} />
+            </s-stack>
+          </s-box>
+        ))}
+    </s-stack>
+  </s-section>;
+}
+
 function SettingsScreen({ screen }: { screen: SettingsData }) {
   const [params] = useSearchParams();
   const requested = params.get("part") || "email";
@@ -1392,10 +1438,13 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
     </s-section>
 
     </>}
-    {part === "team" && <s-section heading="Team">
-      <s-text-field label="Team members" value={values.team} placeholder="e.g. Priya, Rahul, Support team"
-        details="Separate names with commas. You can assign tickets to these people and reply as them." onInput={(event) => set("team", event.currentTarget.value ?? "")} />
-    </s-section>}
+    {part === "team" && <>
+      <StaffList staff={screen.staff} me={screen.me} />
+      <s-section heading="Other names">
+        <s-text-field label="Extra team members" value={values.team} placeholder="e.g. Priya, Warehouse team"
+          details="For people who don't have a Shopify login. Separate names with commas. They can be assigned tickets and chosen in Reply as." onInput={(event) => set("team", event.currentTarget.value ?? "")} />
+      </s-section>
+    </>}
 
     {part === "photos" && <AiSettings ai={screen.ai} />}
 

@@ -264,3 +264,20 @@ model HelpDeskSettings {
   // Set once the merchant has saved a chatbot answer or chat setting.
   faqsReviewed        Boolean @default(false)
 }
+
+// Shopify staff who have opened the Help Desk, so tickets can be assigned to
+// them. Recorded from the online session; works on every Shopify plan.
+model HelpDeskStaff {
+  id           String   @id @default(cuid())
+  shop         String
+  userId       String
+  name         String
+  email        String   @default("")
+  accountOwner Boolean  @default(false)
+  hidden       Boolean  @default(false)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([shop, userId])
+  @@index([shop])
+}

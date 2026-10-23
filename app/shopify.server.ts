@@ -15,6 +15,10 @@ const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
+  // Online tokens alongside the offline one: they tell the app which staff
+  // member is using it (Help Desk assignees and "Reply as"). Background jobs
+  // keep using the offline token.
+  useOnlineTokens: true,
   distribution: AppDistribution.AppStore,
   future: {
     expiringOfflineAccessTokens: true,

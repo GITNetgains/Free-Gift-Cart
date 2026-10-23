@@ -128,30 +128,159 @@ const STYLES = `<style>
 .hdt-lookup form{display:grid;gap:14px;margin-top:20px}
 @media (max-width:880px){.hdt-layout{grid-template-columns:minmax(0,1fr)}.hdt-aside{position:static}}
 @media (max-width:560px){.hdt-steps li{font-size:11px}.hdt button{width:100%}.hdt-actions{display:block}.hdt-msg{grid-template-columns:32px minmax(0,1fr);gap:10px}.hdt-avatar{width:32px;height:32px;font-size:11px}}
-@media (prefers-reduced-motion:reduce){.hdt button{transition:none}}
+.hdt-toast{position:fixed;left:50%;bottom:24px;z-index:9999;transform:translateX(-50%);padding:12px 20px;border-radius:999px;background:#172351;color:#fff;font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(23,35,81,.3);transition:opacity .4s ease,transform .4s ease}
+.hdt-toast[data-hide]{opacity:0;transform:translate(-50%,10px)}
+.hdt-msg[data-fresh] .hdt-body{animation:hdt-fresh 2.4s ease}
+@keyframes hdt-fresh{0%{box-shadow:0 0 0 4px rgba(239,58,36,.35)}100%{box-shadow:0 0 0 0 rgba(239,58,36,0)}}
+@media (prefers-reduced-motion:reduce){.hdt button,.hdt-toast{transition:none}.hdt-msg[data-fresh] .hdt-body{animation:none}}
 </style>`;
 
-// Small enhancements: local times and the chosen-photos count.
+// Live like a chat: local times, photo counts, replies sent without a reload,
+// and new messages from the team appearing on their own. Without JavaScript
+// the page and its form still work as plain HTML.
 const SCRIPT = `<script>
 (function () {
   var full = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   var day = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
-  document.querySelectorAll('.hdt [data-hdt-time]').forEach(function (node) {
-    var value = new Date(node.getAttribute('datetime'));
-    if (!isNaN(value)) node.textContent = (node.getAttribute('data-hdt-time') === 'date' ? day : full).format(value);
-  });
-  document.querySelectorAll('.hdt-drop input').forEach(function (input) {
-    input.addEventListener('change', function () {
-      var label = input.closest('.hdt-drop').querySelector('strong');
-      var count = input.files ? input.files.length : 0;
-      label.textContent = count ? count + (count === 1 ? ' photo selected' : ' photos selected') : 'Add photos';
+  function enhance(scope) {
+    scope.querySelectorAll('[data-hdt-time]').forEach(function (node) {
+      var value = new Date(node.getAttribute('datetime'));
+      if (!isNaN(value)) node.textContent = (node.getAttribute('data-hdt-time') === 'date' ? day : full).format(value);
     });
-  });
+    scope.querySelectorAll('.hdt-drop input').forEach(function (input) {
+      if (input.dataset.hdtBound) return;
+      input.dataset.hdtBound = '1';
+      input.addEventListener('change', function () {
+        var label = input.closest('.hdt-drop').querySelector('strong');
+        var count = input.files ? input.files.length : 0;
+        label.textContent = count ? count + (count === 1 ? ' photo selected' : ' photos selected') : 'Add photos';
+      });
+    });
+    bindForm(scope);
+  }
+
+  var root = document.querySelector('.hdt[data-hdt-stamp]');
+  var stamp = root ? root.getAttribute('data-hdt-stamp') : '';
+  var token = root ? root.getAttribute('data-hdt-token') : '';
+  var base = window.location.pathname;
+  var busy = false;
+
+  function toast(text) {
+    var node = document.createElement('div');
+    node.className = 'hdt-toast';
+    node.setAttribute('role', 'status');
+    node.textContent = text;
+    document.body.appendChild(node);
+    setTimeout(function () { node.setAttribute('data-hide', ''); }, 3500);
+    setTimeout(function () { node.remove(); }, 4200);
+  }
+
+  function note(foot, tone, text) {
+    var old = foot.querySelector('.hdt-note');
+    if (old) old.remove();
+    var node = document.createElement('div');
+    node.className = 'hdt-note';
+    node.setAttribute('data-tone', tone);
+    node.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    node.textContent = text;
+    foot.insertBefore(node, foot.firstChild);
+  }
+
+  function typing() {
+    var text = root.querySelector('.hdt-foot textarea');
+    var file = root.querySelector('.hdt-foot input[type=file]');
+    return Boolean((text && text.value.trim()) || (file && file.files && file.files.length));
+  }
+
+  // Swaps in the latest conversation; a reply being typed is never thrown away.
+  function refresh(fromTeam) {
+    if (busy) return Promise.resolve();
+    busy = true;
+    return fetch(base + '?ticket=' + encodeURIComponent(token), { credentials: 'same-origin' })
+      .then(function (response) { return response.text(); })
+      .then(function (html) {
+        var next = new DOMParser().parseFromString(html, 'text/html').querySelector('.hdt[data-hdt-stamp]');
+        if (!next) return;
+        ['.hdt-hero', '.hdt-section-head', '.hdt-thread', '.hdt-aside'].forEach(function (selector) {
+          var current = root.querySelector(selector);
+          var fresh = next.querySelector(selector);
+          if (current && fresh) current.innerHTML = fresh.innerHTML;
+        });
+        var foot = root.querySelector('.hdt-foot');
+        var freshFoot = next.querySelector('.hdt-foot');
+        if (foot && freshFoot && !typing()) foot.innerHTML = freshFoot.innerHTML;
+        stamp = next.getAttribute('data-hdt-stamp');
+        root.setAttribute('data-hdt-stamp', stamp);
+        enhance(root);
+        if (fromTeam) {
+          toast('New message from our team');
+          var last = root.querySelector('.hdt-thread > .hdt-msg:last-of-type');
+          if (last) last.setAttribute('data-fresh', '');
+        }
+      })
+      .catch(function () {})
+      .then(function () { busy = false; });
+  }
+
+  function check() {
+    if (!root || busy || document.visibilityState !== 'visible') return;
+    fetch(base + '?ticket=' + encodeURIComponent(token) + '&pulse=1', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (data) { if (data && data.stamp && data.stamp !== stamp) refresh(true); })
+      .catch(function () {});
+  }
+
+  // Sends a reply in the background and shows it straight away.
+  function bindForm(scope) {
+    var form = scope.querySelector('.hdt-foot form');
+    if (!form || form.dataset.hdtBound || !root) return;
+    form.dataset.hdtBound = '1';
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var foot = form.closest('.hdt-foot');
+      var button = form.querySelector('button[type=submit]');
+      var label = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Sending...';
+      fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function (response) {
+          return response.text().then(function (text) {
+            var data = null;
+            try { data = JSON.parse(text); } catch (error) { data = null; }
+            return { ok: response.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            var errors = result.data && result.data.errors ? Object.keys(result.data.errors).map(function (key) { return result.data.errors[key]; }) : [];
+            note(foot, 'error', errors[0] || 'Your message could not be sent. Please try again.');
+            return;
+          }
+          form.reset();
+          return refresh(false).then(function () {
+            var current = root.querySelector('.hdt-foot');
+            if (current) note(current, 'success', 'Thanks, your message has been sent to our team.');
+          });
+        })
+        .catch(function () { note(foot, 'error', 'Your message could not be sent. Check your connection and try again.'); })
+        .then(function () { button.disabled = false; button.textContent = label; });
+    });
+  }
+
+  enhance(document.querySelector('.hdt') || document);
+  if (root && token) {
+    setInterval(check, 5000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+  }
 })();
 </script>`;
 
-const page = (title: string, body: string) => `{% layout 'theme' %}${STYLES}
-<section class="hdt" aria-label="${escape(title)}">${body}</section>${SCRIPT}`;
+const page = (title: string, body: string, attributes = "") => `{% layout 'theme' %}${STYLES}
+<section class="hdt" aria-label="${escape(title)}"${attributes}>${body}</section>${SCRIPT}`;
+
+// What the live check compares: the status, how many public messages there are and the newest one.
+export const liveStamp = (status: string, count: number, latestId = "") => `${status}:${count}:${latestId}`;
 
 const note = (state: { sent?: boolean; error?: string }) => state.sent ? `<div class="hdt-note" data-tone="success" role="status">Thanks, your message has been sent to our team.</div>`
   : state.error ? `<div class="hdt-note" data-tone="error" role="alert">${escape(state.error)}</div>` : "";
@@ -237,6 +366,7 @@ ${productList("Received", extras.receivedProducts)}${productList(wrongItem ? "Wa
   ].join("");
   const count = ticket.messages.length + (chat ? 0 : 1);
 
+  const stamp = liveStamp(ticket.status, ticket.messages.length, ticket.messages.at(-1)?.id);
   return page(`Request #${ticket.number}`, `
 <div class="hdt-card hdt-hero">
 <div class="hdt-top"><div>
@@ -258,5 +388,5 @@ ${foot}
 <p>This page is private to you. Keep the link to yourself: anyone with it can see this request.</p>
 <p>Looking for another request? <a href="?ticket=">Find it with its number</a>.</p></div>
 </aside>
-</div>`);
+</div>`, ` data-hdt-stamp="${escape(stamp)}" data-hdt-token="${escape(ticket.accessToken)}"`);
 }
