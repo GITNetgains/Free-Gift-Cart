@@ -4,8 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 // chosen period against the period before it, a value per day for the charts,
 // and what's open right now.
 
-export const DASHBOARD_RANGES = [7, 30, 90] as const;
-export type DashboardRange = (typeof DASHBOARD_RANGES)[number];
+import type { DashboardRange } from "./help-desk-dashboard";
 const DAY = 24 * 3600_000;
 
 type TicketRow = { createdAt: Date; resolvedAt: Date | null; firstResponseAt: Date | null; topic: string };

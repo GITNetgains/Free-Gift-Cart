@@ -17,7 +17,8 @@ import { IconTile, SetupChecklist, since, StatTile, TONES, type ChecklistItem } 
 import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 import { assignableTeam, listStaff, recordStaff } from "../services/help-desk-staff.server";
-import { DASHBOARD_RANGES, loadDashboard, type DashboardRange } from "../services/help-desk-dashboard.server";
+import { loadDashboard } from "../services/help-desk-dashboard.server";
+import { DASHBOARD_RANGES, type DashboardRange } from "../services/help-desk-dashboard";
 import { BarList, hoursLabel, KpiCard, TrendChart } from "../components/HelpDeskDashboard";
 import SectionNavigation from "../components/SectionNavigation";
 export { shouldRevalidateSections as shouldRevalidate } from "../services/section-navigation";
