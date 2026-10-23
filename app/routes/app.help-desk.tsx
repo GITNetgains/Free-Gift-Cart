@@ -556,7 +556,7 @@ const dayLabel = (value: string | Date) => {
 function Message({ message, files, email, isNew, grouped }: { message: TicketData["ticket"]["messages"][number]; files: TicketFile[]; email?: TicketEmail; isNew: boolean; grouped: boolean }) {
   if (message.kind === "event") {
     return <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, textAlign: "center" }}>
+      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#FFFFFFD9", color: "#4A4F5C", fontSize: 12, textAlign: "center" }}>
         {message.body} · {message.author} · <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
       </span>
     </div>;
@@ -626,11 +626,13 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
       if (pinned.current && unseen) setUnseen(0);
     }} style={{
-      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#C3C8D4 transparent", padding: "14px 16px 18px", background: "#F6F7F9",
+      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#A9B3D3 transparent", padding: "14px 16px 18px",
+      // A soft Zion navy tint with a faint dot pattern, so white and blue bubbles both stand out.
+      backgroundColor: "#E8EBF5", backgroundImage: "radial-gradient(rgba(23,35,81,.07) 1px, transparent 1px)", backgroundSize: "16px 16px",
     }}>
       <div ref={content}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
+        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFF", color: "#172351", fontSize: 12, fontWeight: 600, boxShadow: "0 1px 2px rgba(23,35,81,.08)" }}>{dayLabel(ticket.createdAt)}</span>
       </div>
       <OriginalRequest ticket={ticket} />
       {ticket.messages.map((message) => {
@@ -642,7 +644,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
         lastAuthor = message.kind === "event" ? "" : author;
         return <div key={message.id}>
           {newDay && <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 4px" }}>
-            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#E9ECF2", color: "#4A4F5C", fontSize: 12, fontWeight: 600 }}>{dayLabel(message.createdAt)}</span>
+            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFF", color: "#172351", fontSize: 12, fontWeight: 600, boxShadow: "0 1px 2px rgba(23,35,81,.08)" }}>{dayLabel(message.createdAt)}</span>
           </div>}
           <Message message={message} email={replyEmails.get(message.id)} grouped={grouped}
             files={ticket.attachments.filter((file) => file.messageId === message.id)}
@@ -720,7 +722,7 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
     border: `1px solid ${kind === value ? "transparent" : "#D9D9D9"}`,
   }}>{label}</button>;
   // The reply box is the bottom bar of the chat window, like a messaging app.
-  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFFAEB" : "#FFFFFF", borderTop: "1px solid #E4E7EC" }}>
+  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFFAEB" : "#F4F6FB", borderTop: "1px solid #D5DBEC" }}>
     {ticket.status === "Resolved" && <s-text color="subdued">This ticket is resolved. If the customer replies, it reopens automatically.</s-text>}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <div role="tablist" aria-label="Message type" style={{ display: "flex", gap: 4 }}>
