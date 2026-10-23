@@ -157,23 +157,23 @@
   <h2>4. Roz ka kaam: inbox aur ticket</h2>
   <h3>Inbox (Apps → Zion App → Help Desk)</h3>
   <ul>
-    <li><b>Upar ke numbers:</b> Needs attention (kitne kaam baaki), High priority, average first response time (30 din), Resolved (7 din).</li>
-    <li><b>Views:</b> Needs attention · Unassigned · High priority · Waiting on customer · Resolved · <b>Flagged photos</b> (jinki photo AI/reused nikli) · All tickets.</li>
+    <li><b>Upar ke 4 boxes:</b> Needs attention, Waiting on customer, High priority, Flagged photos. Box pe click karo toh wahi tickets khulte hain. Setup adhoora ho toh upar "Finish setting up" ka banner aata hai (<b>Continue setup</b>). Poore numbers aur setup checklist <b>Overview &amp; setup</b> tab mein hain.</li>
+    <li><b>Views (tabs):</b> Needs attention · Waiting on customer · Resolved · All tickets, phir Unassigned · High priority · <b>Flagged photos</b> (jinki photo AI/reused nikli). Har tab pe ginti likhi hai.</li>
     <li><b>Search:</b> #number, naam, email, order number ya tag se.</li>
-    <li><b>Filters:</b> topic, priority, assignee, <b>Created</b> (Today / 7 / 30 / 90 din), sort (Last activity / Newest / Oldest).</li>
+    <li><b>Filters</b> button dabao toh topic, priority, assignee aur <b>Created</b> (Today / 7 / 30 / 90 din) khulte hain. Lage hue filters chips ban ke dikhte hain, chip ka × dabao toh hat jaata hai. Sort (Last activity / Newest / Oldest) search ke bagal mein.</li>
     <li><b>Row mein:</b> <span class="pill p-info">New</span> matlab abhi tak kisi ne nahi khola · <span class="pill p-bad">AI photo</span> / <span class="pill p-warn">Reused photo</span> matlab photo pe shak hai · laal "No reply yet · 5h" matlab abhi tak pehla jawab nahi gaya.</li>
     <li><b>Bulk:</b> checkbox se kai tickets chuno → status, priority ya assignee ek saath badlo, ya <b>Delete</b>.</li>
   </ul>
   <h3>Ticket kholne pe</h3>
   <ol class="steps">
-    <li><b>Conversation padho.</b> Customer ki request, photos, replies, notes aur activity log ek hi timeline mein. Pichhli visit ke baad aaye customer messages pe <span class="pill p-info">New</span>.</li>
+    <li><b>Conversation padho.</b> Chat jaisa dikhta hai: customer ke messages left mein (grey), aapki team ke replies right mein (navy), internal notes right mein peele. Customer ki request, photos, replies, notes aur activity log ek hi timeline mein. Pichhli visit ke baad aaye customer messages pe <span class="pill p-info">New</span>.</li>
     <li><b>Reply likho.</b> "Reply to customer" chuno. <b>Insert a saved reply</b> se ready jawab daalo (doosra saved reply chunoge toh pehle wala text hat ke naya aa jaata hai, judta nahi):<code>{{ customer.first_name }}</code>, <code>{{ order.number }}</code> jaise placeholders apne aap bhar jaate hain. <b>Reply as</b> mein apna naam chuno.</li>
     <li><b>Bhejo.</b> <b>Send reply</b> (status apne aap "Waiting on customer") ya <b>Send and resolve</b>.</li>
     <li><b>Internal note</b> sirf team ke liye (peela box), customer ko kabhi nahi dikhta.</li>
-    <li><b>Right side:</b> Status, Priority, Assignee, Tags badlo. Customer ki details, uske recent Shopify orders (payment/fulfillment ke saath), uske purane tickets, aur saare emails ka status.</li>
+    <li><b>Right side:</b> Status, Priority, Assignee, Tags badlo. Tags ke neeche <b>suggestions</b> aate hain: "From this request" (customer ne jo chuna/likha, jaise defective, return, damaged) aur "Your team uses" (store mein sabse zyada lage tags). Chip pe click karo toh tag lag jaata hai. Saath mein customer ki details, recent Shopify orders, purane tickets, emails ka status, aur sabse neeche <b>Delete ticket</b>.</li>
   </ol>
   <h3>Ticket delete karna</h3>
-  <p>Teen tarike: (1) list mein har ticket ki row ke aakhir mein laal 🗑 button, (2) ticket kholke right side mein <b>Delete ticket</b> section, (3) list mein checkbox se kai tickets chun ke <b>Delete</b>. Ek confirm box aata hai: <b>Delete permanently</b> dabane pe ticket, uski poori conversation, notes, photos, photo checks aur emails hamesha ke liye hat jaate hain, aur customer ka request page link band ho jaata hai. Wapas nahi aata, isliye spam ya test tickets ke liye hi use karo; normal kaam ke liye <b>Resolved</b> karo.</p>
+  <p>Do tarike: (1) ticket kholke right side mein sabse neeche <b>Delete ticket</b>, (2) list mein checkbox se ek ya kai tickets chun ke <b>Delete</b>. Ek confirm box aata hai: <b>Delete permanently</b> dabane pe ticket, uski poori conversation, notes, photos, photo checks aur emails hamesha ke liye hat jaate hain, aur customer ka request page link band ho jaata hai. Wapas nahi aata, isliye spam ya test tickets ke liye hi use karo; normal kaam ke liye <b>Resolved</b> karo.</p>
   <div class="box info"><b>Naye messages bina refresh ke (chat jaisa)</b>Inbox aur khula ticket har ~4 second mein check karte hain ki kuch naya aaya ya nahi. Customer ka naya ticket, naya message ya photo check ka result aate hi screen apne aap update ho jaati hai, aur ticket khula ho toh "New message from the customer" ka popup aata hai. Tab pe wapas aate hi turant check hota hai. Jo reply aap type kar rahe ho woh mitta nahi, aur inbox mein tickets select kiye hon toh update tab tak rukta hai.</div>
   <h3>Kaun sa status kab</h3>
   <table>

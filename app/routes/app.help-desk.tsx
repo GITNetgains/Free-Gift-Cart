@@ -6,14 +6,14 @@ import type { Prisma } from "@prisma/client";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
-  CHAT_TOPIC, countryName, defaultMacros, fieldLabels as LABELS, fillMacro, macroPlaceholders, MAX_MESSAGE_LENGTH, priorities, ticketStatuses, topics,
+  CHAT_TOPIC, countryName, defaultMacros, suggestTags, fieldLabels as LABELS, fillMacro, macroPlaceholders, MAX_MESSAGE_LENGTH, priorities, ticketStatuses, topics,
 } from "../services/help-desk";
 import { addStaffMessage, deleteTickets, readHelpDeskForm, submitTicket, updateTickets } from "../services/help-desk.server";
 import { emailConfigured, loadProducts, loadShop, sendTestEmail, trackingUrl, type TicketProduct } from "../services/help-desk-email.server";
 import { ordersByEmail } from "../services/help-desk-orders.server";
 import { DETECTOR_MODES, rescanMissingKeyScans, scanImage, serializeScan } from "../services/image-scan/scan.server";
 import { PROVIDERS, verifyCredentials } from "../services/image-scan/detector.server";
-import { FeatureCard, SetupChecklist, since, StatTile, type ChecklistItem } from "../components/HelpDeskUi";
+import { FeatureCard, SetupChecklist, since, StatTile, TONES, type ChecklistItem } from "../components/HelpDeskUi";
 import { buildChecks, PHOTO_VERDICT, PhotoCheckButton, PhotoReportModal } from "../components/PhotoReport";
 import { ensureWorker, queueEmail, retryEmail } from "../services/help-desk-outbox.server";
 import SectionNavigation from "../components/SectionNavigation";
@@ -21,8 +21,8 @@ export { shouldRevalidateSections as shouldRevalidate } from "../services/sectio
 
 function HelpDeskNavigation({ current }: { current: string }) {
   return <SectionNavigation label="Help Desk sections" current={current} items={[
-    { id: "tickets", label: "Tickets", href: "/app/help-desk" },
-    { id: "setup", label: "Setup & overview", href: "/app/help-desk?section=setup" },
+    { id: "tickets", label: "Inbox", href: "/app/help-desk" },
+    { id: "setup", label: "Overview & setup", href: "/app/help-desk?section=setup" },
     { id: "settings", label: "Settings", href: "/app/help-desk?settings=1" },
   ]} />;
 }
@@ -101,7 +101,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Messages after the previous visit are marked new, like an unread divider.
     const readAt = ticket.staffReadAt;
     await db.helpDeskTicket.update({ where: { id: ticket.id }, data: { unread: false, staffReadAt: new Date() } });
-    const [products, receivedProducts, others, orders, macros, store] = await Promise.all([
+    const [products, receivedProducts, others, orders, macros, store, usedTags] = await Promise.all([
       loadProducts(admin, parseJson<string[]>(ticket.products, [])),
       loadProducts(admin, parseJson<string[]>(ticket.receivedProducts, [])),
       db.helpDeskTicket.findMany({
@@ -111,6 +111,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ordersByEmail(admin, ticket.email),
       db.helpDeskMacro.findMany({ where: { shop }, orderBy: { createdAt: "asc" }, select: { id: true, title: true, body: true } }),
       loadShop(admin).catch(() => ({ name: "", email: "", url: "" })),
+      // Recent tags across the store, for suggestions on the Tags field.
+      db.helpDeskTicket.findMany({ where: { shop, tags: { not: "" } }, orderBy: { updatedAt: "desc" }, take: 300, select: { tags: true } }),
     ]);
     const { accessToken, details, id, number, name, email, topic, status, priority, assignee, tags, customerId, channel, createdAt, firstResponseAt, resolvedAt, attachments, messages, emails } = ticket;
     const files = attachments.map(({ scan, ...file }) => ({ ...file, scan: serializeScan(scan) }));
@@ -119,6 +121,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       screen: "ticket" as const, ...base, macros, others, orders, storeName: store.name || shop,
       trackingUrl: store.url ? trackingUrl(store.url, accessToken) : "",
       ticket: { ...rest, details: parseJson<Record<string, string>>(details, {}), products, receivedProducts },
+      tagSuggestions: suggestTags({ topic, tags, details: parseJson<Record<string, string>>(details, {}) }, usedTags.map((row) => row.tags)),
     }, { headers });
   }
 
@@ -249,8 +252,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       case "message": {
         const result = await addStaffMessage(db, shop, text("id"), { kind: text("kind"), body: text("body"), author: text("author"), status: text("status") || undefined });
         if (!result.messageId) return data<ActionResult>({ errors: result.errors }, { status: 400 });
-        const emailed = text("kind") === "reply" && emailConfigured();
-        if (text("kind") === "reply") queueEmail(db, { shop, ticketId: result.ticketId!, kind: "reply", messageId: result.messageId }, admin);
+        // Every reply shows on the customer's request page; "email" also emails it.
+        const byEmail = text("kind") === "reply" && text("channel") !== "page" && emailConfigured();
+        if (byEmail) queueEmail(db, { shop, ticketId: result.ticketId!, kind: "reply", messageId: result.messageId }, admin);
+        const emailed = byEmail;
         return data<ActionResult>({ errors: {}, ticketId: result.ticketId, emailed });
       }
       case "scan": {
@@ -537,25 +542,66 @@ function Message({ message, files, email, isNew }: { message: TicketData["ticket
   const note = message.kind === "note";
   const customer = message.kind === "customer";
   const bot = message.kind === "bot";
-  return <div style={note ? { background: "#fff8db", border: "1px solid #f0d983", borderRadius: 12, padding: 16 } : undefined}>
-    <s-box border={note ? undefined : "base"} borderRadius="base" padding={note ? "none" : "base"} background={customer ? "base" : note ? "transparent" : "subdued"}>
-      <s-stack gap="small-200">
-        <s-stack direction="inline" gap="small-200" alignItems="center">
-          <s-avatar initials={bot ? "AI" : message.author.slice(0, 2).toUpperCase()} alt={message.author} size="small" />
-          <s-text type="strong">{message.author}</s-text>
-          {isNew && <s-badge tone="info">New</s-badge>}
-          {note ? <s-badge tone="caution" icon="lock">Internal note</s-badge>
-            : customer ? <s-badge tone="info">Customer</s-badge>
-            : bot ? <s-badge>Automated answer</s-badge>
-            : email ? <EmailStatus email={email} />
-            : <s-badge tone={message.emailed ? "success" : "neutral"} icon={message.emailed ? "email" : undefined}>{message.emailed ? "Emailed to customer" : "Shown on request page"}</s-badge>}
-          <s-text color="subdued">{time}</s-text>
-        </s-stack>
-        <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body}</div>
-        <Gallery files={files} />
+  // Chat layout: the customer (and the assistant) on the left, your team on the right.
+  const mine = !customer && !bot;
+  return <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexDirection: mine ? "row-reverse" : "row" }}>
+    <s-avatar initials={bot ? "AI" : message.author.slice(0, 2).toUpperCase()} alt={message.author} size="small" />
+    <div style={{ display: "grid", gap: 6, minWidth: 0, maxWidth: "min(680px, 86%)", justifyItems: mine ? "end" : "start" }}>
+      <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent={mine ? "end" : "start"}>
+        <s-text type="strong">{message.author}</s-text>
+        {isNew && <s-badge tone="info">New</s-badge>}
+        {note ? <s-badge tone="caution" icon="lock">Internal note</s-badge>
+          : customer ? <s-badge tone="info">Customer</s-badge>
+          : bot ? <s-badge>Automated answer</s-badge>
+          : email ? <EmailStatus email={email} />
+          : <s-badge tone={message.emailed ? "success" : "neutral"} icon={message.emailed ? "email" : undefined}>{message.emailed ? "Emailed to customer" : "Shown on request page"}</s-badge>}
+        <s-text color="subdued">{time}</s-text>
       </s-stack>
-    </s-box>
+      <div style={{
+        padding: "12px 15px", whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.5,
+        borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
+        background: note ? "#FFF8DB" : mine ? "#172351" : "#F1F2F4", color: mine && !note ? "#fff" : "#1A1A1A",
+        border: note ? "1px solid #F0D983" : bot ? "1px dashed #B5B9C3" : "1px solid transparent",
+      }}>{message.body}</div>
+      <Gallery files={files} />
+    </div>
   </div>;
+}
+
+// Where a reply goes. The request page always gets it (that's the chat the
+// customer sees in the store); email also sends it to their inbox. WhatsApp
+// and SMS need a messaging account connected first.
+const CHANNELS = [
+  { id: "page", label: "Request page", icon: "chat" },
+  { id: "email", label: "Email", icon: "email" },
+  { id: "whatsapp", label: "WhatsApp", icon: "phone" },
+  { id: "sms", label: "SMS", icon: "mobile" },
+] as const;
+
+function ChannelPicker({ value, onChange, emailReady, email, phone }: { value: "page" | "email"; onChange: (value: "page" | "email") => void; emailReady: boolean; email: string; phone: string }) {
+  const hint = value === "email" ? `Shown on their request page and emailed to ${email}.`
+    : "Shown on the customer's private request page in your store. Choose Email to also send it to their inbox.";
+  return <s-stack gap="small-100">
+    <s-text color="subdued">Send via</s-text>
+    <div role="radiogroup" aria-label="Send via" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {CHANNELS.map((channel) => {
+        const ready = channel.id === "page" || (channel.id === "email" && emailReady);
+        const active = value === channel.id;
+        return <button key={channel.id} type="button" role="radio" aria-checked={active} disabled={!ready}
+          title={ready ? undefined : channel.id === "email" ? "Email sending isn't set up on the server yet" : `Connect a ${channel.label} account to message ${phone || "customers"} here`}
+          onClick={() => ready && onChange(channel.id as "page" | "email")} style={{
+            display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, font: "inherit", fontSize: 13,
+            cursor: ready ? "pointer" : "not-allowed", opacity: ready ? 1 : 0.55, fontWeight: active ? 650 : 500,
+            color: active ? "#fff" : "#303030", background: active ? "#172351" : "#fff", border: `1px solid ${active ? "#172351" : "#E3E3E3"}`,
+          }}>
+          <s-icon type={channel.icon} size="small" />
+          {channel.label}
+          {!ready && <span style={{ fontSize: 11, fontWeight: 600, color: "#8A6100" }}>{channel.id === "email" ? "Not set up" : "Connect"}</span>}
+        </button>;
+      })}
+    </div>
+    <s-text color="subdued">{hint}</s-text>
+  </s-stack>;
 }
 
 function Composer({ ticket, macros, storeName, team, configured }: { ticket: TicketData["ticket"]; macros: TicketData["macros"]; storeName: string; team: string[]; configured: boolean }) {
@@ -563,6 +609,7 @@ function Composer({ ticket, macros, storeName, team, configured }: { ticket: Tic
   const [kind, setKind] = useState<"reply" | "note">("reply");
   const [body, setBody] = useState("");
   const [macro, setMacro] = useState("");
+  const [channel, setChannel] = useState<"page" | "email">("page");
   const authors = [...new Set([...team, `${storeName} Support`])];
   const [author, setAuthor] = useState(() => ticket.assignee && authors.includes(ticket.assignee) ? ticket.assignee : authors[0]);
   useEffect(() => {
@@ -578,7 +625,7 @@ function Composer({ ticket, macros, storeName, team, configured }: { ticket: Tic
   const send = (status = "") => {
     sentKind.current = kind;
     try { localStorage.setItem("help-desk-author", author); } catch { /* storage unavailable */ }
-    void fetcher.submit({ intent: "message", id: ticket.id, kind, body, author, status }, { method: "post" });
+    void fetcher.submit({ intent: "message", id: ticket.id, kind, body, author, status, channel }, { method: "post" });
   };
   return <s-section heading={kind === "reply" ? `Reply to ${ticket.name}` : "Add an internal note"}>
     <s-stack gap="base">
@@ -586,9 +633,7 @@ function Composer({ ticket, macros, storeName, team, configured }: { ticket: Tic
         <s-button variant={kind === "reply" ? "secondary" : "tertiary"} icon="email" onClick={() => setKind("reply")}>Reply to customer</s-button>
         <s-button variant={kind === "note" ? "secondary" : "tertiary"} icon="note" onClick={() => setKind("note")}>Internal note</s-button>
       </s-stack>
-      {kind === "reply" && !configured && <s-banner tone="info">
-        Email isn&apos;t set up on the server, so replies are shown on the customer&apos;s request page but not emailed.
-      </s-banner>}
+      {kind === "reply" && <ChannelPicker value={channel} onChange={setChannel} emailReady={configured} email={ticket.email} phone={ticket.details.phone || ""} />}
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
         <s-select label="Insert a saved reply" value={macro} disabled={!macros.length} onChange={(event) => {
           const chosen = macros.find((item) => item.id === event.currentTarget.value);
@@ -609,14 +654,14 @@ function Composer({ ticket, macros, storeName, team, configured }: { ticket: Tic
       <s-stack direction="inline" gap="small-200" justifyContent="end">
         {kind === "reply" ? <>
           <s-button disabled={!body.trim() || sending} onClick={() => send("Resolved")}>Send and resolve</s-button>
-          <s-button variant="primary" icon="send" disabled={!body.trim()} loading={sending} onClick={() => send()}>Send reply</s-button>
+          <s-button variant="primary" icon="send" disabled={!body.trim()} loading={sending} onClick={() => send()}>{channel === "email" ? "Send by email" : "Send reply"}</s-button>
         </> : <s-button variant="primary" icon="note" disabled={!body.trim()} loading={sending} onClick={() => send()}>Add note</s-button>}
       </s-stack>
     </s-stack>
   </s-section>;
 }
 
-function TicketProperties({ ticket, team }: { ticket: TicketData["ticket"]; team: string[] }) {
+function TicketProperties({ ticket, team, suggestions }: { ticket: TicketData["ticket"]; team: string[]; suggestions: TicketData["tagSuggestions"] }) {
   const fetcher = useFetcher<typeof action>();
   const [tags, setTags] = useState(ticket.tags);
   useEffect(() => setTags(ticket.tags), [ticket.tags]);
@@ -641,6 +686,22 @@ function TicketProperties({ ticket, team }: { ticket: TicketData["ticket"]; team
         <s-text-field label="Tags" value={tags} placeholder="e.g. damaged, vip" details="Separate tags with commas. Press Enter to save."
           onInput={(event) => setTags(event.currentTarget.value ?? "")} onBlur={() => { if (tags !== ticket.tags) update({ tags }); }} />
       </form>
+      {(suggestions.fromRequest.length > 0 || suggestions.popular.length > 0) && <s-stack gap="small-100">
+        {[["From this request", suggestions.fromRequest], ["Your team uses", suggestions.popular]].filter(([, list]) => list.length).map(([label, list]) => (
+          <s-stack key={label as string} gap="small-100">
+            <s-text color="subdued">{label as string}</s-text>
+            <s-stack direction="inline" gap="small-100">
+              {(list as string[]).filter((tag) => !tags.split(",").map((value) => value.trim().toLowerCase()).includes(tag)).map((tag) => (
+                <s-clickable-chip key={tag} disabled={busy} accessibilityLabel={`Add tag ${tag}`} onClick={() => {
+                  const next = [...tags.split(",").map((value) => value.trim()).filter(Boolean), tag].join(", ");
+                  setTags(next);
+                  update({ tags: next });
+                }}>+ {tag}</s-clickable-chip>
+              ))}
+            </s-stack>
+          </s-stack>
+        ))}
+      </s-stack>}
       <s-divider />
       <s-stack gap="small-100">
         <s-text color="subdued">Created <span suppressHydrationWarning>{formatDate(ticket.createdAt)}</span></s-text>
@@ -749,17 +810,7 @@ function TicketDetail({ screen }: { screen: TicketData }) {
 
     <Composer key={ticket.id} ticket={ticket} macros={screen.macros} storeName={screen.storeName} team={screen.team} configured={screen.configured} />
 
-    <TicketProperties ticket={ticket} team={screen.team} />
-
-    <s-section slot="aside" heading="Delete ticket">
-      <s-stack gap="small-200">
-        <s-paragraph color="subdued">Removes this ticket, its conversation, photos and emails for good.</s-paragraph>
-        {confirmDelete
-          ? <DeleteConfirm count={1} busy={remover.state !== "idle"} onCancel={() => setConfirmDelete(false)}
-            onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", ticket.id); void remover.submit(form, { method: "post" }); }} />
-          : <s-button tone="critical" icon="delete" onClick={() => setConfirmDelete(true)}>Delete ticket</s-button>}
-      </s-stack>
-    </s-section>
+    <TicketProperties ticket={ticket} team={screen.team} suggestions={screen.tagSuggestions} />
 
     <s-section slot="aside" heading="Customer">
       <s-stack gap="small-200">
@@ -823,6 +874,16 @@ function TicketDetail({ screen }: { screen: TicketData }) {
         ))}
       </s-stack>
     </s-section>}
+
+    <s-section slot="aside" heading="Delete ticket">
+      <s-stack gap="small-200">
+        <s-paragraph color="subdued">Removes this ticket, its conversation, photos and emails for good.</s-paragraph>
+        {confirmDelete
+          ? <DeleteConfirm count={1} busy={remover.state !== "idle"} onCancel={() => setConfirmDelete(false)}
+            onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", ticket.id); void remover.submit(form, { method: "post" }); }} />
+          : <s-button tone="critical" icon="delete" onClick={() => setConfirmDelete(true)}>Delete ticket</s-button>}
+      </s-stack>
+    </s-section>
   </s-page>;
 }
 
@@ -891,18 +952,13 @@ function BulkBar({ ids, team, onDone }: { ids: string[]; team: string[]; onDone:
   </s-box>;
 }
 
-// Store-side setup and the AI photo check, above the ticket inbox.
-function HelpDeskOverview({ screen }: { screen: ListData }) {
-  const { overview, views, metrics, team, configured } = screen;
-  const navigate = useNavigate();
-  const listLink = useListLink();
-  const recently = (value: string | Date | null, days: number) => Boolean(value && Date.now() - new Date(value).getTime() < days * DAY);
-  const formLive = recently(overview.formLastSeenAt, 30);
+// The four things a store needs set up, shared by the inbox nudge and the setup page.
+function setupSteps(screen: ListData): ChecklistItem[] {
+  const { overview, team, configured } = screen;
+  const formLive = Boolean(overview.formLastSeenAt && Date.now() - new Date(overview.formLastSeenAt).getTime() < 30 * DAY);
   // Theme editor deep link: add the form block to a page.
   const formLink = `shopify://admin/themes/current/editor?template=page&addAppBlockId=${overview.apiKey}/help_desk&target=newAppsSection`;
-  const flagged = overview.photos.likelyAi + overview.photos.reused;
-
-  const steps: ChecklistItem[] = [
+  return [
     {
       id: "form", done: formLive, title: "Add the Help Desk form to your store",
       description: formLive ? `Live on your store · last opened ${since(overview.formLastSeenAt)}.` : "Create a page such as Contact or Support, then add the Help Desk form block to it in your theme.",
@@ -914,7 +970,7 @@ function HelpDeskOverview({ screen }: { screen: ListData }) {
     {
       id: "team", done: team.length > 0 && overview.signature, title: "Add your team and reply signature",
       description: team.length ? `${team.length} team member${team.length === 1 ? "" : "s"}${overview.signature ? " and a signature" : ". Add a reply signature too"}.` : "Add the names of the people who reply, so you can assign tickets and reply as them.",
-      action: team.length > 0 && overview.signature ? undefined : <s-button href="/app/help-desk?settings=1">Open settings</s-button>,
+      action: team.length > 0 && overview.signature ? undefined : <s-button href="/app/help-desk?settings=1&part=team">Add team</s-button>,
     },
     {
       id: "email", done: configured, title: "Turn on email sending",
@@ -928,21 +984,17 @@ function HelpDeskOverview({ screen }: { screen: ListData }) {
       action: overview.aiEnabled && overview.detectorConnected ? undefined : <s-button href="/app/help-desk?settings=1&part=photos">{overview.aiEnabled ? "Connect detector" : "Turn on"}</s-button>,
     },
   ];
+}
 
+// Store-side setup, the AI photo check and the numbers, on their own page.
+function HelpDeskOverview({ screen }: { screen: ListData }) {
+  const { overview, views, metrics } = screen;
+  const navigate = useNavigate();
+  const listLink = useListLink();
+  const flagged = overview.photos.likelyAi + overview.photos.reused;
+  const steps = setupSteps(screen);
   return <>
-    {steps.some((step) => !step.done) && <SetupChecklist items={steps} />}
-
-    <s-section padding="base">
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))" gap="base">
-        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · detector not connected"}
-          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "warning"}
-          metrics={[{ label: "Checked (30 days)", value: String(overview.photos.checked) }, { label: "Flagged", value: String(flagged) }]}
-          description="Every photo customers send is checked for AI generation, reuse from another request, and editing.">
-          <s-button href="/app/photo-checks">Review photos</s-button>
-          {flagged > 0 && <s-button variant="tertiary" onClick={() => navigate(listLink({ view: "flagged" }))}>Flagged tickets</s-button>}
-        </FeatureCard>
-      </s-grid>
-    </s-section>
+    <SetupChecklist items={steps} />
 
     <s-section padding="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
@@ -952,98 +1004,152 @@ function HelpDeskOverview({ screen }: { screen: ListData }) {
         <StatTile tone="green" icon="check-circle" label="Resolved" value={String(metrics.resolvedWeek)} detail={`Last 7 days · ${metrics.newToday} new today`} />
       </s-grid>
     </s-section>
+
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(260px, 1fr))" gap="base">
+        <FeatureCard tone="green" icon="image" title="AI photo check" status={!overview.aiEnabled ? "Off" : overview.detectorConnected ? "On · detector connected" : "On · detector not connected"}
+          statusTone={!overview.aiEnabled ? "neutral" : overview.detectorConnected ? "success" : "warning"}
+          metrics={[{ label: "Checked (30 days)", value: String(overview.photos.checked) }, { label: "Flagged", value: String(flagged) }]}
+          description="Every photo customers send is checked for AI generation, reuse from another request, and editing.">
+          <s-button href="/app/photo-checks">Review photos</s-button>
+          {flagged > 0 && <s-button variant="tertiary" onClick={() => navigate(listLink({ view: "flagged", section: "" }))}>Flagged tickets</s-button>}
+        </FeatureCard>
+      </s-grid>
+    </s-section>
   </>;
 }
 
+// Views as tabs with a count each; the first four are what a team works in daily.
+const VIEW_ORDER: View[] = ["open", "waiting", "resolved", "all", "unassigned", "urgent", "flagged"];
+
+function ViewTabs({ current, counts, onSelect }: { current: View; counts: Record<View, number>; onSelect: (view: View) => void }) {
+  return <div role="tablist" aria-label="Ticket views" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    {VIEW_ORDER.map((key, index) => {
+      const active = current === key;
+      const alert = (key === "open" || key === "flagged") && counts[key] > 0;
+      return <span key={key} style={{ display: "contents" }}>
+        {index === 4 && <span aria-hidden="true" style={{ width: 1, alignSelf: "stretch", margin: "4px 4px", background: "#E3E3E3" }} />}
+        <button type="button" role="tab" aria-selected={active} onClick={() => onSelect(key)} style={{
+          display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 10, cursor: "pointer", font: "inherit", fontSize: 13,
+          fontWeight: active ? 650 : 500, color: active ? "#fff" : "#303030", background: active ? "#172351" : "#fff",
+          border: `1px solid ${active ? "#172351" : "#E3E3E3"}`,
+        }}>
+          {VIEWS[key].label}
+          <span style={{
+            minWidth: 20, padding: "1px 7px", borderRadius: 20, fontSize: 12, fontWeight: 700, textAlign: "center",
+            background: active ? "#ffffff2e" : alert ? TONES[key === "flagged" ? "amber" : "red"].soft : "#F1F2F4",
+            color: active ? "#fff" : alert ? TONES[key === "flagged" ? "amber" : "red"].ink : "#4A4F5C",
+          }}>{counts[key]}</span>
+        </button>
+      </span>;
+    })}
+  </div>;
+}
+
 function TicketList({ screen }: { screen: ListData }) {
-  const { tickets, count, page, views, filters, team } = screen;
+  const { tickets, count, page, views, filters, team, metrics } = screen;
   const listLink = useListLink();
   const navigate = useNavigate();
   const [search, setSearch] = useState(filters.q);
   const [selected, setSelected] = useState<string[]>([]);
+  const activeFilters = [
+    filters.topic && { key: "topic", label: filters.topic },
+    filters.priority && { key: "priority", label: `${filters.priority} priority` },
+    filters.assignee && { key: "assignee", label: `Assigned to ${filters.assignee}` },
+    filters.period && { key: "period", label: `Created: ${PERIODS[filters.period as keyof typeof PERIODS] ?? filters.period}` },
+  ].filter(Boolean) as { key: string; label: string }[];
+  const [showFilters, setShowFilters] = useState(activeFilters.length > 0);
   useEffect(() => setSearch(filters.q), [filters.q]);
   useEffect(() => setSelected([]), [tickets]);
   const clearSelection = useRef(() => setSelected([])).current;
-  const filtered = Boolean(filters.topic || filters.priority || filters.assignee || filters.q || filters.period);
+  const filtered = Boolean(activeFilters.length || filters.q);
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selected.includes(ticket.id));
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; number: number } | null>(null);
-  const rowRemover = useFetcher<typeof action>();
-  const deletedNumber = useRef(0);
-  if (pendingDelete) deletedNumber.current = pendingDelete.number;
-  useResultToast(rowRemover, () => `Ticket #${deletedNumber.current} deleted`);
-  useEffect(() => { if (rowRemover.state === "idle" && rowRemover.data && !Object.keys(rowRemover.data.errors).length) setPendingDelete(null); }, [rowRemover.state, rowRemover.data]);
   const toggle = (id: string, on: boolean) => setSelected((current) => on ? [...new Set([...current, id])] : current.filter((value) => value !== id));
-  useLiveRefresh({ paused: selected.length > 0 || Boolean(pendingDelete) });
-  return <s-page heading="Help Desk tickets" inlineSize="large">
+  useLiveRefresh({ paused: selected.length > 0 });
+  const steps = setupSteps(screen);
+  const remaining = steps.filter((step) => !step.done);
+  const view = filters.view as View;
+  const tiles: { view: View; tone: "red" | "amber" | "blue" | "green"; icon: "notification" | "alert-triangle" | "clock" | "image"; label: string; detail: string }[] = [
+    { view: "open", tone: "red", icon: "notification", label: "Needs attention", detail: `${views.unassigned} unassigned` },
+    { view: "waiting", tone: "blue", icon: "clock", label: "Waiting on customer", detail: metrics.avgResponse === null ? "Your reply was sent" : `Avg. first reply ${duration(metrics.avgResponse)}` },
+    { view: "urgent", tone: "amber", icon: "alert-triangle", label: "High priority", detail: "High and urgent, not resolved" },
+    { view: "flagged", tone: "amber", icon: "image", label: "Flagged photos", detail: "AI-made or reused photos" },
+  ];
+  return <s-page heading="Help Desk" inlineSize="large">
     <s-button slot="secondary-actions" icon="image" href="/app/photo-checks">Photo checks</s-button>
-    <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1">Settings</s-button>
 
     <HelpDeskNavigation current="tickets" />
 
-    <s-section padding="base">
-      <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-        <s-heading>Tickets</s-heading>
-        <s-text color="subdued">{count} in this view</s-text>
+    {remaining.length > 0 && <s-banner tone="info" heading={`Finish setting up: ${steps.length - remaining.length} of ${steps.length} done`}>
+      <s-stack gap="small-200">
+        <s-text>Still to do: {remaining.map((step) => step.title.toLowerCase()).join(" · ")}.</s-text>
+        <s-stack direction="inline"><s-button href="/app/help-desk?section=setup">Continue setup</s-button></s-stack>
       </s-stack>
+    </s-banner>}
+
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
+        {tiles.map((tile) => <s-clickable key={tile.view} borderRadius="base" accessibilityLabel={`Show ${tile.label.toLowerCase()}`} onClick={() => navigate(listLink({ view: tile.view === "open" ? "" : tile.view }))}>
+          <div style={{ borderRadius: 14, boxShadow: view === tile.view ? `0 0 0 2px ${TONES[tile.tone].accent}` : "none" }}>
+            <StatTile tone={tile.tone} icon={tile.icon} label={tile.label} value={String(views[tile.view])} detail={tile.detail} />
+          </div>
+        </s-clickable>)}
+      </s-grid>
     </s-section>
 
     <s-section padding="none">
       <s-box padding="base">
         <s-stack gap="base">
-          <s-stack direction="inline" gap="small-200">
-            {(Object.keys(VIEWS) as View[]).map((key) => (
-              <s-button key={key} variant={filters.view === key ? "secondary" : "tertiary"} onClick={() => navigate(listLink({ view: key === "open" ? "" : key }))}>
-                {`${VIEWS[key].label} ${views[key]}`}
-              </s-button>
-            ))}
-          </s-stack>
-          <s-grid gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))" gap="base" alignItems="end">
-            <s-grid-item gridColumn="span 2">
-              <form onSubmit={(event) => { event.preventDefault(); navigate(listLink({ q: search.trim() })); }}>
-                <s-search-field label="Search tickets" labelAccessibilityVisibility="exclusive" placeholder="Search by #number, name, email, order or tag"
-                  value={search} onInput={(event) => setSearch(event.currentTarget.value ?? "")} />
-              </form>
-            </s-grid-item>
-            <s-select label="Topic" labelAccessibilityVisibility="exclusive" value={filters.topic} onChange={(event) => navigate(listLink({ topic: event.currentTarget.value ?? "" }))}>
-              <s-option value="">All topics</s-option>
-              {TOPICS.map((topic) => <s-option key={topic} value={topic}>{topic}</s-option>)}
-            </s-select>
-            <s-select label="Priority" labelAccessibilityVisibility="exclusive" value={filters.priority} onChange={(event) => navigate(listLink({ priority: event.currentTarget.value ?? "" }))}>
-              <s-option value="">Any priority</s-option>
-              {priorities.map((value) => <s-option key={value} value={value}>{value}</s-option>)}
-            </s-select>
-            {team.length > 0 && <s-select label="Assignee" labelAccessibilityVisibility="exclusive" value={filters.assignee} onChange={(event) => navigate(listLink({ assignee: event.currentTarget.value ?? "" }))}>
-              <s-option value="">Anyone</s-option>
-              {team.map((name) => <s-option key={name} value={name}>{name}</s-option>)}
-            </s-select>}
-            <s-select label="Created" labelAccessibilityVisibility="exclusive" value={filters.period} onChange={(event) => navigate(listLink({ period: event.currentTarget.value ?? "" }))}>
-              {Object.entries(PERIODS).map(([value, label]) => <s-option key={value} value={value}>{label}</s-option>)}
-            </s-select>
-            <s-select label="Sort" labelAccessibilityVisibility="exclusive" value={filters.sort} onChange={(event) => navigate(listLink({ sort: event.currentTarget.value === "activity" ? "" : event.currentTarget.value ?? "" }))}>
-              {Object.entries(SORTS).map(([value, label]) => <s-option key={value} value={value}>{label}</s-option>)}
-            </s-select>
-          </s-grid>
+          <ViewTabs current={view} counts={views} onSelect={(key) => navigate(listLink({ view: key === "open" ? "" : key }))} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <form style={{ flex: "1 1 280px" }} onSubmit={(event) => { event.preventDefault(); navigate(listLink({ q: search.trim() })); }}>
+              <s-search-field label="Search tickets" labelAccessibilityVisibility="exclusive" placeholder="Search by #number, name, email, order or tag"
+                value={search} onInput={(event) => setSearch(event.currentTarget.value ?? "")} />
+            </form>
+            <s-button icon="filter" variant={showFilters ? "secondary" : "tertiary"} onClick={() => setShowFilters(!showFilters)}>
+              {activeFilters.length ? `Filters (${activeFilters.length})` : "Filters"}
+            </s-button>
+            <div style={{ minWidth: 170 }}>
+              <s-select label="Sort" labelAccessibilityVisibility="exclusive" value={filters.sort} onChange={(event) => navigate(listLink({ sort: event.currentTarget.value === "activity" ? "" : event.currentTarget.value ?? "" }))}>
+                {Object.entries(SORTS).map(([value, label]) => <s-option key={value} value={value}>Sort: {label}</s-option>)}
+              </s-select>
+            </div>
+          </div>
+          {showFilters && <s-box padding="base" background="subdued" borderRadius="base">
+            <s-grid gridTemplateColumns="repeat(auto-fit, minmax(170px, 1fr))" gap="base">
+              <s-select label="Topic" value={filters.topic} onChange={(event) => navigate(listLink({ topic: event.currentTarget.value ?? "" }))}>
+                <s-option value="">All topics</s-option>
+                {TOPICS.map((topic) => <s-option key={topic} value={topic}>{topic}</s-option>)}
+              </s-select>
+              <s-select label="Priority" value={filters.priority} onChange={(event) => navigate(listLink({ priority: event.currentTarget.value ?? "" }))}>
+                <s-option value="">Any priority</s-option>
+                {priorities.map((value) => <s-option key={value} value={value}>{value}</s-option>)}
+              </s-select>
+              {team.length > 0 && <s-select label="Assignee" value={filters.assignee} onChange={(event) => navigate(listLink({ assignee: event.currentTarget.value ?? "" }))}>
+                <s-option value="">Anyone</s-option>
+                {team.map((name) => <s-option key={name} value={name}>{name}</s-option>)}
+              </s-select>}
+              <s-select label="Created" value={filters.period} onChange={(event) => navigate(listLink({ period: event.currentTarget.value ?? "" }))}>
+                {Object.entries(PERIODS).map(([value, label]) => <s-option key={value} value={value}>{label}</s-option>)}
+              </s-select>
+            </s-grid>
+          </s-box>}
           {filtered && <s-stack direction="inline" gap="small-200" alignItems="center">
             <s-text color="subdued">{count} matching ticket{count === 1 ? "" : "s"}</s-text>
-            <s-button variant="tertiary" onClick={() => { setSearch(""); navigate(listLink({ q: "", topic: "", priority: "", assignee: "", period: "" })); }}>Clear filters</s-button>
+            {filters.q && <s-clickable-chip removable onRemove={() => { setSearch(""); navigate(listLink({ q: "" })); }}>&ldquo;{filters.q}&rdquo;</s-clickable-chip>}
+            {activeFilters.map((filter) => <s-clickable-chip key={filter.key} removable onRemove={() => navigate(listLink({ [filter.key]: "" }))}>{filter.label}</s-clickable-chip>)}
+            <s-button variant="tertiary" onClick={() => { setSearch(""); navigate(listLink({ q: "", topic: "", priority: "", assignee: "", period: "" })); }}>Clear all</s-button>
           </s-stack>}
         </s-stack>
       </s-box>
 
-      {tickets.length > 0 && <s-box paddingInline="base" paddingBlockEnd="small-200">
-        <s-checkbox label={allSelected ? "Deselect all on this page" : "Select all on this page"} checked={allSelected}
-          onChange={() => setSelected(allSelected ? [] : tickets.map((ticket) => ticket.id))} />
-      </s-box>}
       {selected.length > 0 && <BulkBar ids={selected} team={team} onDone={clearSelection} />}
-      {pendingDelete && <s-box paddingInline="base" paddingBlockEnd="base">
-        <DeleteConfirm count={1} busy={rowRemover.state !== "idle"} onCancel={() => setPendingDelete(null)}
-          onConfirm={() => { const form = new FormData(); form.set("intent", "delete"); form.append("ids", pendingDelete.id); void rowRemover.submit(form, { method: "post" }); }} />
-      </s-box>}
 
       {tickets.length === 0 ? (
         <s-box padding="large-200">
           <s-stack gap="small-200" alignItems="center">
-            <s-heading>{filtered ? "No tickets match these filters" : filters.view === "open" ? "You're all caught up" : "No tickets here"}</s-heading>
+            <s-icon type={filtered ? "search" : "check-circle"} tone={filtered ? "neutral" : "success"} />
+            <s-heading>{filtered ? "No tickets match these filters" : view === "open" ? "You're all caught up" : "No tickets here"}</s-heading>
             <s-paragraph color="subdued">{filtered ? "Try a different search or clear the filters."
               : views.all ? "New requests and customer replies appear in Needs attention." : "Requests customers send from the storefront Help Desk form appear here."}</s-paragraph>
           </s-stack>
@@ -1051,14 +1157,15 @@ function TicketList({ screen }: { screen: ListData }) {
       ) : (
         <s-table>
           <s-table-header-row>
-            <s-table-header>Select</s-table-header>
+            <s-table-header>
+              <s-checkbox accessibilityLabel={allSelected ? "Deselect all on this page" : "Select all on this page"} checked={allSelected}
+                onChange={() => setSelected(allSelected ? [] : tickets.map((ticket) => ticket.id))} />
+            </s-table-header>
             <s-table-header listSlot="primary">Ticket</s-table-header>
             <s-table-header>Customer</s-table-header>
-            <s-table-header>Priority</s-table-header>
-            <s-table-header>Assignee</s-table-header>
             <s-table-header listSlot="secondary">Status</s-table-header>
+            <s-table-header>Assignee</s-table-header>
             <s-table-header>Last activity</s-table-header>
-            <s-table-header>Delete</s-table-header>
           </s-table-header-row>
           <s-table-body>
             {tickets.map((ticket) => (
@@ -1070,18 +1177,20 @@ function TicketList({ screen }: { screen: ListData }) {
                   </div>
                 </s-table-cell>
                 <s-table-cell>
-                  <s-stack gap="none">
+                  <s-stack gap="small-100">
                     <s-stack direction="inline" gap="small-100" alignItems="center">
                       {ticket.unread && <s-badge tone="info">New</s-badge>}
                       {ticket.channel === "chat" && <s-icon type="chat" tone="neutral" size="small" />}
-                      {ticket.photoFlag && <s-badge tone={ticket.photoFlag === "likely_ai" ? "critical" : "warning"} icon="image">{ticket.photoFlag === "likely_ai" ? "AI photo" : "Reused photo"}</s-badge>}
                       <s-link id={`ticket-${ticket.id}`} href={listLink({ ticket: ticket.id, page: String(page) })}>
                         {ticket.unread ? <strong>#{ticket.number} {ticket.topic}</strong> : `#${ticket.number} ${ticket.topic}`}
                       </s-link>
                     </s-stack>
-                    <s-text color="subdued">
-                      {[ticket.reference, ticket.images ? `${ticket.images} image${ticket.images === 1 ? "" : "s"}` : "", ticket.tags].filter(Boolean).join(" · ") || "—"}
-                    </s-text>
+                    {(ticket.photoFlag || ticket.priority === "High" || ticket.priority === "Urgent") && <s-stack direction="inline" gap="small-100">
+                      {(ticket.priority === "High" || ticket.priority === "Urgent") && <PriorityBadge priority={ticket.priority} />}
+                      {ticket.photoFlag && <s-badge tone={ticket.photoFlag === "likely_ai" ? "critical" : "warning"} icon="image">{ticket.photoFlag === "likely_ai" ? "AI photo" : "Reused photo"}</s-badge>}
+                    </s-stack>}
+                    {[ticket.reference, ticket.images ? `${ticket.images} image${ticket.images === 1 ? "" : "s"}` : "", ticket.tags].filter(Boolean).length > 0
+                      && <s-text color="subdued">{[ticket.reference, ticket.images ? `${ticket.images} image${ticket.images === 1 ? "" : "s"}` : "", ticket.tags].filter(Boolean).join(" · ")}</s-text>}
                   </s-stack>
                 </s-table-cell>
                 <s-table-cell>
@@ -1090,20 +1199,13 @@ function TicketList({ screen }: { screen: ListData }) {
                     <s-text color="subdued">{ticket.email}</s-text>
                   </s-stack>
                 </s-table-cell>
-                <s-table-cell><PriorityBadge priority={ticket.priority} /></s-table-cell>
-                <s-table-cell>{ticket.assignee || <s-text color="subdued">Unassigned</s-text>}</s-table-cell>
                 <s-table-cell><StatusBadge status={ticket.status} /></s-table-cell>
+                <s-table-cell>{ticket.assignee || <s-text color="subdued">Unassigned</s-text>}</s-table-cell>
                 <s-table-cell>
                   <s-stack gap="none">
                     <span suppressHydrationWarning>{ago(ticket.lastActivityAt ?? ticket.createdAt)}</span>
                     {!ticket.firstResponseAt && ticket.status !== "Resolved" && <s-text tone="critical"><span suppressHydrationWarning>No reply yet · {duration(Date.now() - new Date(ticket.createdAt).getTime())}</span></s-text>}
                   </s-stack>
-                </s-table-cell>
-                <s-table-cell>
-                  <div onClick={(event) => event.stopPropagation()} role="presentation">
-                    <s-button variant="tertiary" tone="critical" icon="delete" accessibilityLabel={`Delete ticket #${ticket.number}`}
-                      onClick={() => setPendingDelete({ id: ticket.id, number: ticket.number })} />
-                  </div>
                 </s-table-cell>
               </s-table-row>
             ))}
@@ -1111,15 +1213,15 @@ function TicketList({ screen }: { screen: ListData }) {
         </s-table>
       )}
 
-      {count > PAGE_SIZE && <s-box padding="base">
+      <s-box padding="base">
         <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-          <s-text color="subdued">Page {page} of {Math.ceil(count / PAGE_SIZE)}</s-text>
-          <s-stack direction="inline" gap="small-200">
+          <s-text color="subdued">{count} ticket{count === 1 ? "" : "s"}{count > PAGE_SIZE ? ` · page ${page} of ${Math.ceil(count / PAGE_SIZE)}` : ""} · select tickets to change or delete several at once</s-text>
+          {count > PAGE_SIZE && <s-stack direction="inline" gap="small-200">
             <s-button icon="chevron-left" accessibilityLabel="Previous page" disabled={page <= 1} onClick={() => navigate(listLink({ page: String(page - 1) }))} />
             <s-button icon="chevron-right" accessibilityLabel="Next page" disabled={page * PAGE_SIZE >= count} onClick={() => navigate(listLink({ page: String(page + 1) }))} />
-          </s-stack>
+          </s-stack>}
         </s-stack>
-      </s-box>}
+      </s-box>
     </s-section>
   </s-page>;
 }
@@ -1250,15 +1352,15 @@ function SettingsScreen({ screen }: { screen: SettingsData }) {
   const set = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues((current) => ({ ...current, [key]: value }));
   return <s-page heading="Help Desk settings">
     <s-link slot="breadcrumb-actions" href="/app/help-desk">Help Desk</s-link>
-    <s-button slot="primary-action" variant="primary" disabled={!dirty} loading={save.state !== "idle"}
-      onClick={() => void save.submit({ intent: "settings", ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value)])) }, { method: "post" })}>Save</s-button>
+    {(part === "email" || part === "team") && <s-button slot="primary-action" variant="primary" disabled={!dirty} loading={save.state !== "idle"}
+      onClick={() => void save.submit({ intent: "settings", ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value)])) }, { method: "post" })}>Save</s-button>}
 
     <HelpDeskNavigation current="settings" />
     <SectionNavigation label="Settings categories" current={part} items={[
-      { id: "email", label: "Email notifications", href: "/app/help-desk?settings=1" },
+      { id: "email", label: "Emails", href: "/app/help-desk?settings=1" },
       { id: "team", label: "Team", href: "/app/help-desk?settings=1&part=team" },
       { id: "replies", label: "Saved replies", href: "/app/help-desk?settings=1&part=replies" },
-      { id: "photos", label: "Photo detection", href: "/app/help-desk?settings=1&part=photos" },
+      { id: "photos", label: "AI photo check", href: "/app/help-desk?settings=1&part=photos" },
       { id: "storefront", label: "Storefront form", href: "/app/help-desk?settings=1&part=storefront" },
     ]} />
     {part === "email" && <>

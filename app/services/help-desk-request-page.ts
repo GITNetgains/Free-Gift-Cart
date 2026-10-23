@@ -29,13 +29,13 @@ const SUMMARY_FIELDS = ["orderNumber", "orderType", "update", "issue", "resoluti
 const MESSAGE_FIELDS = ["details", "query", "orderDetails", "productDetails", "address", "otherDetails"];
 
 const STYLES = `<style>
-.hdt{--ink:#19213d;--muted:#5b6275;--line:#e6e8ee;--soft:#f5f6f9;--accent:#ef3a24;--ok:#0c7a43;max-width:1040px;margin:clamp(24px,4vw,48px) auto clamp(48px,6vw,80px);padding:0 16px;color:var(--ink);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.hdt{--ink:#172351;--muted:#5b6275;--line:#e6e8ee;--soft:#f3f3f3;--accent:#ef3a24;--accent-dark:#d22d18;--blue:#334fb4;--ok:#0c7a43;max-width:1040px;margin:clamp(24px,4vw,48px) auto clamp(48px,6vw,80px);padding:0 16px;color:var(--ink);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 .hdt *{box-sizing:border-box}
 .hdt p,.hdt dl,.hdt dd,.hdt ol,.hdt ul{margin:0}
 .hdt h1,.hdt h2,.hdt h3{margin:0;color:var(--ink);font-family:inherit;font-style:normal;text-transform:none;letter-spacing:-.01em}
-.hdt h1{font-size:clamp(26px,3.4vw,34px);font-weight:700;line-height:1.15}
+.hdt h1{font-size:clamp(26px,3.4vw,36px);font-weight:500;line-height:1.15}
 .hdt h2{font-size:17px;font-weight:700;line-height:1.3}
-.hdt-card{border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 1px 2px rgba(25,33,61,.04),0 12px 32px rgba(25,33,61,.06)}
+.hdt-card{border:1px solid var(--line);border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(25,33,61,.04),0 12px 32px rgba(25,33,61,.06)}
 .hdt-pad{padding:clamp(20px,3vw,30px)}
 .hdt-hero{position:relative;overflow:hidden;padding:clamp(22px,3.4vw,34px)}
 .hdt-hero::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--accent),#ff8a5c)}
@@ -65,15 +65,22 @@ const STYLES = `<style>
 .hdt-thread{display:grid;gap:22px;padding:clamp(20px,3vw,30px)}
 .hdt-msg{display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start}
 .hdt-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700}
-.hdt-msg[data-kind="customer"] .hdt-avatar{background:#fde3df;color:#b3261e}
+.hdt-msg>div{min-width:0;max-width:min(600px,100%)}
+.hdt-msg[data-kind="customer"]{grid-template-columns:minmax(0,1fr) 38px}
+.hdt-msg[data-kind="customer"] .hdt-avatar{grid-column:2;grid-row:1;background:var(--accent);color:#fff}
+.hdt-msg[data-kind="customer"]>div{grid-column:1;grid-row:1;justify-self:end}
+.hdt-msg[data-kind="customer"] .hdt-who{justify-content:flex-end}
 .hdt-msg[data-kind="reply"] .hdt-avatar{background:var(--ink);color:#fff}
 .hdt-who{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:6px}
 .hdt-who strong{font-size:14px}
 .hdt-who span{color:var(--muted);font-size:12px}
 .hdt-tag{padding:1px 8px;border-radius:999px;background:var(--soft);font-size:11px;font-weight:700;color:var(--ink)}
 .hdt-msg[data-kind="reply"] .hdt-tag{background:var(--ink);color:#fff}
-.hdt-body{padding:14px 16px;border:1px solid var(--line);border-radius:4px 16px 16px 16px;background:#fff;overflow-wrap:anywhere}
-.hdt-msg[data-kind="customer"] .hdt-body{background:var(--soft);border-color:transparent}
+.hdt-body{padding:14px 16px;border:1px solid var(--line);border-radius:4px 18px 18px 18px;background:#fff;overflow-wrap:anywhere}
+.hdt-msg[data-kind="customer"] .hdt-body{background:var(--ink);border-color:var(--ink);color:#fff;border-radius:18px 4px 18px 18px}
+.hdt-msg[data-kind="customer"] .hdt-group h3{color:rgba(255,255,255,.72)}
+.hdt-msg[data-kind="customer"] .hdt-product{color:var(--ink)}
+.hdt-msg[data-kind="customer"] .hdt-facts span,.hdt-msg[data-kind="customer"] .hdt-files{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28);color:#fff}
 .hdt-msg[data-kind="reply"] .hdt-body{border-color:#d7dbe6;box-shadow:0 4px 14px rgba(25,33,61,.05)}
 .hdt-msg[data-kind="bot"] .hdt-body{border-style:dashed}
 .hdt-body p+p{margin-top:10px}
@@ -94,17 +101,17 @@ const STYLES = `<style>
 .hdt-wait strong{display:block;font-size:15px}
 .hdt-wait p{margin-top:2px;color:var(--muted);font-size:14px}
 .hdt label{display:grid;gap:6px;font-size:14px;font-weight:600}
-.hdt textarea,.hdt input:not([type=file]){width:100%;margin:0;padding:13px 15px;border:1px solid #d4d7e0;border-radius:12px;background:#fff;color:var(--ink);font:inherit;font-weight:400}
-.hdt textarea{min-height:120px;resize:vertical}
+.hdt textarea,.hdt input:not([type=file]){width:100%;margin:0;padding:13px 18px;border:1px solid #c4c7d0;border-radius:30px;background:#fff;color:var(--ink);font:inherit;font-weight:400}
+.hdt textarea{min-height:120px;resize:vertical;border-radius:20px}
 .hdt textarea:focus,.hdt input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 4px rgba(25,33,61,.12)}
-.hdt .hdt-drop{position:relative;display:flex;gap:12px;align-items:center;margin-top:12px;padding:12px 14px;border:1.5px dashed #c9ccd6;border-radius:12px;background:#fff;cursor:pointer;font-weight:400}
+.hdt .hdt-drop{position:relative;display:flex;gap:12px;align-items:center;margin-top:12px;padding:12px 14px;border:1.5px dashed #c9ccd6;border-radius:20px;background:#fff;cursor:pointer;font-weight:400}
 .hdt .hdt-drop:hover,.hdt .hdt-drop:focus-within{border-color:var(--ink)}
 .hdt-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .hdt-drop i{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--soft);font-style:normal;font-size:18px}
 .hdt-drop strong{display:block;font-size:14px}.hdt-drop small{color:var(--muted);font-size:12px}
 .hdt-actions{display:flex;justify-content:flex-end;margin-top:14px}
-.hdt button{min-width:170px;margin:0;padding:13px 24px;border:0;border-radius:12px;background:var(--ink);color:#fff;font:inherit;font-weight:700;letter-spacing:normal;text-transform:none;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
-.hdt button:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(25,33,61,.2)}
+.hdt button{min-width:170px;margin:0;padding:14px 28px;border:0;border-radius:6px;background:var(--accent);color:#fff;font:inherit;font-weight:600;letter-spacing:.02em;text-transform:none;cursor:pointer;box-shadow:0 4px 5px rgba(0,0,0,.2);transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease}
+.hdt button:hover{background:var(--accent-dark);transform:translateY(-1px);box-shadow:0 8px 16px rgba(239,58,36,.28)}
 .hdt button:focus-visible{outline:3px solid rgba(239,58,36,.45);outline-offset:2px}
 .hdt-aside{display:grid;gap:22px;position:sticky;top:24px}
 .hdt dl{display:grid}

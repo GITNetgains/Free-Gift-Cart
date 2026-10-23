@@ -99,3 +99,33 @@ export const fieldLabels: Record<string, string> = {
   country: "Country", address: "Address", otherDetails: "Other details", transcript: "Chat transcript",
 };
 export const countryName = (code: string) => countries.find(country => country.code === code)?.name || code;
+
+// Tags drawn from what the customer chose in the form, so tickets are tagged
+// the same way every time: topic, query type, issue and the resolution asked for.
+const TAGS_BY_VALUE: Record<string, string[]> = {
+  [topics[0]]: ["international"], [topics[1]]: ["wholesale"], [topics[2]]: ["affiliate"], [topics[4]]: ["return"], [CHAT_TOPIC]: ["chat"],
+  [orderTypes[0]]: ["order-update"], [orderTypes[1]]: ["product-issue"], [orderTypes[2]]: ["wrong-item"],
+  [updates[0]]: ["change-product"], [updates[1]]: ["address-change"],
+  [issues[0]]: ["defective"], [issues[1]]: ["wrong-item"], [issues[2]]: ["missing-item"], [issues[3]]: ["ordered-wrong"],
+  Return: ["return"], Exchange: ["exchange"], Refund: ["refund"],
+};
+const KEYWORD_TAGS: [RegExp, string][] = [
+  [/\b(broken|crack(ed)?|damaged?|scratch(ed)?|shatter(ed)?)\b/i, "damaged"], [/\b(late|delay(ed)?|not (arrived|received)|where is|tracking)\b/i, "shipping-delay"],
+  [/\b(cancel(led)?|cancellation)\b/i, "cancel"], [/\b(urgent|asap|immediately)\b/i, "urgent"],
+];
+
+// Suggested tags for a ticket: from the request first, then the store's most-used
+// tags. Tags the ticket already has are left out.
+export function suggestTags(ticket: { topic: string; details: Record<string, string>; tags: string }, usedTags: string[], limit = 8) {
+  const current = new Set(ticket.tags.split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean));
+  const fromRequest = [ticket.topic, ticket.details.orderType, ticket.details.update, ticket.details.issue, ticket.details.resolution]
+    .flatMap((value) => (value && TAGS_BY_VALUE[value]) || []);
+  const text = [ticket.details.details, ticket.details.query, ticket.details.productDetails, ticket.details.orderDetails].filter(Boolean).join(" ");
+  const fromText = KEYWORD_TAGS.filter(([pattern]) => pattern.test(text)).map(([, tag]) => tag);
+  const counts = new Map<string, number>();
+  for (const tag of usedTags.flatMap((value) => value.split(",")).map((tag) => tag.trim().toLowerCase()).filter(Boolean)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  const popular = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([tag]) => tag);
+  const suggested = [...new Set([...fromRequest, ...fromText])].filter((tag) => !current.has(tag));
+  const others = popular.filter((tag) => !current.has(tag) && !suggested.includes(tag));
+  return { fromRequest: suggested.slice(0, limit), popular: others.slice(0, Math.max(0, limit - suggested.length)) };
+}
