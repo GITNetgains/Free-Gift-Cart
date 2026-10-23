@@ -209,14 +209,32 @@
   <h3>Poori report (popup)</h3>
   <p>Har photo ke neeche rangeen badge hai jisme <b>View report ›</b> likha hai. Uspe click karo (ya photo kholke <b>View full report</b>), toh <b>AI photo check report</b> popup khulta hai. Photo checks page pe bhi row pe click karne se ya <b>Full report</b> button se yahi popup khulta hai. Popup mein:</p>
   <ul>
-    <li><b>Upar result:</b> photo, verdict (jaise "Likely AI-generated"), confidence % ki bar aur ek line mein matlab.</li>
-    <li><b>Teen numbers:</b> kitne issues mile, kitne checks pass hue, kitne checks nahi chale.</li>
-    <li><b>What to do:</b> is result pe aage kya karna hai (jaise customer se nayi photo maango).</li>
+    <li><b>Upar result:</b> photo, verdict (jaise "Likely AI-generated"), "kitna sure" ki bar, ek line mein matlab, aur side mein 3 points: kitne strong AI signs, kitne suspicious signs, kitne checks pass hue.</li>
+    <li><b>What to do</b> (navy box): is result pe aage kya karna hai, jaise customer se nayi photo maango.</li>
+    <li><b>Checks at a glance:</b> 6 rangeen tiles, har check ka ek. Laal = <span class="pill p-bad">AI evidence found</span>, peela = <span class="pill p-warn">Suspicious</span> ya <span class="pill p-warn">Needs setup</span>, hara = <span class="pill p-ok">Passed</span>, neela = Info only, grey = Not run.</li>
+    <li><b>AI detector panel:</b> AI detector ka alag bada box.
+      <ul>
+        <li>Detector chala ho toh <b>meter</b> (Real → AI) pe % dikhta hai: 40% se kam = Looks real, 40-69% = Unsure, 70%+ = Likely AI. Saath mein kaunse AI tool (ChatGPT, Midjourney...) se bani hogi.</li>
+        <li><b>Not connected</b> (peela): detector ki key nahi daali, sirf free checks chale. <b>Connect AI detector</b> button settings kholta hai.</li>
+        <li><b>Error</b> (laal): key galat hai ya checks khatam ho gaye. Wajah aur fix wahi likha hota hai, saath mein <b>Try the AI detector again</b> button.</li>
+        <li><b>Not needed:</b> free checks ne pehle hi faisla kar diya. Chaho toh <b>Get a second opinion</b> se detector chala lo.</li>
+      </ul></li>
     <li><b>Issues found:</b> har problem alag card mein: laal = <span class="pill p-bad">AI evidence</span> (pakka saboot), peela = <span class="pill p-warn">Suspicious</span> (shak). Har card pe likha hai kya mila aur kis check ne pakda ("Found by"). Reused photo ho toh doosre ticket ka link bhi.</li>
-    <li><b>Every check, step by step:</b> 6 checks (Content Credentials, AI watermarks, Metadata, Reused photo, AI detector, Edit check), har ek ka status: <span class="pill p-bad">AI evidence found</span> / <span class="pill p-warn">Suspicious</span> / <span class="pill p-ok">Passed</span> / Info only / Not run. Click karke dekho woh check kya dekhta hai aur usne kya paaya. Jin checks mein issue hai woh apne aap khule rehte hain. AI detector ka score ek bar pe dikhta hai (Genuine → Unsure → AI-generated) aur kaunse AI tool se bani hogi.</li>
+    <li><b>Every check, step by step:</b> 6 checks ki detail. Click karke dekho woh check kya dekhta hai aur usne kya paaya. Jin checks mein issue ya setup baaki hai woh apne aap khule rehte hain.</li>
     <li><b>Photo details:</b> size, format, camera, kab li gayi, software, location data.</li>
-    <li>Neeche buttons: <b>Re-scan</b>, <b>Check with AI detector</b> (agar detector abhi tak nahi chala) aur <b>Done</b>.</li>
+    <li>Neeche buttons: <b>Re-scan photo</b> aur <b>Done</b>.</li>
   </ul>
+  <h3>AI detector chal raha hai ya nahi? (Photo checks page)</h3>
+  <p>Help Desk → <b>Photo checks</b> page pe sabse upar <b>AI detector status</b> box hai:</p>
+  <table>
+    <tr><th style="width:26%">Status</th><th>Matlab aur kya karein</th></tr>
+    <tr><td><span class="pill p-ok">Working</span></td><td>Detector connected hai aur result de raha hai. Sab theek.</td></tr>
+    <tr><td><span class="pill p-info">Connected</span></td><td>Key save hai, abhi tak kisi photo ko detector ki zaroorat nahi padi.</td></tr>
+    <tr><td><span class="pill p-warn">Not connected</span></td><td>Key nahi daali. <b>Connect AI detector</b> dabao aur Sightengine ya TruthScan key daalo. Jo photos ruki hain woh apne aap dobara check hongi.</td></tr>
+    <tr><td><span class="pill p-bad">Needs attention</span></td><td>Detector ka aakhri call fail hua (key galat, checks khatam). Wajah box mein likhi hai. <b>Fix in settings</b> dabao.</td></tr>
+    <tr><td><span class="pill p-n">Off</span></td><td>AI photo check band hai. <b>Turn on</b> dabao.</td></tr>
+  </table>
+  <p>Neeche teen numbers: kaunsa detector, pichhle 30 din mein kitne detector checks, aur aakhri result kab aaya.</p>
   <h3>Detector kab chale (Settings → AI photo check)</h3>
   <ul>
     <li><b>Every photo the free checks can't settle</b> (recommended, default): layer 1-4 faisla na karein toh har photo detector ko jaati hai.</li>

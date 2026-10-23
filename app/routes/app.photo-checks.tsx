@@ -48,7 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const verdict = ((url.searchParams.get("verdict") || "") in VERDICTS ? url.searchParams.get("verdict") || "" : "") as Verdict;
   const page = Math.max(1, Math.min(10000, Number(url.searchParams.get("page")) || 1));
   const where: Prisma.HelpDeskImageScanWhereInput = { shop, ...(verdict ? { overallVerdict: verdict } : {}) };
-  const [scans, count, groups, settings] = await Promise.all([
+  const [scans, count, groups, settings, recent] = await Promise.all([
     db.helpDeskImageScan.findMany({
       where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
       include: { attachment: { select: { id: true, name: true, ticket: { select: { id: true, number: true, name: true, topic: true } } } } },
@@ -56,7 +56,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     db.helpDeskImageScan.count({ where }),
     db.helpDeskImageScan.groupBy({ by: ["overallVerdict"], where: { shop }, _count: { _all: true } }),
     db.helpDeskSettings.findUnique({ where: { shop } }),
+    // The latest detector outcomes, to show whether the AI detector is working.
+    db.helpDeskImageScan.findMany({ where: { shop, status: "completed" }, orderBy: { updatedAt: "desc" }, take: 100, select: { classifierResult: true, updatedAt: true } }),
   ]);
+  const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const health = { checked30d: 0, lastScoredAt: null as Date | null, lastError: null as { title: string; hint: string; at: Date } | null, waitingForKey: 0 };
+  for (const row of recent) {
+    let result: { aiProbability?: number; reused?: boolean; error?: string; errorTitle?: string; errorHint?: string; missingApiKey?: boolean } = {};
+    try { result = JSON.parse(row.classifierResult || "{}"); } catch { /* unreadable: skip */ }
+    if (typeof result.aiProbability === "number" && !result.reused) {
+      if (row.updatedAt.getTime() >= since) health.checked30d++;
+      health.lastScoredAt ||= row.updatedAt;
+    }
+    if (result.error && !health.lastError) health.lastError = { title: result.errorTitle || "The AI detector failed", hint: result.errorHint || result.error, at: row.updatedAt };
+    if (result.missingApiKey) health.waitingForKey++;
+  }
+  // An error older than the last good result has been fixed since.
+  if (health.lastError && health.lastScoredAt && health.lastScoredAt > health.lastError.at) health.lastError = null;
   const totals = Object.fromEntries(groups.map((group) => [group.overallVerdict || "", group._count._all])) as Record<string, number>;
   return data({
     verdict, page, count,
@@ -64,6 +80,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     enabled: settings?.aiDetectionEnabled ?? true,
     detectorConnected: settings?.aiDetectionProvider === "truthscan" ? Boolean(settings?.truthscanKey) : Boolean(settings?.sightengineUser && settings?.sightengineSecret),
     mode: settings?.aiDetectorMode ?? "always",
+    provider: settings?.aiDetectionProvider === "truthscan" ? "TruthScan" : "Sightengine",
+    health,
     photos: scans.map((scan) => {
       const parsed = serializeScan(scan);
       return {
@@ -76,7 +94,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function PhotoChecks() {
-  const { photos, totals, verdict, page, count, enabled, detectorConnected, mode } = useLoaderData<typeof loader>();
+  const { photos, totals, verdict, page, count, enabled, detectorConnected, mode, provider, health } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [reportId, setReportId] = useState<string | null>(null);
   const report = reportId ? photos.find((photo) => photo.id === reportId) ?? null : null;
@@ -98,21 +116,61 @@ export default function PhotoChecks() {
     <s-link slot="breadcrumb-actions" href="/app/help-desk">Help Desk</s-link>
     <s-button slot="secondary-actions" icon="settings" href="/app/help-desk?settings=1&part=photos">AI photo check settings</s-button>
 
-    {!enabled && <s-banner tone="warning" heading="AI photo check is switched off">New customer photos aren&apos;t being checked. Turn it on in Help Desk settings.</s-banner>}
-
     <s-section>
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <IconTile icon="image" tone="green" size={44} />
         <s-stack gap="small-200">
           <s-heading>Every customer photo, checked automatically</s-heading>
           <s-paragraph color="subdued">
-            Photos sent with requests and replies are checked for Content Credentials, AI watermarks (including Gemini&apos;s), generator metadata,
-            reuse from another request and signs of editing.{" "}
-            {detectorConnected ? `Photos those checks can't settle also go to your AI detector (${mode === "always" ? "every unsettled photo" : mode === "manual" ? "only when you ask" : "when a photo looks suspicious"}).` : "Connect Sightengine or TruthScan in settings for a deeper AI check."}
+            Photos sent with requests and replies go through six checks: Content Credentials, AI watermarks (including Gemini&apos;s), photo metadata,
+            reuse from another request, the AI detector and signs of editing. Click any photo&apos;s result to see its full report.
           </s-paragraph>
         </s-stack>
       </div>
     </s-section>
+
+    {(() => {
+      const state = !enabled ? "off" : !detectorConnected ? "disconnected" : health.lastError ? "error" : health.lastScoredAt ? "working" : "ready";
+      const look = {
+        off: { tone: "gray", badge: "Off", title: "AI photo check is switched off", text: "New customer photos aren't being checked." },
+        disconnected: { tone: "amber", badge: "Not connected", title: "The AI detector isn't connected", text: `Only the free checks are running, so an AI image with its labels removed can get through as "Can't confirm". Add your Sightengine or TruthScan key to turn on the AI detector.${health.waitingForKey ? ` ${health.waitingForKey} recent photo${health.waitingForKey === 1 ? " is" : "s are"} waiting for it and will be re-checked when you connect.` : ""}` },
+        error: { tone: "red", badge: "Needs attention", title: health.lastError?.title || "The AI detector failed", text: health.lastError?.hint || "" },
+        working: { tone: "green", badge: "Working", title: `${provider} is connected and working`, text: `Photos the free checks can't decide are sent to ${provider} (${mode === "always" ? "every undecided photo" : mode === "manual" ? "only when you click \"Check with AI detector\"" : "skipping clear camera originals"}).` },
+        ready: { tone: "blue", badge: "Connected", title: `${provider} is connected`, text: "No photo has needed the detector yet. Its first result will show here." },
+      }[state] as { tone: Tone; badge: string; title: string; text: string };
+      const tone = TONES[look.tone];
+      const stats = [
+        { label: "Detector", value: detectorConnected ? provider : "None" },
+        { label: "Detector checks (30 days)", value: String(health.checked30d) },
+        { label: "Last detector result", value: health.lastScoredAt ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(health.lastScoredAt)) : "None yet" },
+      ];
+      return <s-section padding="none">
+        <div style={{ borderRadius: 12, overflow: "hidden", borderTop: `4px solid ${tone.accent}` }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: tone.soft }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flex: "1 1 360px", minWidth: 0 }}>
+              <IconTile icon="wand" tone={look.tone} size={44} />
+              <div style={{ display: "grid", gap: 4 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                  <s-text color="subdued">AI detector status</s-text>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: "#fff", color: tone.ink, border: `1px solid ${tone.accent}66` }}>{look.badge}</span>
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: tone.ink }}>{look.title}</div>
+                <s-text>{look.text}</s-text>
+              </div>
+            </div>
+            <s-button variant={state === "working" || state === "ready" ? "secondary" : "primary"} icon="settings" href="/app/help-desk?settings=1&part=photos">
+              {state === "off" ? "Turn on" : state === "disconnected" ? "Connect AI detector" : state === "error" ? "Fix in settings" : "Detector settings"}
+            </s-button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", borderTop: "1px solid #E3E3E3" }}>
+            {stats.map((stat, index) => <div key={stat.label} style={{ padding: "12px 18px", borderLeft: index ? "1px solid #E3E3E3" : "none" }}>
+              <s-text color="subdued">{stat.label}</s-text>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A" }}>{stat.value}</div>
+            </div>)}
+          </div>
+        </div>
+      </s-section>;
+    })()}
 
     <s-section padding="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(170px, 1fr))" gap="base">
