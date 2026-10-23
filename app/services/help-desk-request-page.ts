@@ -61,7 +61,8 @@ const STYLES = `<style>
 .hdt-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-top:22px;align-items:start}
 .hdt-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px clamp(20px,3vw,30px);border-bottom:1px solid var(--line)}
 .hdt-section-head span{color:var(--muted);font-size:13px}
-.hdt-thread{display:flex;flex-direction:column;gap:2px;max-height:min(64vh,640px);overflow-y:auto;overscroll-behavior:contain;padding:14px clamp(10px,2.4vw,22px) 18px;background:#efeae2 radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:18px 18px}
+.hdt-thread{display:flex;flex-direction:column;gap:2px;max-height:min(64vh,640px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:14px clamp(10px,2.4vw,22px) 18px;background:#efeae2 radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:18px 18px}
+.hdt-thread::-webkit-scrollbar{display:none}
 .hdt-msg{display:flex;margin-top:8px}
 .hdt-msg[data-grouped]{margin-top:2px}
 .hdt-msg[data-kind="customer"]{justify-content:flex-end}

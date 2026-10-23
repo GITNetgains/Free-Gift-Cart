@@ -594,7 +594,17 @@ function Message({ message, files, email, isNew, grouped }: { message: TicketDat
 // read, then a button offers to jump down.
 function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticket"]; replyEmails: Map<string, TicketEmail>; readAt: number }) {
   const box = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  // Photos load after the first paint and push the thread down; stay on the newest message while pinned.
+  useEffect(() => {
+    const node = box.current;
+    const inner = content.current;
+    if (!node || !inner || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => { if (pinned.current) node.scrollTop = node.scrollHeight; });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, []);
   const [unseen, setUnseen] = useState(0);
   const count = ticket.messages.length;
   const seenCount = useRef(count);
@@ -614,9 +624,10 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
       if (pinned.current && unseen) setUnseen(0);
     }} style={{
-      maxHeight: "min(62vh, 620px)", overflowY: "auto", padding: "12px 14px 16px", borderRadius: "12px 12px 0 0", background: "#EFEAE2",
-      backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "18px 18px", border: "1px solid #E3E3E3",
+      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "none", padding: "12px 14px 16px", background: "#EFEAE2",
+      backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "18px 18px",
     }}>
+      <div ref={content}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
         <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFFE6", color: "#54656F", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
       </div>
@@ -637,6 +648,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
             isNew={Boolean(readAt) && message.kind === "customer" && new Date(message.createdAt).getTime() > readAt} />
         </div>;
       })}
+      </div>
     </div>
     {unseen > 0 && <button type="button" onClick={toBottom} style={{
       position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)", padding: "7px 14px", border: 0, borderRadius: 999, cursor: "pointer",
@@ -702,12 +714,12 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
   };
   const note = kind === "note";
   const pill = (value: "reply" | "note", label: string) => <button type="button" role="tab" aria-selected={kind === value} onClick={() => setKind(value)} style={{
-    padding: "6px 12px", borderRadius: 8, font: "inherit", fontSize: 13, cursor: "pointer", fontWeight: kind === value ? 650 : 500,
+    padding: "9px 18px", borderRadius: 10, font: "inherit", fontSize: 14, cursor: "pointer", fontWeight: kind === value ? 650 : 500,
     color: kind === value ? "#fff" : "#303030", background: kind === value ? (value === "note" ? "#8A6100" : "#172351") : "#fff",
     border: `1px solid ${kind === value ? "transparent" : "#D9D9D9"}`,
   }}>{label}</button>;
   // The reply box is the bottom bar of the chat window, like a messaging app.
-  return <div style={{ display: "grid", gap: 8, padding: "10px 12px 12px", background: note ? "#FFF8DB" : "#F0F2F5", border: "1px solid #E3E3E3", borderTop: "none", borderRadius: "0 0 12px 12px" }}>
+  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFF8DB" : "#F0F2F5", borderTop: "1px solid #DCD7CF" }}>
     {ticket.status === "Resolved" && <s-text color="subdued">This ticket is resolved. If the customer replies, it reopens automatically.</s-text>}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <div role="tablist" aria-label="Message type" style={{ display: "flex", gap: 4 }}>
@@ -733,7 +745,7 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
     </div>
     {!note && configured && <ChannelPicker value={channel} onChange={setChannel} email={ticket.email} />}
     <div role="presentation" onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && body.trim() && !sending) { event.preventDefault(); send(); } }}>
-    <s-text-area label={note ? "Note" : "Message"} labelAccessibilityVisibility="exclusive" rows={3} value={body} maxLength={MAX_MESSAGE_LENGTH}
+    <s-text-area label={note ? "Note" : "Message"} labelAccessibilityVisibility="exclusive" rows={6} value={body} maxLength={MAX_MESSAGE_LENGTH}
       placeholder={note ? "Write a note only your team can see..." : `Write a message to ${ticket.name}...`}
       error={fetcher.data?.errors.body} onInput={(event) => setBody(event.currentTarget.value ?? "")} />
     </div>
@@ -889,7 +901,7 @@ function TicketDetail({ screen }: { screen: TicketData }) {
           <s-heading>Conversation</s-heading>
           <s-text color="subdued">{conversation.filter((message) => message.kind !== "event").length + (ticket.channel === "chat" ? 0 : 1)} messages</s-text>
         </s-stack>
-        <div>
+        <div style={{ border: "1px solid #E3E3E3", borderRadius: 12, overflow: "hidden" }}>
           <ChatThread ticket={ticket} replyEmails={replyEmails} readAt={readAt} />
               </div>
       </s-stack>
