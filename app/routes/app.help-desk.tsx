@@ -556,7 +556,7 @@ const dayLabel = (value: string | Date) => {
 function Message({ message, files, email, isNew, grouped }: { message: TicketData["ticket"]["messages"][number]; files: TicketFile[]; email?: TicketEmail; isNew: boolean; grouped: boolean }) {
   if (message.kind === "event") {
     return <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "#FFFFFFD9", color: "#4A4F5C", fontSize: 12, textAlign: "center" }}>
+      <span style={{ maxWidth: "85%", padding: "4px 10px", borderRadius: 8, background: "rgba(255,255,255,.08)", color: "#C9D1EA", fontSize: 12, textAlign: "center" }}>
         {message.body} · {message.author} · <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
       </span>
     </div>;
@@ -565,24 +565,24 @@ function Message({ message, files, email, isNew, grouped }: { message: TicketDat
   const customer = message.kind === "customer";
   const bot = message.kind === "bot";
   const mine = !customer && !bot;
-  // Zion colours: the customer in white, your team in Zion blue, notes in amber.
+  // Dark Zion theme: the customer in lighter navy, your team in Zion blue, notes in dark amber.
   const team = mine && !note;
-  const background = note ? "#FFF4D6" : team ? "#334FB4" : "#FFFFFF";
+  const background = note ? "#3A3117" : team ? "#334FB4" : "#1F2A4D";
   const delivery = note ? "🔒 Internal note" : !mine ? "" : email ? "" : message.emailed ? "✓✓ Emailed" : "✓ On request page";
   return <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginTop: grouped ? 2 : 10 }}>
     <div style={{
-      position: "relative", maxWidth: "min(620px, 78%)", minWidth: 120, padding: "8px 12px 6px", background, color: team ? "#FFFFFF" : "#1A1F36",
-      borderRadius: grouped ? 14 : mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", boxShadow: team ? "0 2px 6px rgba(51,79,180,.25)" : "0 1px 2px rgba(16,24,40,.06)",
-      border: bot ? "1px dashed #B5B9C3" : note ? "1px solid #F3D98B" : team ? "1px solid #334FB4" : "1px solid #E4E7EC",
+      position: "relative", maxWidth: "min(620px, 78%)", minWidth: 120, padding: "8px 12px 6px", background, color: note ? "#FFE8A8" : "#F2F4FA",
+      borderRadius: grouped ? 14 : mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", boxShadow: "0 2px 8px rgba(0,0,0,.25)",
+      border: bot ? "1px dashed rgba(255,255,255,.28)" : note ? "1px solid #6B5A22" : team ? "1px solid #4A66CC" : "1px solid rgba(255,255,255,.08)",
     }}>
-      {!grouped && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 2, fontSize: 12.5, fontWeight: 650, color: note ? "#7A5600" : team ? "#DCE3FF" : bot ? "#5B6275" : "#172351" }}>
+      {!grouped && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 2, fontSize: 12.5, fontWeight: 650, color: note ? "#F5C451" : team ? "#DCE3FF" : bot ? "#A9B3D3" : "#FF9C8C" }}>
         {message.author}
         {isNew && <span style={{ padding: "0 6px", borderRadius: 6, background: "#E6EFFC", color: "#003A80", fontSize: 11 }}>New</span>}
-        {bot && <span style={{ fontWeight: 500, color: "#5B6275" }}>· Automated answer</span>}
+        {bot && <span style={{ fontWeight: 500, color: "#A9B3D3" }}>· Automated answer</span>}
       </div>}
       <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 14, lineHeight: 1.45 }}>{message.body}</div>
-      {files.length > 0 && <div style={{ marginTop: 6 }}><Gallery files={files} /></div>}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: team ? "rgba(255,255,255,.78)" : "#6B7280" }}>
+      {files.length > 0 && <div style={{ marginTop: 8, padding: 8, borderRadius: 10, background: "#FFFFFF", color: "#1A1F36" }}><Gallery files={files} /></div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: note ? "rgba(255,232,168,.7)" : "rgba(242,244,250,.62)" }}>
         {delivery && <span>{delivery}</span>}
         <span suppressHydrationWarning>{timeOnly(message.createdAt)}</span>
       </div>
@@ -626,13 +626,13 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
       if (pinned.current && unseen) setUnseen(0);
     }} style={{
-      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#A9B3D3 transparent", padding: "14px 16px 18px",
-      // A soft Zion navy tint with a faint dot pattern, so white and blue bubbles both stand out.
-      backgroundColor: "#E8EBF5", backgroundImage: "radial-gradient(rgba(23,35,81,.07) 1px, transparent 1px)", backgroundSize: "16px 16px",
+      maxHeight: "min(56vh, 560px)", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#3E4C7A transparent", padding: "14px 16px 18px",
+      // Dark Zion navy, like the dark sections of zioncases.com, with a faint dot pattern.
+      backgroundColor: "#0F1730", backgroundImage: "radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px)", backgroundSize: "16px 16px",
     }}>
       <div ref={content}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFF", color: "#172351", fontSize: 12, fontWeight: 600, boxShadow: "0 1px 2px rgba(23,35,81,.08)" }}>{dayLabel(ticket.createdAt)}</span>
+        <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "rgba(255,255,255,.1)", color: "#E8EBF5", fontSize: 12, fontWeight: 600 }}>{dayLabel(ticket.createdAt)}</span>
       </div>
       <OriginalRequest ticket={ticket} />
       {ticket.messages.map((message) => {
@@ -644,7 +644,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
         lastAuthor = message.kind === "event" ? "" : author;
         return <div key={message.id}>
           {newDay && <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 4px" }}>
-            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "#FFFFFF", color: "#172351", fontSize: 12, fontWeight: 600, boxShadow: "0 1px 2px rgba(23,35,81,.08)" }}>{dayLabel(message.createdAt)}</span>
+            <span suppressHydrationWarning style={{ padding: "4px 12px", borderRadius: 8, background: "rgba(255,255,255,.1)", color: "#E8EBF5", fontSize: 12, fontWeight: 600 }}>{dayLabel(message.createdAt)}</span>
           </div>}
           <Message message={message} email={replyEmails.get(message.id)} grouped={grouped}
             files={ticket.attachments.filter((file) => file.messageId === message.id)}
@@ -655,7 +655,7 @@ function ChatThread({ ticket, replyEmails, readAt }: { ticket: TicketData["ticke
     </div>
     {unseen > 0 && <button type="button" onClick={toBottom} style={{
       position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)", padding: "7px 14px", border: 0, borderRadius: 999, cursor: "pointer",
-      background: "#172351", color: "#fff", font: "inherit", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 14px rgba(23,35,81,.3)",
+      background: "#EF3A24", color: "#fff", font: "inherit", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 14px rgba(0,0,0,.35)",
     }}>{unseen} new message{unseen === 1 ? "" : "s"} ↓</button>}
   </div>;
 }
@@ -672,22 +672,22 @@ const CHANNELS = [
 function ChannelPicker({ value, onChange, email }: { value: "page" | "email"; onChange: (value: "page" | "email") => void; email: string }) {
   const hint = value === "email" ? `Shown on their request page and emailed to ${email}.`
     : "Shown on the customer's private request page in your store. Choose Email to also send it to their inbox.";
-  return <s-stack gap="small-100">
-    <s-text color="subdued">Send via</s-text>
+  return <div style={{ display: "grid", gap: 6 }}>
+    <span style={{ fontSize: 13, color: "#A9B3D3" }}>Send via</span>
     <div role="radiogroup" aria-label="Send via" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {CHANNELS.map((channel) => {
         const active = value === channel.id;
         return <button key={channel.id} type="button" role="radio" aria-checked={active} onClick={() => onChange(channel.id)} style={{
           display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, font: "inherit", fontSize: 13, cursor: "pointer",
-          fontWeight: active ? 650 : 500, color: active ? "#fff" : "#303030", background: active ? "#172351" : "#fff", border: `1px solid ${active ? "#172351" : "#E3E3E3"}`,
+          fontWeight: active ? 650 : 500, color: active ? "#fff" : "#C9D1EA", background: active ? "#334FB4" : "rgba(255,255,255,.06)", border: `1px solid ${active ? "#334FB4" : "rgba(255,255,255,.16)"}`,
         }}>
           <s-icon type={channel.icon} size="small" />
           {channel.label}
         </button>;
       })}
     </div>
-    <s-text color="subdued">{hint}</s-text>
-  </s-stack>;
+    <span style={{ fontSize: 13, color: "#A9B3D3" }}>{hint}</span>
+  </div>;
 }
 
 function Composer({ ticket, macros, storeName, team, configured, me }: { ticket: TicketData["ticket"]; macros: TicketData["macros"]; storeName: string; team: string[]; configured: boolean; me: string }) {
@@ -718,12 +718,18 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
   const note = kind === "note";
   const pill = (value: "reply" | "note", label: string) => <button type="button" role="tab" aria-selected={kind === value} onClick={() => setKind(value)} style={{
     padding: "9px 18px", borderRadius: 10, font: "inherit", fontSize: 14, cursor: "pointer", fontWeight: kind === value ? 650 : 500,
-    color: kind === value ? "#fff" : "#303030", background: kind === value ? (value === "note" ? "#B7791F" : "#334FB4") : "#fff",
-    border: `1px solid ${kind === value ? "transparent" : "#D9D9D9"}`,
+    color: kind === value ? "#fff" : "#C9D1EA", background: kind === value ? (value === "note" ? "#B7791F" : "#334FB4") : "rgba(255,255,255,.06)",
+    border: `1px solid ${kind === value ? "transparent" : "rgba(255,255,255,.16)"}`,
+  }}>{label}</button>;
+  // Zion red, like the buttons on zioncases.com, so it stands out on the dark bar.
+  const sendButton = (label: string, onClick: () => void, primary = true) => <button type="button" disabled={!body.trim() || sending} onClick={onClick} style={{
+    padding: "9px 18px", borderRadius: 6, font: "inherit", fontSize: 14, fontWeight: 650, cursor: !body.trim() || sending ? "not-allowed" : "pointer",
+    opacity: !body.trim() || sending ? 0.5 : 1, color: "#fff", background: primary ? (note ? "#B7791F" : "#EF3A24") : "transparent",
+    border: primary ? "1px solid transparent" : "1px solid rgba(255,255,255,.3)", boxShadow: primary ? "0 4px 10px rgba(0,0,0,.25)" : "none",
   }}>{label}</button>;
   // The reply box is the bottom bar of the chat window, like a messaging app.
-  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#FFFAEB" : "#F4F6FB", borderTop: "1px solid #D5DBEC" }}>
-    {ticket.status === "Resolved" && <s-text color="subdued">This ticket is resolved. If the customer replies, it reopens automatically.</s-text>}
+  return <div style={{ display: "grid", gap: 10, padding: "14px 16px 16px", background: note ? "#2A2412" : "#141E3D", borderTop: "1px solid rgba(255,255,255,.08)", color: "#C9D1EA" }}>
+    {ticket.status === "Resolved" && <span style={{ fontSize: 13, color: "#8FE3B0" }}>✓ This ticket is resolved. If the customer replies, it reopens automatically.</span>}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <div role="tablist" aria-label="Message type" style={{ display: "flex", gap: 4 }}>
         {pill("reply", `Reply to ${ticket.name.split(" ")[0] || "customer"}`)}
@@ -753,13 +759,13 @@ function Composer({ ticket, macros, storeName, team, configured, me }: { ticket:
       error={fetcher.data?.errors.body} onInput={(event) => setBody(event.currentTarget.value ?? "")} />
     </div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-      <s-text color="subdued">{note ? "🔒 Only your team sees notes" : "The customer sees this in their chat on the request page"} · Ctrl + Enter to send</s-text>
-      <s-stack direction="inline" gap="small-200">
-        {note ? <s-button variant="primary" icon="note" disabled={!body.trim()} loading={sending} onClick={() => send()}>Add note</s-button> : <>
-          <s-button disabled={!body.trim() || sending} onClick={() => send("Resolved")}>Send and resolve</s-button>
-          <s-button variant="primary" icon="send" disabled={!body.trim()} loading={sending} onClick={() => send()}>{channel === "email" ? "Send by email" : "Send"}</s-button>
+      <span style={{ fontSize: 13, color: "#A9B3D3" }}>{note ? "🔒 Only your team sees notes" : "The customer sees this in their chat on the request page"} · Ctrl + Enter to send</span>
+      <div style={{ display: "flex", gap: 8 }}>
+        {note ? sendButton(sending ? "Adding..." : "Add note", () => send()) : <>
+          {sendButton("Send and resolve", () => send("Resolved"), false)}
+          {sendButton(sending ? "Sending..." : channel === "email" ? "Send by email" : "Send", () => send())}
         </>}
-      </s-stack>
+      </div>
     </div>
   </div>;
 }
