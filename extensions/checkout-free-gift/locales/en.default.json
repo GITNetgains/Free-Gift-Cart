@@ -10,7 +10,6 @@
   "option": "Option",
   "claim": "Claim",
   "claimLabel": "Claim {{title}} as your free gift",
-  "added": "Free gift added",
   "removed": "Your free gift was removed because your order is now under {{amount}}.",
   "cartError": "Your gift couldn't be added. Please try again.",
   "tapToChoose": "Tap to choose your gift",

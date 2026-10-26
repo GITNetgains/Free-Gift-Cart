@@ -71,27 +71,9 @@ function Extension() {
 
   if (!settings.enabled || !catalog || !catalog.products.length || threshold === null) return null;
 
-  if (giftLines.length) {
-    const giftVariantId = giftLines[0].merchandise.id;
-    const product = catalog.products.find((item) => item.variants.some((variant) => variant.id === giftVariantId));
-    const variant = product?.variants.find((item) => item.id === giftVariantId);
-    return (
-      <Card>
-        <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
-          <s-product-thumbnail size="small" src={variant?.image || product?.image || ''} alt={product?.title || ''} />
-          <s-stack gap="small-500">
-            <s-stack direction="inline" gap="small-300" alignItems="center">
-              <s-icon type="check-circle-filled" tone="success" size="small" />
-              <s-text type="strong">{shopify.i18n.translate('added')}</s-text>
-            </s-stack>
-            <s-text type="small" color="subdued">
-              {[product?.title, variant?.title].filter(Boolean).join(' · ')}
-            </s-text>
-          </s-stack>
-        </s-grid>
-      </Card>
-    );
-  }
+  // Once the gift is in the cart the block has done its job, so it hides.
+  // It still removes the gift above if the order drops under the minimum.
+  if (giftLines.length) return null;
 
   if (!eligible) {
     const remaining = threshold - paidSubtotal;
