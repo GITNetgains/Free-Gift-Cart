@@ -172,7 +172,10 @@ function Extension() {
               <s-stack gap="small-500">
                 <s-text>{product.title}</s-text>
                 <s-stack direction="inline" gap="small-300" alignItems="center">
-                  <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
+                  {/* Gift variants are often $0 products, so only strike a real price. */}
+                  {variant.price > 0 && (
+                    <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
+                  )}
                   <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
                 </s-stack>
               </s-stack>
