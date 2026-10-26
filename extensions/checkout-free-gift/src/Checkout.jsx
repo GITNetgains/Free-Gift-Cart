@@ -32,8 +32,8 @@ function Extension() {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [removedNotice, setRemovedNotice] = useState(false);
-  // The gift list starts open so buyers notice it as soon as they qualify.
-  const [open, setOpen] = useState(true);
+  // The gift list starts folded; the header opens it.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!settings.enabled || !settings.products.length) return undefined;
@@ -137,8 +137,8 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own, so the unlocked card starts open
-  // and the buyer can fold it away with the header.
+  // Checkout can't open a popup on its own, so the unlocked card starts folded
+  // and the buyer opens the gift list with the header.
   return (
     <Card>
       {/* Only the toggle row is tinted, so it reads as the open/close control. */}
