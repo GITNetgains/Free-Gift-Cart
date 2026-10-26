@@ -32,6 +32,8 @@ function Extension() {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [removedNotice, setRemovedNotice] = useState(false);
+  // The gift list starts open so buyers notice it as soon as they qualify.
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     if (!settings.enabled || !settings.products.length) return undefined;
@@ -137,30 +139,48 @@ function Extension() {
     }
   };
 
+  // Checkout can't open a popup on its own, so the unlocked card starts open
+  // and the buyer can fold it away with the header.
   return (
     <Card>
-      <s-stack gap="small-500">
-        <s-stack direction="inline" gap="small-300" alignItems="center">
-          <s-icon type="gift-card" size="small" />
-          <s-text type="strong">{shopify.i18n.translate('unlocked')}</s-text>
-        </s-stack>
-        <s-text type="small" color="subdued">{shopify.i18n.translate('chooseOne')}</s-text>
-      </s-stack>
-      {catalog.products.map((product, index) => {
+      <s-clickable onClick={() => setOpen((current) => !current)} borderRadius="base"
+        accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
+        <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
+          <s-icon type="gift-card" />
+          <s-stack gap="small-500">
+            <s-text type="strong">{shopify.i18n.translate('unlocked')}</s-text>
+            <s-text type="small" color="subdued">
+              {shopify.i18n.translate(open ? 'chooseOne' : 'tapToChoose')}
+            </s-text>
+          </s-stack>
+          <s-stack direction="inline" gap="small-300" alignItems="center">
+            {!open && catalog.products.slice(0, 3).map((product) => (
+              <s-product-thumbnail key={product.id} size="small-100" src={product.image} alt={product.title} />
+            ))}
+            <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
+          </s-stack>
+        </s-grid>
+      </s-clickable>
+      {open && catalog.products.map((product) => {
         const variant = variantOf(product);
         const busy = busyId === product.id;
         return (
           <s-stack key={product.id} gap="small-200">
-            {index > 0 && <s-divider />}
-            <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
+            <s-divider />
+            <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
               <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.title} />
               <s-stack gap="small-500">
-                <s-text type="strong">{product.title}</s-text>
+                <s-text>{product.title}</s-text>
                 <s-stack direction="inline" gap="small-300" alignItems="center">
                   <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
-                  <s-badge size="small">{shopify.i18n.translate('free')}</s-badge>
+                  <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
                 </s-stack>
               </s-stack>
+              <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
+                accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
+                onClick={() => claim(product)}>
+                {shopify.i18n.translate('claim')}
+              </s-button>
             </s-grid>
             {product.variants.length > 1 && (
               <s-select
@@ -177,11 +197,6 @@ function Extension() {
                 ))}
               </s-select>
             )}
-            <s-button variant="primary" inlineSize="fill" loading={busy} disabled={Boolean(busyId) && !busy}
-              accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
-              onClick={() => claim(product)}>
-              {shopify.i18n.translate('claim')}
-            </s-button>
           </s-stack>
         );
       })}
@@ -189,6 +204,7 @@ function Extension() {
     </Card>
   );
 }
+
 
 function Card({children}) {
   return (

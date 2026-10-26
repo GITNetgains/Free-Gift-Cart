@@ -6,9 +6,12 @@
   "chooseOne": "Choose 1 gift. It's free with your order.",
   "free": "FREE",
   "option": "Option",
-  "claim": "Claim free gift",
+  "claim": "Claim",
   "claimLabel": "Claim {{title}} as your free gift",
   "added": "Free gift added",
   "removed": "Your free gift was removed because your order is now under {{amount}}.",
-  "cartError": "Your gift couldn't be added. Please try again."
+  "cartError": "Your gift couldn't be added. Please try again.",
+  "tapToChoose": "Tap to choose your gift",
+  "showGifts": "Show free gift options",
+  "hideGifts": "Hide free gift options"
 }
