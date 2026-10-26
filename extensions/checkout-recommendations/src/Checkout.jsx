@@ -10,6 +10,9 @@ const KEY = 'checkout_recommendations';
 const MAX_PRODUCTS = 6;
 // Shopify's own recommendations are looked up for the first few cart products.
 const MAX_SEED_PRODUCTS = 3;
+// Marks cart lines added from this block, so after checkout reloads the block
+// still knows them and keeps showing their Remove button.
+const REC_ATTRIBUTE = '_recommendation';
 
 const PRODUCT_FIELDS = `
   id
@@ -53,9 +56,9 @@ function Extension() {
   const [selected, setSelected] = useState({});
   // Quantity to add for products not in the cart yet, by product id.
   const [quantities, setQuantities] = useState({});
-  // Products the buyer added from this block. They stay in the list with a
-  // Remove button and don't count as cart products when picking
-  // recommendations, so adding one doesn't reshuffle the list.
+  // Products the buyer added from this block (until the tagged line shows up
+  // in the cart). They stay in the list with a Remove button and don't count
+  // as cart products when picking recommendations, so the list doesn't reshuffle.
   const [added, setAdded] = useState({});
   const [busyId, setBusyId] = useState('');
   // Only the first product shows until the buyer expands the list.
@@ -65,18 +68,29 @@ function Extension() {
   const cartProductIds = [...new Set(lines
     .map((line) => line.merchandise?.product?.id)
     .filter(Boolean))];
-  const seedProductIds = cartProductIds.filter((id) => !added[id]);
+  const addedIds = new Set([
+    ...Object.keys(added),
+    ...lines.filter(isRecommendationLine).map((line) => line.merchandise?.product?.id).filter(Boolean),
+  ]);
+  const seedProductIds = cartProductIds.filter((id) => !addedIds.has(id));
   const seedKey = seedProductIds.join(',');
+  const addedKey = [...addedIds].sort().join(',');
 
   useEffect(() => {
     if (!config.enabled || !canAdd) return undefined;
     let cancelled = false;
     loadRecommendations(config, seedProductIds, country)
-      .then((list) => { if (!cancelled) setProducts(list); })
+      .then(async (list) => {
+        // Keep products added from this block listed even if the new
+        // recommendations no longer include them.
+        const missing = [...addedIds].filter((id) => !list.some((product) => product.id === id));
+        const extra = missing.length ? await fetchProducts(missing, country) : [];
+        if (!cancelled) setProducts([...extra, ...list]);
+      })
       .catch(() => { if (!cancelled) setProducts([]); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedKey, country, rawConfig, canAdd]);
+  }, [seedKey, addedKey, country, rawConfig, canAdd]);
 
   if (!config.enabled || !canAdd) return null;
   if (products === null) {
@@ -88,7 +102,7 @@ function Extension() {
   }
   const inCart = new Set(cartProductIds);
   const visible = products
-    .filter((product) => !inCart.has(product.id) || added[product.id])
+    .filter((product) => !inCart.has(product.id) || addedIds.has(product.id))
     .slice(0, config.maxProducts);
   if (!visible.length) return null;
 
@@ -109,10 +123,18 @@ function Extension() {
   };
   const addToCart = (product) => changeCart(
     product.id,
-    {type: 'addCartLine', merchandiseId: variantOf(product).id, quantity: quantities[product.id] || 1},
+    {
+      type: 'addCartLine',
+      merchandiseId: variantOf(product).id,
+      quantity: quantities[product.id] || 1,
+      attributes: [{key: REC_ATTRIBUTE, value: 'true'}],
+    },
     () => setAdded((current) => ({...current, [product.id]: true})),
   );
-  const lineOf = (product) => lines.find((item) => item.merchandise?.product?.id === product.id);
+  const lineOf = (product) => {
+    const productLines = lines.filter((item) => item.merchandise?.product?.id === product.id);
+    return productLines.find(isRecommendationLine) || productLines[0];
+  };
   const changeQuantity = (product, quantity) => {
     if (!inCart.has(product.id)) {
       setQuantities((current) => ({...current, [product.id]: quantity}));
@@ -291,6 +313,10 @@ function Card({heading, children, hidden = [], expanded = false, onToggle = unde
 function savePercent(variant) {
   const compareAt = Number(variant.compareAtPrice.amount);
   return Math.round(((compareAt - Number(variant.price.amount)) / compareAt) * 100);
+}
+
+function isRecommendationLine(line) {
+  return line.attributes?.some((attribute) => attribute.key === REC_ATTRIBUTE && attribute.value === 'true');
 }
 
 function formatMoney(money) {
