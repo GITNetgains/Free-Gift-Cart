@@ -64,8 +64,8 @@ function Extension() {
   // as cart products when picking recommendations, so the list doesn't reshuffle.
   const [added, setAdded] = useState({});
   const [busyId, setBusyId] = useState('');
-  // Only the first product shows until the buyer expands the list.
-  const [expanded, setExpanded] = useState(false);
+  // The list starts open; the header folds it down to the first product.
+  const [expanded, setExpanded] = useState(true);
   const [error, setError] = useState('');
 
   const cartProductIds = [...new Set(lines
