@@ -1,0 +1,28 @@
+# Learn more about configuring your checkout UI extension:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration
+
+api_version = "2026-07"
+
+[[extensions]]
+name = "Product recommendations"
+handle = "checkout-recommendations"
+type = "ui_extension"
+
+# Both placements share one module. The merchant adds the block below the cart
+# lines, or anywhere else, in the checkout editor.
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.cart-line-list.render-after"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+# Storefront API access loads product details and Shopify's own recommendations.
+[extensions.capabilities]
+api_access = true
+
+# Saved by the app's Checkout recommendations admin page.
+[[extensions.metafields]]
+namespace = "free_gift_cart"
+key = "checkout_recommendations"

@@ -142,6 +142,18 @@ importers:
         specifier: ^10.10.x
         version: 10.29.8
 
+  extensions/checkout-recommendations:
+    dependencies:
+      '@preact/signals':
+        specifier: ^2.3.x
+        version: 2.11.2(preact@10.29.8)
+      '@shopify/ui-extensions':
+        specifier: 2026.7.x
+        version: 2026.7.0(@preact/signals@2.11.2(preact@10.29.8))(preact@10.29.8)
+      preact:
+        specifier: ^10.10.x
+        version: 10.29.8
+
   extensions/free-gift-discount:
     dependencies:
       '@shopify/shopify_function':

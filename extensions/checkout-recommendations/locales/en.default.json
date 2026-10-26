@@ -1,0 +1,8 @@
+{
+  "name": "Product recommendations",
+  "description": "Recommended products buyers can add in checkout",
+  "defaultHeading": "You may also like",
+  "add": "Add",
+  "addLabel": "Add {{title}} to your order",
+  "addError": "This product couldn't be added. Please try again."
+}

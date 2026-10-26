@@ -23,6 +23,7 @@ export default function App() {
         <s-link href="/app/photo-checks">Photo checks</s-link>
         <s-link href="/app/free-gift">Free gift settings</s-link>
         <s-link href="/app/checkout-notices">Checkout notices</s-link>
+        <s-link href="/app/checkout-recommendations">Checkout recommendations</s-link>
         <s-link href="/app/inventory-sync">Inventory sync</s-link>
         <s-link href="/app/image-alt-text">Image alt text</s-link>
       </s-app-nav>
