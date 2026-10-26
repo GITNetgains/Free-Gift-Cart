@@ -178,8 +178,8 @@ function Extension() {
         const busy = busyId === product.id;
         const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
         const isOpen = openId === product.id;
-        // Every product shows its quantity and Add below it; the top corner arrow
-        // opens the variant picker for products that have variants.
+        // Products start folded; the corner arrow (or tapping the product) opens
+        // its variant, quantity and Add controls, one product at a time.
         const actionButton = isAdded ? (
           canRemove && (
             <SmallButton label={label} loading={busy}
@@ -200,7 +200,7 @@ function Extension() {
                 below; only one product is open at a time. The small Add
                 button on the right adds it straight away. */}
             <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems="start">
-            <s-clickable onClick={() => showVariants && setOpenId((current) => (current === product.id ? '' : product.id))}
+            <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
               accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
             <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
               <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
@@ -224,12 +224,10 @@ function Extension() {
               </s-stack>
             </s-grid>
             </s-clickable>
-              {showVariants && (
-                <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))} padding="small-200"
-                  accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
-                  <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
-                </s-clickable>
-              )}
+              <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))} padding="small-200"
+                accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
+                <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
+              </s-clickable>
             </s-grid>
             {isOpen && showVariants && (
               <s-select
@@ -246,15 +244,17 @@ function Extension() {
                 ))}
               </s-select>
             )}
-            <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
-              <QuantityStepper
-                value={quantity}
-                title={product.title}
-                disabled={Boolean(busyId) || (isAdded && !canUpdate)}
-                onChange={(value) => changeQuantity(product, value)}
-              />
-              {actionButton}
-            </s-grid>
+            {isOpen && (
+              <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
+                <QuantityStepper
+                  value={quantity}
+                  title={product.title}
+                  disabled={Boolean(busyId) || (isAdded && !canUpdate)}
+                  onChange={(value) => changeQuantity(product, value)}
+                />
+                {actionButton}
+              </s-grid>
+            )}
           </s-stack>
         );
       })}
