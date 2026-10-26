@@ -146,16 +146,63 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return error ? { ok: false, error } : { ok: true, settings, rules };
 };
 
-function ProductList({ products, empty, onRemove }: { products: ProductRef[]; empty: string; onRemove: (id: string) => void }) {
+function moveItem<T>(items: T[], from: number, to: number) {
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+// With onReorder, rows can be dragged into a new order (checkout shows them in
+// this order); the arrow buttons do the same for touch and keyboard users.
+function ProductList({ products, empty, onRemove, onReorder }: {
+  products: ProductRef[]; empty: string; onRemove: (id: string) => void;
+  onReorder?: (products: ProductRef[]) => void;
+}) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
   if (!products.length) return <s-paragraph color="subdued">{empty}</s-paragraph>;
+  const reorderable = Boolean(onReorder) && products.length > 1;
+  const endDrag = () => { setDragIndex(null); setOverIndex(null); };
   return (
     <s-stack gap="small-200">
-      {products.map((product) => (
-        <s-grid key={product.id} gridTemplateColumns="auto 1fr auto" gap="base" alignItems="center">
-          <s-thumbnail src={product.image || undefined} alt={product.title} size="small" />
-          <s-text>{product.title || product.id}</s-text>
-          <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel={`Remove ${product.title}`} onClick={() => onRemove(product.id)} />
-        </s-grid>
+      {products.map((product, index) => (
+        <div key={product.id}
+          draggable={reorderable}
+          onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDragIndex(index); }}
+          onDragOver={(event) => {
+            if (dragIndex === null) return;
+            event.preventDefault();
+            if (overIndex !== index) setOverIndex(index);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (dragIndex !== null && dragIndex !== index) onReorder?.(moveItem(products, dragIndex, index));
+            endDrag();
+          }}
+          onDragEnd={endDrag}
+          style={{
+            cursor: reorderable ? "grab" : undefined,
+            opacity: dragIndex === index ? 0.4 : 1,
+            borderRadius: 8,
+            outline: overIndex === index && dragIndex !== index ? "2px dashed #8a8a8a" : "none",
+            outlineOffset: 2,
+          }}>
+          <s-grid gridTemplateColumns={reorderable ? "auto auto 1fr auto" : "auto 1fr auto"} gap="base" alignItems="center">
+            {reorderable && <s-icon type="drag-handle" tone="neutral" />}
+            <s-thumbnail src={product.image || undefined} alt={product.title} size="small" />
+            <s-text>{product.title || product.id}</s-text>
+            <s-stack direction="inline" gap="small-100">
+              {reorderable && <>
+                <s-button icon="arrow-up" variant="tertiary" accessibilityLabel={`Move ${product.title} up`}
+                  disabled={index === 0} onClick={() => onReorder?.(moveItem(products, index, index - 1))} />
+                <s-button icon="arrow-down" variant="tertiary" accessibilityLabel={`Move ${product.title} down`}
+                  disabled={index === products.length - 1} onClick={() => onReorder?.(moveItem(products, index, index + 1))} />
+              </>}
+              <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel={`Remove ${product.title}`} onClick={() => onRemove(product.id)} />
+            </s-stack>
+          </s-grid>
+        </div>
       ))}
     </s-stack>
   );
@@ -203,8 +250,13 @@ export default function CheckoutRecommendations() {
       title: product.title,
       image: product.images?.[0]?.originalSrc || "",
     }));
-    if (picked.length > limit) shopify.toast.show(`Only the first ${limit} products were kept`);
-    return picked.slice(0, limit);
+    // Keep the merchant's order for products that stay selected; new ones go last.
+    const pickedIds = new Set(picked.map((product) => product.id));
+    const kept = current.filter((product) => pickedIds.has(product.id));
+    const keptIds = new Set(kept.map((product) => product.id));
+    const ordered = [...kept, ...picked.filter((product) => !keptIds.has(product.id))];
+    if (ordered.length > limit) shopify.toast.show(`Only the first ${limit} products were kept`);
+    return ordered.slice(0, limit);
   };
   const createRule = () => {
     if (rules.length >= MAX_RULES) return shopify.toast.show(`You can create up to ${MAX_RULES} rules`, { isError: true });
@@ -269,8 +321,9 @@ export default function CheckoutRecommendations() {
                   if (recommendations) updateRule(editing.id, { recommendations });
                 }}>Choose products</s-button>
               </s-stack>
-              <ProductList products={editing.recommendations} empty={`No products yet. Choose up to ${MAX_RECOMMENDATIONS}; checkout shows them in this order.`}
-                onRemove={(id) => updateRule(editing.id, { recommendations: editing.recommendations.filter((product) => product.id !== id) })} />
+              <ProductList products={editing.recommendations} empty={`No products yet. Choose up to ${MAX_RECOMMENDATIONS}, then drag them into the order checkout shows them in.`}
+                onRemove={(id) => updateRule(editing.id, { recommendations: editing.recommendations.filter((product) => product.id !== id) })}
+                onReorder={(recommendations) => updateRule(editing.id, { recommendations })} />
               <s-paragraph color="subdued">
                 {`Checkout shows up to ${settings.maxProducts} of these, skipping any already in the cart or sold out. If several rules match, their products are combined in rule order.`}
               </s-paragraph>
@@ -324,7 +377,8 @@ export default function CheckoutRecommendations() {
                     }}>Choose products</s-button>
                   </s-stack>
                   <ProductList products={settings.defaultProducts} empty="No default products yet."
-                    onRemove={(id) => updateSettings({ defaultProducts: settings.defaultProducts.filter((product) => product.id !== id) })} />
+                    onRemove={(id) => updateSettings({ defaultProducts: settings.defaultProducts.filter((product) => product.id !== id) })}
+                    onReorder={(defaultProducts) => updateSettings({ defaultProducts })} />
                 </s-stack>
               )}
               {settings.defaultSource !== "none" && (
