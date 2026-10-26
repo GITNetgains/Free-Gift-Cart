@@ -15,6 +15,7 @@ const PRODUCT_FIELDS = `
   id
   title
   availableForSale
+  isGiftCard
   featuredImage { url altText }
   options(first: 3) { name }
   variants(first: 25) {
@@ -22,6 +23,7 @@ const PRODUCT_FIELDS = `
       id
       title
       availableForSale
+      requiresShipping
       image { url altText }
       price { amount currencyCode }
       compareAtPrice { amount currencyCode }
@@ -290,7 +292,11 @@ async function loadRecommendations(config, cartProductIds, country) {
     }
   }
 
-  const products = ruleIds.length ? await fetchProducts(ruleIds, country) : [];
+  // Excluded products (and, when the merchant asks, ones that never ship, like
+  // shipping protection or gift cards) are never recommended.
+  const allowed = (product) => !config.excludedProducts.includes(product.id) &&
+    !product.isGiftCard && (!config.hideNonShipping || product.requiresShipping);
+  const products = (ruleIds.length ? await fetchProducts(ruleIds, country) : []).filter(allowed);
   // A matching rule replaces the default unless the merchant asked to top up
   // the remaining slots with it.
   if (products.length >= config.maxProducts || (ruleIds.length && !config.fillWithDefault)) return products;
@@ -301,7 +307,7 @@ async function loadRecommendations(config, cartProductIds, country) {
       ? await fetchShopifyRecommendations(cartProductIds, country)
       : [];
   const seen = new Set(products.map((product) => product.id));
-  return [...products, ...fallback.filter((product) => !seen.has(product.id) && !inCart.has(product.id))];
+  return [...products, ...fallback.filter((product) => allowed(product) && !seen.has(product.id) && !inCart.has(product.id))];
 }
 
 async function fetchProducts(ids, country) {
@@ -355,6 +361,7 @@ function toCard(product) {
         id: variant.id,
         title: variant.title === 'Default Title' ? '' : variant.title,
         image: variant.image?.url || '',
+        requiresShipping: variant.requiresShipping !== false,
         price: variant.price,
         compareAtPrice: compareAt > Number(variant.price.amount) ? variant.compareAtPrice : null,
       };
@@ -365,6 +372,8 @@ function toCard(product) {
     title: product.title,
     image: product.featuredImage?.url || '',
     imageAlt: product.featuredImage?.altText || '',
+    isGiftCard: product.isGiftCard === true,
+    requiresShipping: variants.some((variant) => variant.requiresShipping),
     // Single-variant products have a lone "Title" option.
     optionLabel: (product.options || []).map((option) => option.name).filter((name) => name !== 'Title').join(' / '),
     variants,
@@ -394,6 +403,8 @@ function parseConfig(value) {
     defaultSource: ['shopify', 'products', 'none'].includes(settings.defaultSource) ? settings.defaultSource : 'shopify',
     defaultProducts: idList(settings.defaultProducts),
     fillWithDefault: settings.fillWithDefault === true,
+    excludedProducts: idList(settings.excludedProducts),
+    hideNonShipping: settings.hideNonShipping !== false,
     rules: (Array.isArray(data?.rules) ? data.rules : []).map((rule) => ({
       enabled: rule?.enabled !== false,
       triggers: idList(rule?.triggers),

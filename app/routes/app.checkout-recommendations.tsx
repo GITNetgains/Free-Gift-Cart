@@ -20,6 +20,10 @@ type Settings = {
   // Top up a matching rule's products with the default when it has fewer
   // than maxProducts available.
   fillWithDefault: boolean;
+  // Never recommended, whatever the rule or default says.
+  excludedProducts: ProductRef[];
+  // Skip products that never ship, such as shipping protection or gift cards.
+  hideNonShipping: boolean;
 };
 type Rule = { id: string; enabled: boolean; name: string; triggers: ProductRef[]; recommendations: ProductRef[] };
 
@@ -27,11 +31,13 @@ const MAX_RULES = 100;
 const MAX_TRIGGERS = 50;
 const MAX_RECOMMENDATIONS = 10;
 const MAX_SHOWN = 6;
+const MAX_EXCLUDED = 50;
 // Checkout loads the whole metafield value, so keep it small.
 const MAX_PAYLOAD = 120_000;
 const DEFAULT_SETTINGS: Settings = {
   enabled: true, heading: "You may also like", maxProducts: 3,
   defaultSource: "shopify", defaultProducts: [], fillWithDefault: false,
+  excludedProducts: [], hideNonShipping: true,
 };
 const SETTINGS_QUERY = `#graphql
   query CheckoutRecommendationSettings {
@@ -67,6 +73,8 @@ function sanitizeSettings(value: Partial<Settings> | undefined): Settings {
       : DEFAULT_SETTINGS.defaultSource,
     defaultProducts: sanitizeProducts(settings.defaultProducts, MAX_RECOMMENDATIONS),
     fillWithDefault: settings.fillWithDefault === true,
+    excludedProducts: sanitizeProducts(settings.excludedProducts, MAX_EXCLUDED),
+    hideNonShipping: settings.hideNonShipping !== false,
   };
 }
 
@@ -327,6 +335,27 @@ export default function CheckoutRecommendations() {
                     updateSettings({ fillWithDefault });
                   }} />
               )}
+            </s-stack>
+          </s-section>
+
+          <s-section heading="Never recommend">
+            <s-stack gap="base">
+              <s-checkbox label="Hide products that don't need shipping"
+                details="Skips shipping protection, gift cards and digital products, even when Shopify suggests them."
+                checked={settings.hideNonShipping} onChange={(event) => {
+                  const hideNonShipping = event.currentTarget.checked;
+                  updateSettings({ hideNonShipping });
+                }} />
+              <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
+                <s-text type="strong">Excluded products</s-text>
+                <s-button icon="product" onClick={async () => {
+                  const excludedProducts = await pickProducts(settings.excludedProducts, MAX_EXCLUDED);
+                  if (excludedProducts) updateSettings({ excludedProducts });
+                }}>Choose products</s-button>
+              </s-stack>
+              <ProductList products={settings.excludedProducts}
+                empty="No excluded products. Products you add here never show in checkout recommendations, from rules, your default products or Shopify."
+                onRemove={(id) => updateSettings({ excludedProducts: settings.excludedProducts.filter((product) => product.id !== id) })} />
             </s-stack>
           </s-section>
 
