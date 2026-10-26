@@ -178,8 +178,8 @@ function Extension() {
         const busy = busyId === product.id;
         const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
         const isOpen = openId === product.id;
-        // Folded, Add sits beside the product; open, it moves next to the
-        // quantity and the top corner holds the close arrow.
+        // Every product shows its quantity and Add below it; the top corner arrow
+        // opens the variant picker for products that have variants.
         const actionButton = isAdded ? (
           canRemove && (
             <SmallButton label={label} loading={busy}
@@ -199,8 +199,8 @@ function Extension() {
             {/* Tapping the product opens its options (variant and quantity)
                 below; only one product is open at a time. The small Add
                 button on the right adds it straight away. */}
-            <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems={isOpen ? 'start' : 'center'}>
-            <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
+            <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems="start">
+            <s-clickable onClick={() => showVariants && setOpenId((current) => (current === product.id ? '' : product.id))}
               accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
             <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
               <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
@@ -220,18 +220,16 @@ function Extension() {
                     </>
                   )}
                   {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
-                  {/* Sits after the price so it never wraps onto a line of its own. */}
-                  {!isOpen && <s-icon type="chevron-down" size="small" />}
                 </s-stack>
               </s-stack>
             </s-grid>
             </s-clickable>
-              {isOpen ? (
-                <s-clickable onClick={() => setOpenId('')} padding="small-200"
-                  accessibilityLabel={String(shopify.i18n.translate('hideOptions', {title: product.title}))}>
-                  <s-icon type="chevron-up" size="small" />
+              {showVariants && (
+                <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))} padding="small-200"
+                  accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
+                  <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
                 </s-clickable>
-              ) : actionButton}
+              )}
             </s-grid>
             {isOpen && showVariants && (
               <s-select
@@ -248,17 +246,15 @@ function Extension() {
                 ))}
               </s-select>
             )}
-            {isOpen && (
-              <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
-                <QuantityStepper
-                  value={quantity}
-                  title={product.title}
-                  disabled={Boolean(busyId) || (isAdded && !canUpdate)}
-                  onChange={(value) => changeQuantity(product, value)}
-                />
-                {actionButton}
-              </s-grid>
-            )}
+            <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
+              <QuantityStepper
+                value={quantity}
+                title={product.title}
+                disabled={Boolean(busyId) || (isAdded && !canUpdate)}
+                onChange={(value) => changeQuantity(product, value)}
+              />
+              {actionButton}
+            </s-grid>
           </s-stack>
         );
       })}
