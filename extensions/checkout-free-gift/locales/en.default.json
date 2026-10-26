@@ -15,5 +15,7 @@
   "chooseLabel": "CHOOSE YOUR GIFT",
   "tapToChoose": "Tap to choose your free gift",
   "showGifts": "Show free gift options",
-  "hideGifts": "Hide free gift options"
+  "hideGifts": "Hide free gift options",
+  "showOptions": "Show options for {{title}}",
+  "hideOptions": "Hide options for {{title}}"
 }

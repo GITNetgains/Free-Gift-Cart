@@ -34,6 +34,8 @@ function Extension() {
   const [removedNotice, setRemovedNotice] = useState(false);
   // The gift list starts folded; the banner row opens it.
   const [open, setOpen] = useState(false);
+  // The one gift whose variant picker is showing.
+  const [openGiftId, setOpenGiftId] = useState('');
 
   useEffect(() => {
     if (!settings.enabled || !settings.products.length) return undefined;
@@ -162,10 +164,10 @@ function Extension() {
             {catalog.products.map((product, index) => {
               const variant = variantOf(product);
               const busy = busyId === product.id;
-              return (
-                <s-stack key={product.id} gap="small-200">
-                  {index > 0 && <s-divider />}
-                  <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
+              const hasVariants = product.variants.length > 1;
+              const showVariants = hasVariants && openGiftId === product.id;
+              const details = (
+                <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
                     <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.title} />
                     <s-stack gap="small-500">
                       <s-text>{product.title}</s-text>
@@ -175,15 +177,30 @@ function Extension() {
                           <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
                         )}
                         <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
+                        {hasVariants && <s-text type="small" color="subdued">{variant.title}</s-text>}
+                        {hasVariants && <s-icon type={showVariants ? 'chevron-up' : 'chevron-down'} size="small" />}
                       </s-stack>
                     </s-stack>
+                </s-grid>
+              );
+              return (
+                <s-stack key={product.id} gap="small-200">
+                  {index > 0 && <s-divider />}
+                  <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
+                    {/* Tapping a gift with options shows its variant picker; one at a time. */}
+                    {hasVariants ? (
+                      <s-clickable onClick={() => setOpenGiftId((current) => (current === product.id ? '' : product.id))}
+                        accessibilityLabel={String(shopify.i18n.translate(showVariants ? 'hideOptions' : 'showOptions', {title: product.title}))}>
+                        {details}
+                      </s-clickable>
+                    ) : details}
                     <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
                       accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
                       onClick={() => claim(product)}>
                       {shopify.i18n.translate('claim')}
                     </s-button>
                   </s-grid>
-                  {product.variants.length > 1 && (
+                  {showVariants && (
                     <s-select
                       label={product.optionLabel || String(shopify.i18n.translate('option'))}
                       value={variant.id}
