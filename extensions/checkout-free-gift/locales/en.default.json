@@ -3,8 +3,7 @@
   "description": "Free gift progress and gift choice in checkout",
   "progress": "Spend {{amount}} more to unlock a FREE gift",
   "progressOne": "Spend {{amount}} more to get a FREE {{title}}",
-  "giftChoices": "Choose a {{titles}}",
-  "or": " or ",
+  "or": "OR",
   "unlocked": "You've unlocked a FREE gift!",
   "chooseOne": "Choose 1 gift. It's free with your order.",
   "free": "FREE",
@@ -16,5 +15,6 @@
   "cartError": "Your gift couldn't be added. Please try again.",
   "tapToChoose": "Tap to choose your gift",
   "showGifts": "Show free gift options",
-  "hideGifts": "Hide free gift options"
+  "hideGifts": "Hide free gift options",
+  "chooseLabel": "CHOOSE YOUR GIFT"
 }

@@ -112,14 +112,22 @@ function Extension() {
             <s-icon type="gift-card" />
             <s-stack gap="small-500">
               <s-text type="strong">{progress}</s-text>
-              {titles.length > 1 && (
-                <s-text type="small" color="subdued">
-                  {shopify.i18n.translate('giftChoices', {titles: titles.join(String(shopify.i18n.translate('or')))})}
-                </s-text>
-              )}
+
             </s-stack>
           </s-grid>
           <s-progress value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
+          {/* Like the cart page banner: the gifts on offer, by name. */}
+          <s-text type="small" color="subdued">{shopify.i18n.translate('chooseLabel')}</s-text>
+          {catalog.products.map((product, index) => (
+            <s-stack key={product.id} gap="small-300">
+              {index > 0 && <s-text type="small" color="subdued">{shopify.i18n.translate('or')}</s-text>}
+              <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
+                <s-product-thumbnail size="small-100" src={product.image} alt={product.title} />
+                <s-text>{product.title}</s-text>
+                <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
+              </s-grid>
+            </s-stack>
+          ))}
         </s-stack>
       </Card>
     );
