@@ -27,3 +27,9 @@ api_access = true
 [[extensions.metafields]]
 namespace = "free_gift_cart"
 key = "checkout_recommendations"
+
+# Free gift products are never recommended, so buyers can't add them as
+# ordinary items without reaching the gift minimum.
+[[extensions.metafields]]
+namespace = "free_gift_cart"
+key = "settings"

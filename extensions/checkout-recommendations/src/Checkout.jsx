@@ -41,8 +41,11 @@ export default async () => {
 function Extension() {
   const entry = shopify.appMetafields.value.find(({target, metafield}) =>
     target.type === 'shop' && metafield.namespace === NAMESPACE && metafield.key === KEY);
-  const rawConfig = entry?.metafield.value;
-  const config = parseConfig(rawConfig);
+  const giftEntry = shopify.appMetafields.value.find(({target, metafield}) =>
+    target.type === 'shop' && metafield.namespace === NAMESPACE && metafield.key === 'settings');
+  // The free gift settings change the exclusions too, so reload on either.
+  const rawConfig = `${entry?.metafield.value ?? ''}|${giftEntry?.metafield.value ?? ''}`;
+  const config = parseConfig(entry?.metafield.value, giftEntry?.metafield.value);
   const lines = shopify.lines.value;
   const country = shopify.localization.country.value?.isoCode;
   const canAdd = shopify.instructions.value?.lines?.canAddCartLine !== false;
@@ -335,7 +338,10 @@ async function loadRecommendations(config, cartProductIds, country) {
 
   // Excluded products (and, when the merchant asks, ones that never ship, like
   // shipping protection or gift cards) are never recommended.
+  // Free gift products and $0 items are never sold here either.
   const allowed = (product) => !config.excludedProducts.includes(product.id) &&
+    !config.giftProductIds.includes(product.id) &&
+    product.variants.some((variant) => Number(variant.price.amount) > 0) &&
     !product.isGiftCard && (!config.hideNonShipping || product.requiresShipping);
   const products = (ruleIds.length ? await fetchProducts(ruleIds, country) : []).filter(allowed);
   // A matching rule replaces the default unless the merchant asked to top up
@@ -427,7 +433,13 @@ function idList(value) {
     : [];
 }
 
-function parseConfig(value) {
+function parseConfig(value, giftValue) {
+  let gift;
+  try {
+    gift = typeof giftValue === 'string' ? JSON.parse(giftValue) : giftValue;
+  } catch {
+    gift = null;
+  }
   let data;
   try {
     data = typeof value === 'string' ? JSON.parse(value) : value;
@@ -446,6 +458,9 @@ function parseConfig(value) {
     fillWithDefault: settings.fillWithDefault === true,
     excludedProducts: idList(settings.excludedProducts),
     hideNonShipping: settings.hideNonShipping !== false,
+    giftProductIds: (Array.isArray(gift?.products) ? gift.products : [])
+      .map((product) => String(product?.productId || ''))
+      .filter((id) => id.startsWith('gid://shopify/Product/')),
     rules: (Array.isArray(data?.rules) ? data.rules : []).map((rule) => ({
       enabled: rule?.enabled !== false,
       triggers: idList(rule?.triggers),
