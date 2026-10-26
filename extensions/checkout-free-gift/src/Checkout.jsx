@@ -139,11 +139,11 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own. The unlocked offer uses the same
-  // warning banner as the checkout notices; a row inside it opens the gifts,
+  // Checkout can't open a popup on its own. The unlocked offer is an info banner
+  // (light blue); a row inside it opens the gifts,
   // which are listed in the banner too.
   return (
-      <s-banner tone="warning" heading={String(shopify.i18n.translate('unlocked'))}>
+      <s-banner tone="info" heading={String(shopify.i18n.translate('unlocked'))}>
        <s-stack gap="base">
         <s-clickable onClick={() => setOpen((current) => !current)}
           accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
