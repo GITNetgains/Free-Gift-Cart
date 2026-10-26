@@ -137,24 +137,28 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own. The unlocked offer uses the same
-  // warning banner as the checkout notices, with a row that opens the gifts.
-  // Inside a banner every box takes the banner colour, so the gift list sits
-  // just below it on white.
+  // Checkout can't open a popup on its own, and a coloured banner always brings
+  // a warning icon. So the unlocked offer is a white, coupon-style card with
+  // warm (warning-tone) text and icons; tapping its header opens the gifts.
   return (
-    <s-stack gap="small-200">
-      <s-banner tone="warning" heading={String(shopify.i18n.translate('unlocked'))}>
+    <s-box border="base base dashed" borderRadius="large" padding="base" background="base">
+      <s-stack gap="base">
         <s-clickable onClick={() => setOpen((current) => !current)}
           accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
-          <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
-            <s-text>{shopify.i18n.translate(open ? 'chooseOne' : 'tapToChoose')}</s-text>
-            <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
+          <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
+            <s-icon type="gift-card" tone="warning" />
+            <s-stack gap="small-500">
+              <s-text type="strong" tone="warning">{shopify.i18n.translate('unlocked')}</s-text>
+              <s-text type="small" color="subdued">
+                {shopify.i18n.translate(open ? 'chooseOne' : 'tapToChoose')}
+              </s-text>
+            </s-stack>
+            <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" tone="warning" />
           </s-grid>
         </s-clickable>
-      </s-banner>
-      {open && (
-        <s-box background="base" border="base" borderRadius="large" padding="base">
+        {open && (
           <s-stack gap="base">
+            <s-divider />
             {catalog.products.map((product, index) => {
               const variant = variantOf(product);
               const busy = busyId === product.id;
@@ -199,9 +203,9 @@ function Extension() {
             })}
             {error && <s-banner tone="critical">{error}</s-banner>}
           </s-stack>
-        </s-box>
-      )}
-    </s-stack>
+        )}
+      </s-stack>
+    </s-box>
   );
 }
 
