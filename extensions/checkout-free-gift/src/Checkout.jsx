@@ -189,11 +189,9 @@ function Extension() {
                         <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
                       </s-stack>
                     </s-stack>
-                    <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
-                      accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
-                      onClick={() => claim(product)}>
-                      {shopify.i18n.translate('claim')}
-                    </s-button>
+                    <PillButton name="claim" width={72} loading={busy} disabled={Boolean(busyId) && !busy}
+                      label={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
+                      onClick={() => claim(product)} />
                   </s-grid>
                   {product.variants.length > 1 && (
                     <s-select
@@ -221,6 +219,21 @@ function Extension() {
   );
 }
 
+
+// Checkout buttons come in one size and can't be coloured, so the compact
+// dark buttons are pictures served by the app (public/checkout/) inside a
+// clickable. Bump the file version when a picture changes.
+const IMAGE_BASE = 'https://zion.netgains.org/checkout/';
+function PillButton({name, width, label, loading, disabled, onClick}) {
+  return (
+    <s-clickable onClick={onClick} disabled={disabled} loading={loading} accessibilityLabel={label} borderRadius="base">
+      <s-box inlineSize={`${width}px`}>
+        <s-image src={`${IMAGE_BASE}${name}-button-v1.png`} alt={label} inlineSize="fill"
+          aspectRatio={`${width * 2}/64`} borderRadius="base" />
+      </s-box>
+    </s-clickable>
+  );
+}
 
 function Card({children}) {
   return (
