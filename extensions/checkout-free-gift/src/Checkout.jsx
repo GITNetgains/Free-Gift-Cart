@@ -32,6 +32,8 @@ function Extension() {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [removedNotice, setRemovedNotice] = useState(false);
+  // The gift list starts folded; the banner row opens it.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!settings.enabled || !settings.products.length) return undefined;
@@ -136,14 +138,22 @@ function Extension() {
   };
 
   // Checkout can't open a popup on its own. The unlocked offer uses the same
-  // warning banner as the checkout notices; it starts folded and its heading
-  // opens the gift list.
+  // warning banner as the checkout notices, with a row that opens the gifts.
+  // Inside a banner every box takes the banner colour, so the gift list sits
+  // just below it on white.
   return (
-    <s-banner tone="warning" collapsible heading={String(shopify.i18n.translate('unlocked'))}>
-      <s-stack gap="base">
-        <s-text>{shopify.i18n.translate('chooseOne')}</s-text>
-        {/* Gifts sit on a white panel, so the colour stays on the heading. */}
-        <s-box background="base" border="base" borderRadius="base" padding="base">
+    <s-stack gap="small-200">
+      <s-banner tone="warning" heading={String(shopify.i18n.translate('unlocked'))}>
+        <s-clickable onClick={() => setOpen((current) => !current)}
+          accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
+          <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
+            <s-text>{shopify.i18n.translate(open ? 'chooseOne' : 'tapToChoose')}</s-text>
+            <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
+          </s-grid>
+        </s-clickable>
+      </s-banner>
+      {open && (
+        <s-box background="base" border="base" borderRadius="large" padding="base">
           <s-stack gap="base">
             {catalog.products.map((product, index) => {
               const variant = variantOf(product);
@@ -187,11 +197,11 @@ function Extension() {
                 </s-stack>
               );
             })}
+            {error && <s-banner tone="critical">{error}</s-banner>}
           </s-stack>
         </s-box>
-        {error && <s-banner tone="critical">{error}</s-banner>}
-      </s-stack>
-    </s-banner>
+      )}
+    </s-stack>
   );
 }
 
