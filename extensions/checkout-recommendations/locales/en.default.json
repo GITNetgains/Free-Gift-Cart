@@ -8,8 +8,12 @@
   "option": "Option",
   "quantity": "Qty",
   "save": "Save {{percent}}%",
-  "showMore": "Show {{count}} more",
-  "showLess": "Show less",
+  "showMore": {
+    "one": "{{count}} more product you may like",
+    "other": "{{count}} more products you may like"
+  },
+  "fromPrice": "From {{price}} · Tap to view",
+  "showLess": "Show fewer products",
   "addLabel": "Add {{title}} to your order",
   "removeLabel": "Remove {{title}} from your order",
   "cartError": "Your order couldn't be updated. Please try again."

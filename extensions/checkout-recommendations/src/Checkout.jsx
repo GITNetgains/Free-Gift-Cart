@@ -224,15 +224,45 @@ function Extension() {
       {visible.length > 1 && (
         <s-stack gap="base">
           <s-divider />
-          <s-link onClick={() => setExpanded((current) => !current)}>
-            {expanded
-              ? shopify.i18n.translate('showLess')
-              : shopify.i18n.translate('showMore', {count: visible.length - 1})}
-          </s-link>
+          <MoreToggle hidden={visible.slice(1)} expanded={expanded} onToggle={() => setExpanded((current) => !current)} />
         </s-stack>
       )}
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
+  );
+}
+
+// Collapsed, the row previews the hidden products (thumbnails, count and
+// lowest price) so buyers can tell there is more to see; expanded, it folds
+// them away again.
+function MoreToggle({hidden, expanded, onToggle}) {
+  const lowest = hidden
+    .flatMap((product) => product.variants.map((variant) => variant.price))
+    .reduce((min, price) => (Number(price.amount) < Number(min.amount) ? price : min));
+  const title = expanded
+    ? String(shopify.i18n.translate('showLess'))
+    : String(shopify.i18n.translate('showMore', {count: hidden.length}));
+  return (
+    <s-clickable onClick={onToggle} accessibilityLabel={title} borderRadius="base">
+      <s-grid gridTemplateColumns={expanded ? '1fr auto' : 'auto 1fr auto'} columnGap="base" alignItems="center">
+        {!expanded && (
+          <s-stack direction="inline" gap="small-300">
+            {hidden.slice(0, 3).map((product) => (
+              <s-product-thumbnail key={product.id} size="small" src={product.image} alt={product.title} />
+            ))}
+          </s-stack>
+        )}
+        <s-stack gap="small-500">
+          <s-text type="strong">{title}</s-text>
+          {!expanded && (
+            <s-text type="small" color="subdued">
+              {shopify.i18n.translate('fromPrice', {price: formatMoney(lowest)})}
+            </s-text>
+          )}
+        </s-stack>
+        <s-icon type={expanded ? 'chevron-up' : 'chevron-down'} />
+      </s-grid>
+    </s-clickable>
   );
 }
 
