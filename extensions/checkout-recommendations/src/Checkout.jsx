@@ -148,12 +148,12 @@ function Extension() {
         const busy = busyId === product.id;
         const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
         return (
-          <s-stack key={product.id} gap="base">
+          <s-stack key={product.id} gap="small-200">
             {index > 0 && <s-divider />}
             {/* Photo with name and price; the controls sit below at full width
                 so long names and variant titles never get squeezed. */}
-            <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
-              <s-product-thumbnail src={variant.image || product.image} alt={product.imageAlt || product.title} />
+            <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
+              <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
               <s-stack gap="small-500">
                 <s-text type="strong">{product.title}</s-text>
                 {(isAdded || product.variants.length === 1) && variant.title && (
@@ -188,7 +188,7 @@ function Extension() {
                 ))}
               </s-select>
             )}
-            <s-grid gridTemplateColumns="128px 1fr" columnGap="base" alignItems="center">
+            <s-grid gridTemplateColumns="120px 1fr" columnGap="small-200" alignItems="center">
               <s-number-field
                 label={String(shopify.i18n.translate('quantity'))}
                 controls="stepper"
@@ -222,7 +222,7 @@ function Extension() {
         );
       })}
       {visible.length > 1 && (
-        <s-stack gap="base">
+        <s-stack gap="small-200">
           <s-divider />
           <MoreToggle hidden={visible.slice(1)} expanded={expanded} onToggle={() => setExpanded((current) => !current)} />
         </s-stack>
@@ -244,11 +244,11 @@ function MoreToggle({hidden, expanded, onToggle}) {
     : String(shopify.i18n.translate('showMore', {count: hidden.length}));
   return (
     <s-clickable onClick={onToggle} accessibilityLabel={title} borderRadius="base">
-      <s-grid gridTemplateColumns={expanded ? '1fr auto' : 'auto 1fr auto'} columnGap="base" alignItems="center">
+      <s-grid gridTemplateColumns={expanded ? '1fr auto' : 'auto 1fr auto'} columnGap="small-200" alignItems="center">
         {!expanded && (
-          <s-stack direction="inline" gap="small-300">
+          <s-stack direction="inline" gap="small-500">
             {hidden.slice(0, 3).map((product) => (
-              <s-product-thumbnail key={product.id} size="small" src={product.image} alt={product.title} />
+              <s-product-thumbnail key={product.id} size="small-100" src={product.image} alt={product.title} />
             ))}
           </s-stack>
         )}
@@ -269,9 +269,9 @@ function MoreToggle({hidden, expanded, onToggle}) {
 // A white bordered card stands out from the order summary's grey background.
 function Card({heading, children}) {
   return (
-    <s-box border="base" borderRadius="large" padding="base" background="base">
-      <s-stack gap="base">
-        <s-heading>{heading}</s-heading>
+    <s-box border="base" borderRadius="large" padding="small" background="base">
+      <s-stack gap="small-200">
+        <s-text type="strong">{heading}</s-text>
         {children}
       </s-stack>
     </s-box>
