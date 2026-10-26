@@ -231,7 +231,7 @@ function Extension() {
                   </s-button>
                 )
               ) : (
-                <s-button variant="primary" inlineSize="fill" accessibilityLabel={label} loading={busy}
+                <s-button variant="primary" tone="neutral" inlineSize="fill" accessibilityLabel={label} loading={busy}
                   disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
                   {shopify.i18n.translate('add')}
                 </s-button>
@@ -269,13 +269,13 @@ function QuantityStepper({value, title, disabled, onChange}) {
   );
 }
 
-// A white bordered card stands out from the order summary's grey background.
+// The block sits flat in the order summary, without its own border.
 // With more than one product, the header folds the list down to the first
 // product (previewing the rest) and opens it again, like the free gift block.
 function Card({heading, children, hidden = [], expanded = false, onToggle = undefined}) {
   if (!onToggle) {
     return (
-      <s-box border="base" borderRadius="large" padding="small" background="base">
+      <s-box>
         <s-stack gap="small-200">
           <s-text type="strong">{heading}</s-text>
           {children}
@@ -290,7 +290,7 @@ function Card({heading, children, hidden = [], expanded = false, onToggle = unde
     ? String(shopify.i18n.translate('showLess'))
     : String(shopify.i18n.translate('showMore', {count: hidden.length, price: formatMoney(lowest)}));
   return (
-    <s-box border="base" borderRadius="large" padding="small" background="base">
+    <s-box>
       <s-stack gap="small-200">
         <s-clickable onClick={onToggle} borderRadius="base" accessibilityLabel={`${heading}. ${subtitle}`}>
           <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
@@ -298,12 +298,7 @@ function Card({heading, children, hidden = [], expanded = false, onToggle = unde
               <s-text type="strong">{heading}</s-text>
               <s-text type="small" color="subdued">{subtitle}</s-text>
             </s-stack>
-            <s-stack direction="inline" gap="small-300" alignItems="center">
-              {!expanded && hidden.slice(0, 3).map((product) => (
-                <s-product-thumbnail key={product.id} size="small-100" src={product.image} alt={product.title} />
-              ))}
-              <s-icon type={expanded ? 'chevron-up' : 'chevron-down'} size="small" />
-            </s-stack>
+            <s-icon type={expanded ? 'minus' : 'plus'} size="small" />
           </s-grid>
         </s-clickable>
         <s-divider />

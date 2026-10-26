@@ -95,6 +95,11 @@ function Extension() {
 
   if (!eligible) {
     const remaining = threshold - paidSubtotal;
+    // Name the gift so buyers know what they're working towards.
+    const titles = catalog.products.map((product) => product.title);
+    const progress = String(titles.length === 1
+      ? shopify.i18n.translate('progressOne', {amount: formatMoney(remaining, currency), title: titles[0]})
+      : shopify.i18n.translate('progress', {amount: formatMoney(remaining, currency)}));
     return (
       <Card>
         <s-stack gap="small-200">
@@ -103,14 +108,18 @@ function Extension() {
               {shopify.i18n.translate('removed', {amount: formatMoney(threshold, currency)})}
             </s-banner>
           )}
-          <s-stack direction="inline" gap="small-300" alignItems="center">
-            <s-icon type="gift-card" size="small" />
-            <s-text type="strong">
-              {shopify.i18n.translate('progress', {amount: formatMoney(remaining, currency)})}
-            </s-text>
-          </s-stack>
-          <s-progress value={Math.max(0, paidSubtotal)} max={threshold}
-            accessibilityLabel={String(shopify.i18n.translate('progress', {amount: formatMoney(remaining, currency)}))} />
+          <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
+            <s-icon type="gift-card" />
+            <s-stack gap="small-500">
+              <s-text type="strong">{progress}</s-text>
+              {titles.length > 1 && (
+                <s-text type="small" color="subdued">
+                  {shopify.i18n.translate('giftChoices', {titles: titles.join(String(shopify.i18n.translate('or')))})}
+                </s-text>
+              )}
+            </s-stack>
+          </s-grid>
+          <s-progress value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
         </s-stack>
       </Card>
     );
