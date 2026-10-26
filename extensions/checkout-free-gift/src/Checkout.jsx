@@ -140,12 +140,11 @@ function Extension() {
   };
 
   // Checkout can't open a popup on its own. The unlocked offer uses the same
-  // warning banner as the checkout notices, with a row that opens the gifts.
-  // Inside a banner every box takes the banner colour, so the gift list sits
-  // just below it on white.
+  // warning banner as the checkout notices; a row inside it opens the gifts,
+  // which are listed in the banner too.
   return (
-    <s-stack gap="small-200">
       <s-banner tone="warning" heading={String(shopify.i18n.translate('unlocked'))}>
+       <s-stack gap="base">
         <s-clickable onClick={() => setOpen((current) => !current)}
           accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
           <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
@@ -153,10 +152,9 @@ function Extension() {
             <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
           </s-grid>
         </s-clickable>
-      </s-banner>
         {open && (
-          <s-box background="base" border="base" borderRadius="large" padding="base">
           <s-stack gap="base">
+            <s-divider />
             {catalog.products.map((product, index) => {
               const variant = variantOf(product);
               const busy = busyId === product.id;
@@ -216,9 +214,9 @@ function Extension() {
             })}
             {error && <s-banner tone="critical">{error}</s-banner>}
           </s-stack>
-          </s-box>
         )}
-    </s-stack>
+       </s-stack>
+      </s-banner>
   );
 }
 
