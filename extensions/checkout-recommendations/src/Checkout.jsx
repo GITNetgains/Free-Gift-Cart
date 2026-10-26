@@ -178,13 +178,28 @@ function Extension() {
         const busy = busyId === product.id;
         const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
         const isOpen = openId === product.id;
+        // Folded, Add sits beside the product; open, it moves next to the
+        // quantity and the top corner holds the close arrow.
+        const actionButton = isAdded ? (
+          canRemove && (
+            <SmallButton label={label} loading={busy}
+              disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
+              {shopify.i18n.translate('remove')}
+            </SmallButton>
+          )
+        ) : (
+          <s-button variant="primary" accessibilityLabel={label} loading={busy}
+            disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
+            {shopify.i18n.translate('add')}
+          </s-button>
+        );
         return (
           <s-stack key={product.id} gap="base">
             {index > 0 && <s-divider />}
             {/* Tapping the product opens its options (variant and quantity)
                 below; only one product is open at a time. The small Add
                 button on the right adds it straight away. */}
-            <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems="center">
+            <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems={isOpen ? 'start' : 'center'}>
             <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
               accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
             <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
@@ -206,24 +221,17 @@ function Extension() {
                   )}
                   {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
                   {/* Sits after the price so it never wraps onto a line of its own. */}
-                  <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
+                  {!isOpen && <s-icon type="chevron-down" size="small" />}
                 </s-stack>
               </s-stack>
             </s-grid>
             </s-clickable>
-              {isAdded ? (
-                canRemove && (
-                  <SmallButton label={label} loading={busy}
-                    disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
-                    {shopify.i18n.translate('remove')}
-                  </SmallButton>
-                )
-              ) : (
-                <s-button variant="primary" accessibilityLabel={label} loading={busy}
-                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
-                  {shopify.i18n.translate('add')}
-                </s-button>
-              )}
+              {isOpen ? (
+                <s-clickable onClick={() => setOpenId('')} padding="small-200"
+                  accessibilityLabel={String(shopify.i18n.translate('hideOptions', {title: product.title}))}>
+                  <s-icon type="chevron-up" size="small" />
+                </s-clickable>
+              ) : actionButton}
             </s-grid>
             {isOpen && showVariants && (
               <s-select
@@ -241,13 +249,14 @@ function Extension() {
               </s-select>
             )}
             {isOpen && (
-              <s-grid gridTemplateColumns="1fr 1fr" columnGap="small-200" alignItems="center">
+              <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
                 <QuantityStepper
                   value={quantity}
                   title={product.title}
                   disabled={Boolean(busyId) || (isAdded && !canUpdate)}
                   onChange={(value) => changeQuantity(product, value)}
                 />
+                {actionButton}
               </s-grid>
             )}
           </s-stack>
@@ -280,14 +289,14 @@ function QuantityStepper({value, title, disabled, onChange}) {
   return (
     <s-box border="base" borderRadius="base" background="base">
       <s-grid gridTemplateColumns="auto 1fr auto" alignItems="center">
-        <s-clickable padding="base" disabled={disabled || value <= 1} onClick={() => step(-1)}
+        <s-clickable padding="small-200" disabled={disabled || value <= 1} onClick={() => step(-1)}
           accessibilityLabel={String(shopify.i18n.translate('decrease', {title}))}>
           <s-icon type="minus" size="small" />
         </s-clickable>
         <s-stack alignItems="center">
           <s-text type="strong">{value}</s-text>
         </s-stack>
-        <s-clickable padding="base" disabled={disabled || value >= MAX_QUANTITY} onClick={() => step(1)}
+        <s-clickable padding="small-200" disabled={disabled || value >= MAX_QUANTITY} onClick={() => step(1)}
           accessibilityLabel={String(shopify.i18n.translate('increase', {title}))}>
           <s-icon type="plus" size="small" />
         </s-clickable>
