@@ -190,10 +190,7 @@ function Extension() {
             <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
               <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
               <s-stack gap="small-500">
-                <s-stack direction="inline" gap="small-300" alignItems="center">
-                  <s-text>{product.title}</s-text>
-                  <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
-                </s-stack>
+                <s-text>{product.title}</s-text>
                 {(isAdded || product.variants.length === 1) && variant.title && (
                   <s-text type="small" color="subdued">{variant.title}</s-text>
                 )}
@@ -208,6 +205,8 @@ function Extension() {
                     </>
                   )}
                   {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
+                  {/* Sits after the price so it never wraps onto a line of its own. */}
+                  <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
                 </s-stack>
               </s-stack>
             </s-grid>

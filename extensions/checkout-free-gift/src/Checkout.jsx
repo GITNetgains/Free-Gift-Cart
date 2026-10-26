@@ -32,8 +32,6 @@ function Extension() {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [removedNotice, setRemovedNotice] = useState(false);
-  // The gift list starts folded; the header opens it.
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!settings.enabled || !settings.products.length) return undefined;
@@ -137,74 +135,58 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own, so the unlocked card starts folded
-  // and the buyer opens the gift list with the header.
+  // Checkout can't open a popup on its own. The unlocked offer uses the same
+  // warning banner as the checkout notices; it starts folded and its heading
+  // opens the gift list.
   return (
-    <Card>
-      {/* Only the toggle row is tinted, so it reads as the open/close control. */}
-      <s-clickable onClick={() => setOpen((current) => !current)} borderRadius="base"
-        background="subdued" padding="small-100"
-        accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
-        <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
-          <s-icon type="gift-card" />
-          <s-stack gap="small-500">
-            <s-text type="strong">{shopify.i18n.translate('unlocked')}</s-text>
-            <s-text type="small" color="subdued">
-              {shopify.i18n.translate(open ? 'chooseOne' : 'tapToChoose')}
-            </s-text>
-          </s-stack>
-          <s-stack direction="inline" gap="small-300" alignItems="center">
-            {!open && catalog.products.slice(0, 3).map((product) => (
-              <s-product-thumbnail key={product.id} size="small-100" src={product.image} alt={product.title} />
-            ))}
-            <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
-          </s-stack>
-        </s-grid>
-      </s-clickable>
-      {open && catalog.products.map((product) => {
-        const variant = variantOf(product);
-        const busy = busyId === product.id;
-        return (
-          <s-stack key={product.id} gap="small-200">
-            <s-divider />
-            <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
-              <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.title} />
-              <s-stack gap="small-500">
-                <s-text>{product.title}</s-text>
-                <s-stack direction="inline" gap="small-300" alignItems="center">
-                  {/* Gift variants are often $0 products, so only strike a real price. */}
-                  {variant.price > 0 && (
-                    <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
-                  )}
-                  <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
+    <s-banner tone="warning" collapsible heading={String(shopify.i18n.translate('unlocked'))}>
+      <s-stack gap="base">
+        <s-text>{shopify.i18n.translate('chooseOne')}</s-text>
+        {catalog.products.map((product) => {
+          const variant = variantOf(product);
+          const busy = busyId === product.id;
+          return (
+            <s-stack key={product.id} gap="small-200">
+              <s-divider />
+              <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
+                <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.title} />
+                <s-stack gap="small-500">
+                  <s-text>{product.title}</s-text>
+                  <s-stack direction="inline" gap="small-300" alignItems="center">
+                    {/* Gift variants are often $0 products, so only strike a real price. */}
+                    {variant.price > 0 && (
+                      <s-text type="redundant" color="subdued">{formatMoney(variant.price, currency)}</s-text>
+                    )}
+                    <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
+                  </s-stack>
                 </s-stack>
-              </s-stack>
-              <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
-                accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
-                onClick={() => claim(product)}>
-                {shopify.i18n.translate('claim')}
-              </s-button>
-            </s-grid>
-            {product.variants.length > 1 && (
-              <s-select
-                label={product.optionLabel || String(shopify.i18n.translate('option'))}
-                value={variant.id}
-                disabled={Boolean(busyId)}
-                onChange={(event) => {
-                  const variantId = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
-                  setSelected((current) => ({...current, [product.id]: variantId}));
-                }}
-              >
-                {product.variants.map((item) => (
-                  <s-option key={item.id} value={item.id}>{item.title}</s-option>
-                ))}
-              </s-select>
-            )}
-          </s-stack>
-        );
-      })}
-      {error && <s-banner tone="critical">{error}</s-banner>}
-    </Card>
+                <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
+                  accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
+                  onClick={() => claim(product)}>
+                  {shopify.i18n.translate('claim')}
+                </s-button>
+              </s-grid>
+              {product.variants.length > 1 && (
+                <s-select
+                  label={product.optionLabel || String(shopify.i18n.translate('option'))}
+                  value={variant.id}
+                  disabled={Boolean(busyId)}
+                  onChange={(event) => {
+                    const variantId = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
+                    setSelected((current) => ({...current, [product.id]: variantId}));
+                  }}
+                >
+                  {product.variants.map((item) => (
+                    <s-option key={item.id} value={item.id}>{item.title}</s-option>
+                  ))}
+                </s-select>
+              )}
+            </s-stack>
+          );
+        })}
+        {error && <s-banner tone="critical">{error}</s-banner>}
+      </s-stack>
+    </s-banner>
   );
 }
 

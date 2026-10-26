@@ -12,8 +12,5 @@
   "claimLabel": "Claim {{title}} as your free gift",
   "removed": "Your free gift was removed because your order is now under {{amount}}.",
   "cartError": "Your gift couldn't be added. Please try again.",
-  "tapToChoose": "Tap to choose your gift",
-  "showGifts": "Show free gift options",
-  "hideGifts": "Hide free gift options",
   "chooseLabel": "CHOOSE YOUR GIFT"
 }
