@@ -8,7 +8,7 @@
   "chooseOne": "Choose 1 gift. It's free with your order.",
   "free": "FREE",
   "option": "Option",
-  "claim": "Add",
+  "claim": "Claim",
   "claimLabel": "Claim {{title}} as your free gift",
   "removed": "Your free gift was removed because your order is now under {{amount}}.",
   "cartError": "Your gift couldn't be added. Please try again.",
