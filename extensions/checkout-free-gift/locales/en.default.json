@@ -1,0 +1,14 @@
+{
+  "name": "Free gift",
+  "description": "Free gift progress and gift choice in checkout",
+  "progress": "Spend {{amount}} more to unlock a FREE gift",
+  "unlocked": "You've unlocked a FREE gift!",
+  "chooseOne": "Choose 1 gift. It's free with your order.",
+  "free": "FREE",
+  "option": "Option",
+  "claim": "Claim free gift",
+  "claimLabel": "Claim {{title}} as your free gift",
+  "added": "Free gift added",
+  "removed": "Your free gift was removed because your order is now under {{amount}}.",
+  "cartError": "Your gift couldn't be added. Please try again."
+}

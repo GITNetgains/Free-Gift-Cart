@@ -1,0 +1,28 @@
+# Learn more about configuring your checkout UI extension:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration
+
+api_version = "2026-07"
+
+[[extensions]]
+name = "Free gift"
+handle = "checkout-free-gift"
+type = "ui_extension"
+
+# Both placements share one module. The merchant adds the block below the cart
+# lines, or anywhere else, in the checkout editor.
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.cart-line-list.render-after"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+# Storefront API access checks gift stock and the buyer-currency price.
+[extensions.capabilities]
+api_access = true
+
+# The same settings the cart popup and the free-gift-discount function use.
+[[extensions.metafields]]
+namespace = "free_gift_cart"
+key = "settings"
