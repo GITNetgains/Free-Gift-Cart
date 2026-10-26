@@ -6,7 +6,6 @@
   "remove": "Remove",
   "added": "Added",
   "option": "Option",
-  "quantity": "Qty",
   "save": "Save {{percent}}%",
   "showMore": {
     "one": "+{{count}} more from {{price}} · Tap to view",
@@ -15,5 +14,7 @@
   "showLess": "Tap to show fewer",
   "addLabel": "Add {{title}} to your order",
   "removeLabel": "Remove {{title}} from your order",
-  "cartError": "Your order couldn't be updated. Please try again."
+  "cartError": "Your order couldn't be updated. Please try again.",
+  "decrease": "Decrease quantity of {{title}}",
+  "increase": "Increase quantity of {{title}}"
 }

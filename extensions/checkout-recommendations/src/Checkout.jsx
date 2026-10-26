@@ -191,21 +191,12 @@ function Extension() {
                 ))}
               </s-select>
             )}
-            <s-grid gridTemplateColumns="120px 1fr" columnGap="small-200" alignItems="center">
-              <s-number-field
-                label={String(shopify.i18n.translate('quantity'))}
-                controls="stepper"
-                min={1}
-                max={99}
-                step={1}
-                inputMode="numeric"
-                value={String(quantity)}
-                disabled={Boolean(busyId)}
-                readOnly={isAdded && !canUpdate}
-                onChange={(event) => {
-                  const value = Math.round(Number(/** @type {HTMLInputElement} */ (event.currentTarget).value));
-                  if (value >= 1) changeQuantity(product, Math.min(99, value));
-                }}
+            <s-grid gridTemplateColumns="1fr 1fr" columnGap="small-200" alignItems="center">
+              <QuantityStepper
+                value={quantity}
+                title={product.title}
+                disabled={Boolean(busyId) || (isAdded && !canUpdate)}
+                onChange={(value) => changeQuantity(product, value)}
               />
               {isAdded ? (
                 canRemove && (
@@ -226,6 +217,30 @@ function Extension() {
       })}
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
+  );
+}
+
+const MAX_QUANTITY = 99;
+
+// A [ − 1 + ] box like the quantity selector on a product page.
+function QuantityStepper({value, title, disabled, onChange}) {
+  const step = (change) => onChange(Math.min(MAX_QUANTITY, Math.max(1, value + change)));
+  return (
+    <s-box border="base" borderRadius="base" background="base">
+      <s-grid gridTemplateColumns="auto 1fr auto" alignItems="center">
+        <s-clickable padding="base" disabled={disabled || value <= 1} onClick={() => step(-1)}
+          accessibilityLabel={String(shopify.i18n.translate('decrease', {title}))}>
+          <s-icon type="minus" size="small" />
+        </s-clickable>
+        <s-stack alignItems="center">
+          <s-text type="strong">{value}</s-text>
+        </s-stack>
+        <s-clickable padding="base" disabled={disabled || value >= MAX_QUANTITY} onClick={() => step(1)}
+          accessibilityLabel={String(shopify.i18n.translate('increase', {title}))}>
+          <s-icon type="plus" size="small" />
+        </s-clickable>
+      </s-grid>
+    </s-box>
   );
 }
 
