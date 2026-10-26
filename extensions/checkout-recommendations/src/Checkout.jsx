@@ -56,6 +56,8 @@ function Extension() {
   // recommendations, so adding one doesn't reshuffle the list.
   const [added, setAdded] = useState({});
   const [busyId, setBusyId] = useState('');
+  // Only the first product shows until the buyer expands the list.
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
 
   const cartProductIds = [...new Set(lines
@@ -135,7 +137,7 @@ function Extension() {
 
   return (
     <Card heading={config.heading}>
-      {visible.map((product, index) => {
+      {(expanded ? visible : visible.slice(0, 1)).map((product, index) => {
         const isAdded = inCart.has(product.id);
         // Once added, show the variant that is actually in the cart.
         const cartLine = isAdded ? lineOf(product) : null;
@@ -148,15 +150,17 @@ function Extension() {
         return (
           <s-stack key={product.id} gap="base">
             {index > 0 && <s-divider />}
-            <s-grid gridTemplateColumns="auto 1fr auto" columnGap="base" alignItems="center">
+            {/* Photo with name and price; the controls sit below at full width
+                so long names and variant titles never get squeezed. */}
+            <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
               <s-product-thumbnail src={variant.image || product.image} alt={product.imageAlt || product.title} />
               <s-stack gap="small-500">
-                <s-text>{product.title}</s-text>
+                <s-text type="strong">{product.title}</s-text>
                 {(isAdded || product.variants.length === 1) && variant.title && (
                   <s-text type="small" color="subdued">{variant.title}</s-text>
                 )}
                 <s-stack direction="inline" gap="small-300" alignItems="center">
-                  <s-text type="strong">{formatMoney(variant.price)}</s-text>
+                  <s-text>{formatMoney(variant.price)}</s-text>
                   {variant.compareAtPrice && (
                     <>
                       <s-text type="redundant" color="subdued">{formatMoney(variant.compareAtPrice)}</s-text>
@@ -168,36 +172,23 @@ function Extension() {
                   {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
                 </s-stack>
               </s-stack>
-              {isAdded ? (
-                canRemove && (
-                  <s-button variant="secondary" accessibilityLabel={label} loading={busy}
-                    disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
-                    {shopify.i18n.translate('remove')}
-                  </s-button>
-                )
-              ) : (
-                <s-button variant="secondary" accessibilityLabel={label} loading={busy}
-                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
-                  {shopify.i18n.translate('add')}
-                </s-button>
-              )}
             </s-grid>
-            <s-grid gridTemplateColumns={showVariants ? '1fr 9rem' : '9rem'} columnGap="base">
-              {showVariants && (
-                <s-select
-                  label={product.optionLabel || String(shopify.i18n.translate('option'))}
-                  value={variant.id}
-                  disabled={busy}
-                  onChange={(event) => {
-                    const variantId = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
-                    setSelected((current) => ({...current, [product.id]: variantId}));
-                  }}
-                >
-                  {product.variants.map((item) => (
-                    <s-option key={item.id} value={item.id}>{`${item.title} · ${formatMoney(item.price)}`}</s-option>
-                  ))}
-                </s-select>
-              )}
+            {showVariants && (
+              <s-select
+                label={product.optionLabel || String(shopify.i18n.translate('option'))}
+                value={variant.id}
+                disabled={Boolean(busyId)}
+                onChange={(event) => {
+                  const variantId = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
+                  setSelected((current) => ({...current, [product.id]: variantId}));
+                }}
+              >
+                {product.variants.map((item) => (
+                  <s-option key={item.id} value={item.id}>{item.title}</s-option>
+                ))}
+              </s-select>
+            )}
+            <s-grid gridTemplateColumns="128px 1fr" columnGap="base" alignItems="center">
               <s-number-field
                 label={String(shopify.i18n.translate('quantity'))}
                 controls="stepper"
@@ -213,10 +204,33 @@ function Extension() {
                   if (value >= 1) changeQuantity(product, Math.min(99, value));
                 }}
               />
+              {isAdded ? (
+                canRemove && (
+                  <s-button variant="secondary" inlineSize="fill" accessibilityLabel={label} loading={busy}
+                    disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
+                    {shopify.i18n.translate('remove')}
+                  </s-button>
+                )
+              ) : (
+                <s-button variant="primary" inlineSize="fill" accessibilityLabel={label} loading={busy}
+                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
+                  {shopify.i18n.translate('add')}
+                </s-button>
+              )}
             </s-grid>
           </s-stack>
         );
       })}
+      {visible.length > 1 && (
+        <s-stack gap="base">
+          <s-divider />
+          <s-link onClick={() => setExpanded((current) => !current)}>
+            {expanded
+              ? shopify.i18n.translate('showLess')
+              : shopify.i18n.translate('showMore', {count: visible.length - 1})}
+          </s-link>
+        </s-stack>
+      )}
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
   );
