@@ -213,16 +213,16 @@ function Extension() {
             </s-clickable>
               {isAdded ? (
                 canRemove && (
-                  <s-button variant="secondary" accessibilityLabel={label} loading={busy}
+                  <SmallButton label={label} loading={busy}
                     disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
                     {shopify.i18n.translate('remove')}
-                  </s-button>
+                  </SmallButton>
                 )
               ) : (
-                <s-button variant="primary" tone="neutral" accessibilityLabel={label} loading={busy}
+                <SmallButton label={label} loading={busy}
                   disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
                   {shopify.i18n.translate('add')}
-                </s-button>
+                </SmallButton>
               )}
             </s-grid>
             {isOpen && showVariants && (
@@ -257,6 +257,17 @@ function Extension() {
       <s-divider />
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
+  );
+}
+
+// Checkout buttons come in one fixed size, so compact actions are a small
+// bordered clickable instead.
+function SmallButton({label, loading, disabled, onClick, children}) {
+  return (
+    <s-clickable border="base" borderRadius="base" background="base" paddingBlock="small-200" paddingInline="base"
+      accessibilityLabel={label} loading={loading} disabled={disabled} onClick={onClick}>
+      <s-text type="strong">{children}</s-text>
+    </s-clickable>
   );
 }
 
