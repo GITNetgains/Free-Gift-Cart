@@ -6,6 +6,7 @@ api_version = "2026-07"
 [[extensions]]
 name = "Free gift"
 handle = "checkout-free-gift"
+uid = "e7027a70-8ad0-8b45-7329-eeca031a7174cc6b51b7"
 type = "ui_extension"
 
 # Both placements share one module. The merchant adds the block below the cart
