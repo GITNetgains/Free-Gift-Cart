@@ -6,6 +6,7 @@ api_version = "2026-07"
 [[extensions]]
 name = "Product recommendations"
 handle = "checkout-recommendations"
+uid = "d296a286-e696-6ece-36cc-64f3fd7b258c5b2b48b8"
 type = "ui_extension"
 
 # Both placements share one module. The merchant adds the block below the cart
