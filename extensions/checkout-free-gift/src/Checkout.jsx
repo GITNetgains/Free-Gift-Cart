@@ -96,7 +96,7 @@ function Extension() {
             <s-icon type="gift-card" />
             <s-text type="strong">{progress}</s-text>
           </s-grid>
-          <s-progress value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
+          <s-progress tone="critical" value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
         </s-stack>
         <s-divider />
         {/* The gifts on offer, by name only. */}
