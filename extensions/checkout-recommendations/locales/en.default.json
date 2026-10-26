@@ -3,6 +3,12 @@
   "description": "Recommended products buyers can add in checkout",
   "defaultHeading": "You may also like",
   "add": "Add",
+  "remove": "Remove",
+  "added": "Added",
+  "option": "Option",
+  "quantity": "Quantity",
+  "save": "Save {{percent}}%",
   "addLabel": "Add {{title}} to your order",
-  "addError": "This product couldn't be added. Please try again."
+  "removeLabel": "Remove {{title}} from your order",
+  "cartError": "Your order couldn't be updated. Please try again."
 }

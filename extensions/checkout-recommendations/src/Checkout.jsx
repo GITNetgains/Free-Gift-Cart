@@ -16,11 +16,13 @@ const PRODUCT_FIELDS = `
   title
   availableForSale
   featuredImage { url altText }
+  options(first: 3) { name }
   variants(first: 25) {
     nodes {
       id
       title
       availableForSale
+      image { url altText }
       price { amount currencyCode }
       compareAtPrice { amount currencyCode }
     }
@@ -36,89 +38,205 @@ function Extension() {
     target.type === 'shop' && metafield.namespace === NAMESPACE && metafield.key === KEY);
   const rawConfig = entry?.metafield.value;
   const config = parseConfig(rawConfig);
-  const cartProductIds = [...new Set(shopify.lines.value
-    .map((line) => line.merchandise?.product?.id)
-    .filter(Boolean))];
-  const cartKey = cartProductIds.join(',');
+  const lines = shopify.lines.value;
   const country = shopify.localization.country.value?.isoCode;
   const canAdd = shopify.instructions.value?.lines?.canAddCartLine !== false;
+  const canRemove = shopify.instructions.value?.lines?.canRemoveCartLine !== false;
+  const canUpdate = shopify.instructions.value?.lines?.canUpdateCartLine !== false;
 
   // null until the first load finishes; later loads keep showing the previous
-  // list so adding a product doesn't flash a skeleton.
+  // list so a cart change doesn't flash a skeleton.
   const [products, setProducts] = useState(null);
-  const [addingId, setAddingId] = useState('');
+  // Variant picked in each product's dropdown, by product id.
+  const [selected, setSelected] = useState({});
+  // Quantity to add for products not in the cart yet, by product id.
+  const [quantities, setQuantities] = useState({});
+  // Products the buyer added from this block. They stay in the list with a
+  // Remove button and don't count as cart products when picking
+  // recommendations, so adding one doesn't reshuffle the list.
+  const [added, setAdded] = useState({});
+  const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+
+  const cartProductIds = [...new Set(lines
+    .map((line) => line.merchandise?.product?.id)
+    .filter(Boolean))];
+  const seedProductIds = cartProductIds.filter((id) => !added[id]);
+  const seedKey = seedProductIds.join(',');
 
   useEffect(() => {
     if (!config.enabled || !canAdd) return undefined;
     let cancelled = false;
-    loadRecommendations(config, cartProductIds, country)
+    loadRecommendations(config, seedProductIds, country)
       .then((list) => { if (!cancelled) setProducts(list); })
       .catch(() => { if (!cancelled) setProducts([]); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartKey, country, rawConfig, canAdd]);
+  }, [seedKey, country, rawConfig, canAdd]);
 
   if (!config.enabled || !canAdd) return null;
   if (products === null) {
     return (
-      <s-stack gap="base">
-        <s-heading>{config.heading}</s-heading>
+      <Card heading={config.heading}>
         <s-skeleton-paragraph />
-      </s-stack>
+      </Card>
     );
   }
   const inCart = new Set(cartProductIds);
-  const visible = products.filter((product) => !inCart.has(product.id)).slice(0, config.maxProducts);
+  const visible = products
+    .filter((product) => !inCart.has(product.id) || added[product.id])
+    .slice(0, config.maxProducts);
   if (!visible.length) return null;
 
-  const addToCart = async (product) => {
-    setAddingId(product.variantId);
+  const variantOf = (product) =>
+    product.variants.find((variant) => variant.id === selected[product.id]) || product.variants[0];
+  const changeCart = async (productId, change, onSuccess) => {
+    setBusyId(productId);
     setError('');
     try {
-      const result = await shopify.applyCartLinesChange({
-        type: 'addCartLine',
-        merchandiseId: product.variantId,
-        quantity: 1,
-      });
-      if (result.type === 'error') setError(String(shopify.i18n.translate('addError')));
+      const result = await shopify.applyCartLinesChange(change);
+      if (result.type === 'error') setError(String(shopify.i18n.translate('cartError')));
+      else onSuccess();
     } catch {
-      setError(String(shopify.i18n.translate('addError')));
+      setError(String(shopify.i18n.translate('cartError')));
     } finally {
-      setAddingId('');
+      setBusyId('');
     }
+  };
+  const addToCart = (product) => changeCart(
+    product.id,
+    {type: 'addCartLine', merchandiseId: variantOf(product).id, quantity: quantities[product.id] || 1},
+    () => setAdded((current) => ({...current, [product.id]: true})),
+  );
+  const lineOf = (product) => lines.find((item) => item.merchandise?.product?.id === product.id);
+  const changeQuantity = (product, quantity) => {
+    if (!inCart.has(product.id)) {
+      setQuantities((current) => ({...current, [product.id]: quantity}));
+      return;
+    }
+    const line = lineOf(product);
+    if (line && line.quantity !== quantity) {
+      changeCart(product.id, {type: 'updateCartLine', id: line.id, quantity}, () => {});
+    }
+  };
+  const removeFromCart = (product) => {
+    const line = lineOf(product);
+    if (!line) return undefined;
+    return changeCart(
+      product.id,
+      {type: 'removeCartLine', id: line.id, quantity: line.quantity},
+      () => setAdded((current) => {
+        const next = {...current};
+        delete next[product.id];
+        return next;
+      }),
+    );
   };
 
   return (
-    <s-stack gap="base">
-      <s-heading>{config.heading}</s-heading>
-      {visible.map((product) => (
-        <s-grid key={product.id} gridTemplateColumns="auto 1fr auto" gap="base" alignItems="center">
-          <s-product-thumbnail src={product.image} alt={product.imageAlt || product.title} />
-          <s-stack gap="none">
-            <s-text type="strong">{product.title}</s-text>
-            {product.variantTitle && <s-text color="subdued">{product.variantTitle}</s-text>}
-            <s-stack direction="inline" gap="small-200">
-              {product.compareAtPrice && (
-                <s-text type="redundant" color="subdued">{formatMoney(product.compareAtPrice)}</s-text>
+    <Card heading={config.heading}>
+      {visible.map((product, index) => {
+        const isAdded = inCart.has(product.id);
+        // Once added, show the variant that is actually in the cart.
+        const cartLine = isAdded ? lineOf(product) : null;
+        const cartVariantId = cartLine?.merchandise?.id;
+        const quantity = cartLine ? cartLine.quantity : quantities[product.id] || 1;
+        const showVariants = !isAdded && product.variants.length > 1;
+        const variant = product.variants.find((item) => item.id === cartVariantId) || variantOf(product);
+        const busy = busyId === product.id;
+        const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
+        return (
+          <s-stack key={product.id} gap="base">
+            {index > 0 && <s-divider />}
+            <s-grid gridTemplateColumns="auto 1fr auto" columnGap="base" alignItems="center">
+              <s-product-thumbnail src={variant.image || product.image} alt={product.imageAlt || product.title} />
+              <s-stack gap="small-500">
+                <s-text>{product.title}</s-text>
+                {(isAdded || product.variants.length === 1) && variant.title && (
+                  <s-text type="small" color="subdued">{variant.title}</s-text>
+                )}
+                <s-stack direction="inline" gap="small-300" alignItems="center">
+                  <s-text type="strong">{formatMoney(variant.price)}</s-text>
+                  {variant.compareAtPrice && (
+                    <>
+                      <s-text type="redundant" color="subdued">{formatMoney(variant.compareAtPrice)}</s-text>
+                      <s-badge tone="critical" size="small">
+                        {shopify.i18n.translate('save', {percent: savePercent(variant)})}
+                      </s-badge>
+                    </>
+                  )}
+                  {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
+                </s-stack>
+              </s-stack>
+              {isAdded ? (
+                canRemove && (
+                  <s-button variant="secondary" accessibilityLabel={label} loading={busy}
+                    disabled={Boolean(busyId) && !busy} onClick={() => removeFromCart(product)}>
+                    {shopify.i18n.translate('remove')}
+                  </s-button>
+                )
+              ) : (
+                <s-button variant="secondary" accessibilityLabel={label} loading={busy}
+                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
+                  {shopify.i18n.translate('add')}
+                </s-button>
               )}
-              <s-text>{formatMoney(product.price)}</s-text>
-            </s-stack>
+            </s-grid>
+            <s-grid gridTemplateColumns={showVariants ? '1fr 9rem' : '9rem'} columnGap="base">
+              {showVariants && (
+                <s-select
+                  label={product.optionLabel || String(shopify.i18n.translate('option'))}
+                  value={variant.id}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const variantId = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
+                    setSelected((current) => ({...current, [product.id]: variantId}));
+                  }}
+                >
+                  {product.variants.map((item) => (
+                    <s-option key={item.id} value={item.id}>{`${item.title} · ${formatMoney(item.price)}`}</s-option>
+                  ))}
+                </s-select>
+              )}
+              <s-number-field
+                label={String(shopify.i18n.translate('quantity'))}
+                controls="stepper"
+                min={1}
+                max={99}
+                step={1}
+                inputMode="numeric"
+                value={String(quantity)}
+                disabled={Boolean(busyId)}
+                readOnly={isAdded && !canUpdate}
+                onChange={(event) => {
+                  const value = Math.round(Number(/** @type {HTMLInputElement} */ (event.currentTarget).value));
+                  if (value >= 1) changeQuantity(product, Math.min(99, value));
+                }}
+              />
+            </s-grid>
           </s-stack>
-          <s-button
-            variant="secondary"
-            accessibilityLabel={String(shopify.i18n.translate('addLabel', {title: product.title}))}
-            loading={addingId === product.variantId}
-            disabled={Boolean(addingId) && addingId !== product.variantId}
-            onClick={() => addToCart(product)}
-          >
-            {shopify.i18n.translate('add')}
-          </s-button>
-        </s-grid>
-      ))}
+        );
+      })}
       {error && <s-banner tone="critical">{error}</s-banner>}
-    </s-stack>
+    </Card>
   );
+}
+
+// A white bordered card stands out from the order summary's grey background.
+function Card({heading, children}) {
+  return (
+    <s-box border="base" borderRadius="large" padding="base" background="base">
+      <s-stack gap="base">
+        <s-heading>{heading}</s-heading>
+        {children}
+      </s-stack>
+    </s-box>
+  );
+}
+
+function savePercent(variant) {
+  const compareAt = Number(variant.compareAtPrice.amount);
+  return Math.round(((compareAt - Number(variant.price.amount)) / compareAt) * 100);
 }
 
 function formatMoney(money) {
@@ -192,18 +310,27 @@ async function fetchShopifyRecommendations(cartProductIds, country) {
 // buyer's market) come back as null or without an available variant.
 function toCard(product) {
   if (!product?.id || product.availableForSale === false) return null;
-  const variant = product.variants?.nodes?.find((item) => item.availableForSale);
-  if (!variant) return null;
-  const compareAt = Number(variant.compareAtPrice?.amount || 0);
+  const variants = (product.variants?.nodes || [])
+    .filter((variant) => variant.availableForSale)
+    .map((variant) => {
+      const compareAt = Number(variant.compareAtPrice?.amount || 0);
+      return {
+        id: variant.id,
+        title: variant.title === 'Default Title' ? '' : variant.title,
+        image: variant.image?.url || '',
+        price: variant.price,
+        compareAtPrice: compareAt > Number(variant.price.amount) ? variant.compareAtPrice : null,
+      };
+    });
+  if (!variants.length) return null;
   return {
     id: product.id,
     title: product.title,
-    variantId: variant.id,
-    variantTitle: variant.title === 'Default Title' ? '' : variant.title,
     image: product.featuredImage?.url || '',
     imageAlt: product.featuredImage?.altText || '',
-    price: variant.price,
-    compareAtPrice: compareAt > Number(variant.price.amount) ? variant.compareAtPrice : null,
+    // Single-variant products have a lone "Title" option.
+    optionLabel: (product.options || []).map((option) => option.name).filter((name) => name !== 'Title').join(' / '),
+    variants,
   };
 }
 
