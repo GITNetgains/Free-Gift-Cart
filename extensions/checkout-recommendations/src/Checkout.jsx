@@ -240,6 +240,8 @@ function Extension() {
           </s-stack>
         );
       })}
+      {/* Closes the list off from the discount field below. */}
+      <s-divider />
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
   );
