@@ -116,13 +116,12 @@ function Extension() {
             </s-stack>
           </s-grid>
           <s-progress value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
-          {/* Like the cart page banner: the gifts on offer, by name. */}
+          {/* The gifts on offer, by name only. */}
           <s-text type="small" color="subdued">{shopify.i18n.translate('chooseLabel')}</s-text>
           {catalog.products.map((product, index) => (
             <s-stack key={product.id} gap="small-300">
               {index > 0 && <s-text type="small" color="subdued">{shopify.i18n.translate('or')}</s-text>}
-              <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
-                <s-product-thumbnail size="small-100" src={product.image} alt={product.title} />
+              <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
                 <s-text>{product.title}</s-text>
                 <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
               </s-grid>
