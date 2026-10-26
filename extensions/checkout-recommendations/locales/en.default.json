@@ -2,7 +2,7 @@
   "name": "Product recommendations",
   "description": "Recommended products buyers can add in checkout",
   "defaultHeading": "You may also like",
-  "add": "Add to order",
+  "add": "Add",
   "remove": "Remove",
   "added": "Added",
   "option": "Option",
