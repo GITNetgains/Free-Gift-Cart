@@ -10,8 +10,6 @@ import {useEffect, useState} from 'preact/hooks';
 const NAMESPACE = 'free_gift_cart';
 const KEY = 'settings';
 const GIFT_ATTRIBUTE = '_free_gift';
-// Served by the app (public/checkout/); bump the version when the picture changes.
-const UNLOCKED_IMAGE = 'https://zion.netgains.org/checkout/free-gift-unlocked-v1.png';
 
 export default async () => {
   render(<Extension />, document.body);
@@ -139,21 +137,11 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own, and its boxes can't take a warm
-  // background without a banner's warning icon. Folded, the offer is a picture
-  // of the checkout notice style (public/checkout/), which opens the gifts;
-  // open, it is a plain white card.
-  if (!open) {
-    return (
-      <s-clickable onClick={() => setOpen(true)} borderRadius="large"
-        accessibilityLabel={String(shopify.i18n.translate('showGifts'))}>
-        <s-image src={UNLOCKED_IMAGE} inlineSize="fill" aspectRatio="1120/152" borderRadius="large"
-          alt={`${shopify.i18n.translate('unlocked')} ${shopify.i18n.translate('tapToChoose')}`} />
-      </s-clickable>
-    );
-  }
+  // Checkout can't open a popup on its own, and a coloured banner always brings
+  // a warning icon. So the unlocked offer is a white, coupon-style card with
+  // warm (warning-tone) text and icons; tapping its header opens the gifts.
   return (
-    <s-box border="base" borderRadius="large" padding="base" background="base">
+    <s-box border="base base dashed" borderRadius="large" padding="base" background="base">
       <s-stack gap="base">
         <s-clickable onClick={() => setOpen((current) => !current)}
           accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
@@ -189,9 +177,11 @@ function Extension() {
                         <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
                       </s-stack>
                     </s-stack>
-                    <PillButton name="claim" width={72} loading={busy} disabled={Boolean(busyId) && !busy}
-                      label={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
-                      onClick={() => claim(product)} />
+                    <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
+                      accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
+                      onClick={() => claim(product)}>
+                      {shopify.i18n.translate('claim')}
+                    </s-button>
                   </s-grid>
                   {product.variants.length > 1 && (
                     <s-select
@@ -219,21 +209,6 @@ function Extension() {
   );
 }
 
-
-// Checkout buttons come in one size and can't be coloured, so the compact
-// dark buttons are pictures served by the app (public/checkout/) inside a
-// clickable. Bump the file version when a picture changes.
-const IMAGE_BASE = 'https://zion.netgains.org/checkout/';
-function PillButton({name, width, label, loading, disabled, onClick}) {
-  return (
-    <s-clickable onClick={onClick} disabled={disabled} loading={loading} accessibilityLabel={label} borderRadius="base">
-      <s-box inlineSize={`${width}px`}>
-        <s-image src={`${IMAGE_BASE}${name}-button-v1.png`} alt={label} inlineSize="fill"
-          aspectRatio={`${width * 2}/64`} borderRadius="base" />
-      </s-box>
-    </s-clickable>
-  );
-}
 
 function Card({children}) {
   return (

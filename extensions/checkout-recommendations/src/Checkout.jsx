@@ -219,8 +219,10 @@ function Extension() {
                   </SmallButton>
                 )
               ) : (
-                <PillButton name="add" width={56} label={label} loading={busy}
-                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)} />
+                <s-button variant="primary" accessibilityLabel={label} loading={busy}
+                  disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
+                  {shopify.i18n.translate('add')}
+                </s-button>
               )}
             </s-grid>
             {isOpen && showVariants && (
@@ -269,20 +271,6 @@ function SmallButton({label, loading, disabled, onClick, children}) {
   );
 }
 
-// Checkout buttons come in one size and can't be coloured, so the compact
-// dark buttons are pictures served by the app (public/checkout/) inside a
-// clickable. Bump the file version when a picture changes.
-const IMAGE_BASE = 'https://zion.netgains.org/checkout/';
-function PillButton({name, width, label, loading, disabled, onClick}) {
-  return (
-    <s-clickable onClick={onClick} disabled={disabled} loading={loading} accessibilityLabel={label} borderRadius="base">
-      <s-box inlineSize={`${width}px`}>
-        <s-image src={`${IMAGE_BASE}${name}-button-v1.png`} alt={label} inlineSize="fill"
-          aspectRatio={`${width * 2}/64`} borderRadius="base" />
-      </s-box>
-    </s-clickable>
-  );
-}
 
 const MAX_QUANTITY = 99;
 
