@@ -176,19 +176,19 @@ function Extension() {
         const busy = busyId === product.id;
         const label = String(shopify.i18n.translate(isAdded ? 'removeLabel' : 'addLabel', {title: product.title}));
         return (
-          <s-stack key={product.id} gap="small-200">
+          <s-stack key={product.id} gap="base">
             {index > 0 && <s-divider />}
             {/* Photo with name and price; the controls sit below at full width
                 so long names and variant titles never get squeezed. */}
-            <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
+            <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
               <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
               <s-stack gap="small-500">
-                <s-text type="strong">{product.title}</s-text>
+                <s-text>{product.title}</s-text>
                 {(isAdded || product.variants.length === 1) && variant.title && (
                   <s-text type="small" color="subdued">{variant.title}</s-text>
                 )}
                 <s-stack direction="inline" gap="small-300" alignItems="center">
-                  <s-text>{formatMoney(variant.price)}</s-text>
+                  <s-text type="strong">{formatMoney(variant.price)}</s-text>
                   {variant.compareAtPrice && (
                     <>
                       <s-text type="redundant" color="subdued">{formatMoney(variant.compareAtPrice)}</s-text>
@@ -278,7 +278,7 @@ function Card({heading, children, hidden = [], expanded = false, onToggle = unde
   if (!onToggle) {
     return (
       <s-box>
-        <s-stack gap="small-200">
+        <s-stack gap="base">
           <s-text type="strong">{heading}</s-text>
           {children}
         </s-stack>
@@ -293,12 +293,12 @@ function Card({heading, children, hidden = [], expanded = false, onToggle = unde
     : String(shopify.i18n.translate('showMore', {count: hidden.length, price: formatMoney(lowest)}));
   return (
     <s-box>
-      <s-stack gap="small-200">
+      <s-stack gap="base">
         <s-clickable onClick={onToggle} borderRadius="base" accessibilityLabel={`${heading}. ${subtitle}`}>
           <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
             <s-stack gap="small-500">
               <s-text type="strong">{heading}</s-text>
-              <s-text type="small" color="subdued">{subtitle}</s-text>
+              {!expanded && <s-text type="small" color="subdued">{subtitle}</s-text>}
             </s-stack>
             <s-icon type={expanded ? 'minus' : 'plus'} size="small" />
           </s-grid>

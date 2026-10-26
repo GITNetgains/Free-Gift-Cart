@@ -84,26 +84,26 @@ function Extension() {
       : shopify.i18n.translate('progress', {amount: formatMoney(remaining, currency)}));
     return (
       <Card>
+        {removedNotice && (
+          <s-banner tone="warning">
+            {shopify.i18n.translate('removed', {amount: formatMoney(threshold, currency)})}
+          </s-banner>
+        )}
         <s-stack gap="small-200">
-          {removedNotice && (
-            <s-banner tone="warning">
-              {shopify.i18n.translate('removed', {amount: formatMoney(threshold, currency)})}
-            </s-banner>
-          )}
           <s-grid gridTemplateColumns="auto 1fr" columnGap="small-200" alignItems="center">
             <s-icon type="gift-card" />
-            <s-stack gap="small-500">
-              <s-text type="strong">{progress}</s-text>
-
-            </s-stack>
+            <s-text type="strong">{progress}</s-text>
           </s-grid>
           <s-progress value={Math.max(0, paidSubtotal)} max={threshold} accessibilityLabel={progress} />
-          {/* The gifts on offer, by name only. */}
+        </s-stack>
+        <s-divider />
+        {/* The gifts on offer, by name only. */}
+        <s-stack gap="small-200">
           <s-text type="small" color="subdued">{shopify.i18n.translate('chooseLabel')}</s-text>
           {catalog.products.map((product, index) => (
-            <s-stack key={product.id} gap="small-300">
+            <s-stack key={product.id} gap="small-200">
               {index > 0 && <s-text type="strong">{shopify.i18n.translate('or')}</s-text>}
-              <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
+              <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems="center">
                 <s-text>{product.title}</s-text>
                 <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
               </s-grid>
@@ -209,8 +209,8 @@ function Extension() {
 
 function Card({children}) {
   return (
-    <s-box border="base" borderRadius="large" padding="small" background="base">
-      <s-stack gap="small-200">{children}</s-stack>
+    <s-box border="base" borderRadius="large" padding="base" background="base">
+      <s-stack gap="base">{children}</s-stack>
     </s-box>
   );
 }
