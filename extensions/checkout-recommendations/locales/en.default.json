@@ -9,11 +9,10 @@
   "quantity": "Qty",
   "save": "Save {{percent}}%",
   "showMore": {
-    "one": "{{count}} more product you may like",
-    "other": "{{count}} more products you may like"
+    "one": "+{{count}} more from {{price}} · Tap to view",
+    "other": "+{{count}} more from {{price}} · Tap to view all"
   },
-  "fromPrice": "From {{price}} · Tap to view",
-  "showLess": "Show fewer products",
+  "showLess": "Tap to show fewer",
   "addLabel": "Add {{title}} to your order",
   "removeLabel": "Remove {{title}} from your order",
   "cartError": "Your order couldn't be updated. Please try again."
