@@ -10,6 +10,8 @@ import {useEffect, useState} from 'preact/hooks';
 const NAMESPACE = 'free_gift_cart';
 const KEY = 'settings';
 const GIFT_ATTRIBUTE = '_free_gift';
+// Served by the app (public/checkout/); bump the version when the picture changes.
+const UNLOCKED_IMAGE = 'https://zion.netgains.org/checkout/free-gift-unlocked-v1.png';
 
 export default async () => {
   render(<Extension />, document.body);
@@ -137,11 +139,21 @@ function Extension() {
     }
   };
 
-  // Checkout can't open a popup on its own, and a coloured banner always brings
-  // a warning icon. So the unlocked offer is a white, coupon-style card with
-  // warm (warning-tone) text and icons; tapping its header opens the gifts.
+  // Checkout can't open a popup on its own, and its boxes can't take a warm
+  // background without a banner's warning icon. Folded, the offer is a picture
+  // of the checkout notice style (public/checkout/), which opens the gifts;
+  // open, it is a plain white card.
+  if (!open) {
+    return (
+      <s-clickable onClick={() => setOpen(true)} borderRadius="large"
+        accessibilityLabel={String(shopify.i18n.translate('showGifts'))}>
+        <s-image src={UNLOCKED_IMAGE} inlineSize="fill" aspectRatio="1120/152" borderRadius="large"
+          alt={`${shopify.i18n.translate('unlocked')} ${shopify.i18n.translate('tapToChoose')}`} />
+      </s-clickable>
+    );
+  }
   return (
-    <s-box border="base base dashed" borderRadius="large" padding="base" background="base">
+    <s-box border="base" borderRadius="large" padding="base" background="base">
       <s-stack gap="base">
         <s-clickable onClick={() => setOpen((current) => !current)}
           accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
