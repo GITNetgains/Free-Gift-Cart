@@ -140,7 +140,7 @@ function Extension() {
   // Checkout can't open a popup on its own, so the unlocked card starts open
   // and the buyer can fold it away with the header.
   return (
-    <Card>
+    <Card highlight>
       <s-clickable onClick={() => setOpen((current) => !current)} borderRadius="base"
         accessibilityLabel={String(shopify.i18n.translate(open ? 'hideGifts' : 'showGifts'))}>
         <s-grid gridTemplateColumns="auto 1fr auto" columnGap="small-200" alignItems="center">
@@ -207,7 +207,16 @@ function Extension() {
 }
 
 
-function Card({children}) {
+// Checkout boxes only come in white or grey; the warning banner gives the
+// unlocked card its warm highlight.
+function Card({children, highlight = false}) {
+  if (highlight) {
+    return (
+      <s-banner tone="warning">
+        <s-stack gap="base">{children}</s-stack>
+      </s-banner>
+    );
+  }
   return (
     <s-box border="base" borderRadius="large" padding="base" background="base">
       <s-stack gap="base">{children}</s-stack>

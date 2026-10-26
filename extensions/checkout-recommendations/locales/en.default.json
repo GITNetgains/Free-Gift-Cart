@@ -16,5 +16,7 @@
   "removeLabel": "Remove {{title}} from your order",
   "cartError": "Your order couldn't be updated. Please try again.",
   "decrease": "Decrease quantity of {{title}}",
-  "increase": "Increase quantity of {{title}}"
+  "increase": "Increase quantity of {{title}}",
+  "showOptions": "Show options for {{title}}",
+  "hideOptions": "Hide options for {{title}}"
 }
