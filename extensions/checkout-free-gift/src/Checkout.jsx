@@ -177,11 +177,11 @@ function Extension() {
                         <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
                       </s-stack>
                     </s-stack>
-                    <SmallButton loading={busy} disabled={Boolean(busyId) && !busy}
-                      label={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
+                    <s-button variant="primary" loading={busy} disabled={Boolean(busyId) && !busy}
+                      accessibilityLabel={String(shopify.i18n.translate('claimLabel', {title: product.title}))}
                       onClick={() => claim(product)}>
                       {shopify.i18n.translate('claim')}
-                    </SmallButton>
+                    </s-button>
                   </s-grid>
                   {product.variants.length > 1 && (
                     <s-select
@@ -209,17 +209,6 @@ function Extension() {
   );
 }
 
-
-// Checkout buttons come in one fixed size, so compact actions are a small
-// bordered clickable instead.
-function SmallButton({label, loading, disabled, onClick, children}) {
-  return (
-    <s-clickable border="base" borderRadius="base" background="base" paddingBlock="small-200" paddingInline="base"
-      accessibilityLabel={label} loading={loading} disabled={disabled} onClick={onClick}>
-      <s-text type="strong">{children}</s-text>
-    </s-clickable>
-  );
-}
 
 function Card({children}) {
   return (
