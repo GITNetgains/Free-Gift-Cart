@@ -102,7 +102,7 @@ function Extension() {
           <s-text type="small" color="subdued">{shopify.i18n.translate('chooseLabel')}</s-text>
           {catalog.products.map((product, index) => (
             <s-stack key={product.id} gap="small-300">
-              {index > 0 && <s-text type="small" color="subdued">{shopify.i18n.translate('or')}</s-text>}
+              {index > 0 && <s-text type="strong">{shopify.i18n.translate('or')}</s-text>}
               <s-grid gridTemplateColumns="1fr auto" columnGap="small-200" alignItems="center">
                 <s-text>{product.title}</s-text>
                 <s-badge size="small" tone="critical">{shopify.i18n.translate('free')}</s-badge>
