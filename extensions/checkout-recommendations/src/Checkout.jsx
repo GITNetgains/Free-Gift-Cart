@@ -188,10 +188,10 @@ function Extension() {
             </SmallButton>
           )
         ) : (
-          <s-button variant="primary" accessibilityLabel={label} loading={busy}
+          <SmallButton label={label} loading={busy}
             disabled={Boolean(busyId) && !busy} onClick={() => addToCart(product)}>
             {shopify.i18n.translate('add')}
-          </s-button>
+          </SmallButton>
         );
         return (
           <s-stack key={product.id} gap="base">
