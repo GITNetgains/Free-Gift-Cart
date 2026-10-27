@@ -208,11 +208,32 @@ function ProductList({ products, empty, onRemove, onReorder }: {
   );
 }
 
+// A row of product thumbnails with the first titles, for the rule cards.
+function ProductPreview({ label, products }: { label: string; products: ProductRef[] }) {
+  const names = products.map((product) => product.title);
+  const summary = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ");
+  return (
+    <s-stack gap="small-300">
+      <s-text color="subdued">{label}</s-text>
+      {products.length ? (
+        <s-stack direction="inline" gap="small-200" alignItems="center">
+          {products.slice(0, 4).map((product) => (
+            <s-thumbnail key={product.id} src={product.image || undefined} alt={product.title} size="small-200" />
+          ))}
+          {products.length > 4 && <s-badge>{`+${products.length - 4}`}</s-badge>}
+          <s-text>{summary}</s-text>
+        </s-stack>
+      ) : <s-text tone="critical">No products chosen</s-text>}
+    </s-stack>
+  );
+}
+
 export default function CheckoutRecommendations() {
   const data = useLoaderData<typeof loader>();
   const [settings, setSettings] = useState<Settings>(data.settings);
   const [rules, setRules] = useState<Rule[]>(data.rules);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [dirty, setDirty] = useState(false);
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -265,24 +286,46 @@ export default function CheckoutRecommendations() {
     setEditingId(rule.id);
     setDirty(true);
   };
+  // The copy goes right below the original, turned off so it doesn't change
+  // checkout until the merchant has edited and switched it on.
+  const duplicateRule = (id: string) => {
+    if (rules.length >= MAX_RULES) return shopify.toast.show(`You can create up to ${MAX_RULES} rules`, { isError: true });
+    const index = rules.findIndex((rule) => rule.id === id);
+    if (index < 0) return;
+    const source = rules[index];
+    const copy: Rule = {
+      ...source, id: crypto.randomUUID(), enabled: false,
+      name: `${source.name || "Untitled rule"} (copy)`.slice(0, 100),
+      triggers: [...source.triggers], recommendations: [...source.recommendations],
+    };
+    setRules((current) => [...current.slice(0, index + 1), copy, ...current.slice(index + 1)]);
+    setEditingId(copy.id);
+    setDirty(true);
+    shopify.toast.show("Rule copied. Edit it, switch it on, then save.");
+  };
   const removeRule = (id: string) => {
-    setRules((current) => current.filter((rule) => rule.id !== id));
+    const rule = rules.find((item) => item.id === id);
+    if (!window.confirm(`Delete "${rule?.name || "Untitled rule"}"? This takes effect when you save.`)) return;
+    setRules((current) => current.filter((item) => item.id !== id));
     if (editingId === id) setEditingId(null);
+    setDirty(true);
+  };
+  const moveRule = (from: number, to: number) => {
+    setRules((current) => moveItem(current, from, to));
     setDirty(true);
   };
   const save = () => fetcher.submit(
     { settings: JSON.stringify(settings), rules: JSON.stringify(rules) },
     { method: "POST", encType: "application/x-www-form-urlencoded" },
   );
-  const titles = (products: ProductRef[]) => {
-    const names = products.map((product) => product.title);
-    return names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ") || "—";
-  };
+  const query = search.trim().toLowerCase();
+  const visibleRules = rules.filter((rule) => !query || [rule.name, ...rule.triggers.map((product) => product.title),
+    ...rule.recommendations.map((product) => product.title)].some((text) => text.toLowerCase().includes(query)));
+  const activeCount = rules.filter((rule) => rule.enabled).length;
 
   return (
     <s-page heading="Checkout recommendations">
       <s-button slot="primary-action" variant="primary" icon="save" onClick={save} {...(saving ? { loading: true } : {})}>Save</s-button>
-      <s-button slot="secondary-actions" icon="plus" onClick={createRule}>Create rule</s-button>
 
       {dirty && <s-banner tone="info">You have unsaved changes. Click Save to publish them to checkout.</s-banner>}
 
@@ -328,15 +371,83 @@ export default function CheckoutRecommendations() {
                 {`Checkout shows up to ${settings.maxProducts} of these, skipping any already in the cart or sold out. If several rules match, their products are combined in rule order.`}
               </s-paragraph>
 
-              <s-stack direction="inline" gap="base">
-                <s-button variant="primary" onClick={save} {...(saving ? { loading: true } : {})}>Save</s-button>
-                <s-button onClick={() => setEditingId(null)}>Close editor</s-button>
+              <s-divider />
+              <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
+                <s-stack direction="inline" gap="base">
+                  <s-button variant="primary" onClick={save} {...(saving ? { loading: true } : {})}>Save</s-button>
+                  <s-button onClick={() => setEditingId(null)}>Close editor</s-button>
+                </s-stack>
+                <s-stack direction="inline" gap="base">
+                  <s-button icon="duplicate" onClick={() => duplicateRule(editing.id)}>Duplicate</s-button>
+                  <s-button icon="delete" tone="critical" onClick={() => removeRule(editing.id)}>Delete</s-button>
+                </s-stack>
               </s-stack>
             </s-stack>
           </s-section>
         </>
       ) : (
         <>
+          <s-section>
+            <s-stack gap="base">
+              <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
+                <s-stack gap="small-300">
+                  <s-heading>Rules</s-heading>
+                  <s-text color="subdued">{`${rules.length} ${rules.length === 1 ? "rule" : "rules"} · ${activeCount} active · checked top to bottom`}</s-text>
+                </s-stack>
+                <s-button variant="primary" icon="plus" onClick={createRule}>Create rule</s-button>
+              </s-stack>
+              {rules.length > 3 && (
+                <s-search-field label="Search rules" labelAccessibilityVisibility="exclusive" value={search}
+                  placeholder="Search by rule name or product" onInput={(event) => setSearch(event.currentTarget.value)} />
+              )}
+              {rules.length === 0 ? (
+                <s-box padding="large-200" border="base" borderRadius="base" background="subdued">
+                  <s-stack gap="base" alignItems="center">
+                    <s-icon type="product" />
+                    <s-paragraph color="subdued">No rules yet. Create one to choose which products checkout recommends when a certain product is in the cart.</s-paragraph>
+                  </s-stack>
+                </s-box>
+              ) : visibleRules.length === 0 ? (
+                <s-paragraph color="subdued">{`No rules match "${search.trim()}".`}</s-paragraph>
+              ) : visibleRules.map((rule) => {
+                const index = rules.indexOf(rule);
+                return (
+                  <s-box key={rule.id} padding="base" border="base" borderRadius="base">
+                    <s-stack gap="base">
+                      <s-stack direction="inline" gap="base" justifyContent="space-between" alignItems="center">
+                        <s-stack direction="inline" gap="small-200" alignItems="center">
+                          <s-badge>{`#${index + 1}`}</s-badge>
+                          <s-text type="strong">{rule.name || "Untitled rule"}</s-text>
+                          <s-badge tone={rule.enabled ? "success" : "neutral"}>{rule.enabled ? "Active" : "Off"}</s-badge>
+                        </s-stack>
+                        <s-stack direction="inline" gap="small-200" alignItems="center">
+                          <s-switch label={rule.enabled ? "Turn rule off" : "Turn rule on"} labelAccessibilityVisibility="exclusive"
+                            checked={rule.enabled} onChange={(event) => {
+                              const enabled = event.currentTarget.checked;
+                              updateRule(rule.id, { enabled });
+                            }} />
+                          {!query && <>
+                            <s-button icon="arrow-up" variant="tertiary" accessibilityLabel="Move rule up"
+                              disabled={index === 0} onClick={() => moveRule(index, index - 1)} />
+                            <s-button icon="arrow-down" variant="tertiary" accessibilityLabel="Move rule down"
+                              disabled={index === rules.length - 1} onClick={() => moveRule(index, index + 1)} />
+                          </>}
+                          <s-button icon="edit" variant="tertiary" accessibilityLabel="Edit rule" onClick={() => setEditingId(rule.id)} />
+                          <s-button icon="duplicate" variant="tertiary" accessibilityLabel="Duplicate rule" onClick={() => duplicateRule(rule.id)} />
+                          <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel="Delete rule" onClick={() => removeRule(rule.id)} />
+                        </s-stack>
+                      </s-stack>
+                      <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                        <ProductPreview label="When the cart has" products={rule.triggers} />
+                        <ProductPreview label="Recommend" products={rule.recommendations} />
+                      </s-grid>
+                    </s-stack>
+                  </s-box>
+                );
+              })}
+            </s-stack>
+          </s-section>
+
           <s-section heading="Block settings">
             <s-stack gap="base">
               <s-switch label="Show recommendations in checkout" checked={settings.enabled} onChange={(event) => {
@@ -413,38 +524,6 @@ export default function CheckoutRecommendations() {
             </s-stack>
           </s-section>
 
-          <s-section heading={`Rules (${rules.length})`}>
-            {rules.length === 0 ? (
-              <s-stack gap="base">
-                <s-paragraph color="subdued">No rules yet. Create one to choose which products checkout recommends when a certain product is in the cart.</s-paragraph>
-                <s-button icon="plus" onClick={createRule}>Create rule</s-button>
-              </s-stack>
-            ) : (
-              <s-table>
-                <s-table-header-row>
-                  <s-table-header listSlot="primary">Rule</s-table-header>
-                  <s-table-header>When cart has</s-table-header>
-                  <s-table-header>Recommend</s-table-header>
-                  <s-table-header>Status</s-table-header>
-                  <s-table-header></s-table-header>
-                </s-table-header-row>
-                <s-table-body>{rules.map((rule) => (
-                  <s-table-row key={rule.id}>
-                    <s-table-cell><s-text>{rule.name || "Untitled rule"}</s-text></s-table-cell>
-                    <s-table-cell>{titles(rule.triggers)}</s-table-cell>
-                    <s-table-cell>{titles(rule.recommendations)}</s-table-cell>
-                    <s-table-cell><s-badge tone={rule.enabled ? "success" : "neutral"}>{rule.enabled ? "Active" : "Off"}</s-badge></s-table-cell>
-                    <s-table-cell>
-                      <s-stack direction="inline" gap="small-200">
-                        <s-button icon="edit" variant="tertiary" accessibilityLabel="Edit rule" onClick={() => setEditingId(rule.id)} />
-                        <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel="Delete rule" onClick={() => removeRule(rule.id)} />
-                      </s-stack>
-                    </s-table-cell>
-                  </s-table-row>
-                ))}</s-table-body>
-              </s-table>
-            )}
-          </s-section>
         </>
       )}
 
