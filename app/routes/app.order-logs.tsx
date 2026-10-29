@@ -381,8 +381,8 @@ type LogOrder = ReturnType<typeof useLoaderData<typeof loader>>["orders"][number
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-// Order, customer, visit, items and flags share one grid so header and rows line up.
-const COLUMNS = "minmax(110px, 0.8fr) minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(0, 2fr) minmax(130px, 0.9fr)";
+// Order, customer, visit and status share one grid so header and rows line up.
+const COLUMNS = "minmax(150px, 1fr) minmax(0, 1.3fr) minmax(0, 1.6fr) minmax(170px, 1fr)";
 const DOT: Record<Tone, string> = {
   critical: "#c70a24", warning: "#b98900", success: "#0c8a4f", info: "#2463eb", caution: "#b98900", neutral: "#8a8a8a",
 };
@@ -562,17 +562,8 @@ function OrderRow({ order, open, onToggle }: { order: LogOrder; open: boolean; o
           {visit?.landingPage && <s-text color="subdued">{`Landed on ${shortUrl(visit.landingPage)}`}</s-text>}
         </s-stack>
         <s-stack gap="small-100">
-          {order.items.slice(0, 4).map((item, index) => (
-            <s-stack key={index} direction="inline" gap="small-200" alignItems="center">
-              <s-text color={item.gift ? undefined : "subdued"}>{`${item.quantity} × ${item.title}${item.variant ? ` · ${item.variant}` : ""}`}</s-text>
-              {item.outsideApp ? <s-badge tone="critical">Outside app</s-badge> : item.gift && <s-badge tone="success">Gift</s-badge>}
-            </s-stack>
-          ))}
-          {order.items.length > 4 && <s-text color="subdued">{`+${order.items.length - 4} more`}</s-text>}
-        </s-stack>
-        <s-stack gap="small-100">
           {order.flags.length === 0
-            ? <s-badge tone="success">OK</s-badge>
+            ? <s-badge tone="success">{order.giftUnits ? "1 free gift · OK" : "OK"}</s-badge>
             : order.flags.map((flag) => <s-badge key={flag.label} tone={flag.tone}>{flag.label}</s-badge>)}
           {order.note && <s-badge tone="info" icon="note">Note</s-badge>}
         </s-stack>
@@ -661,7 +652,7 @@ export default function OrderLogs() {
             <s-text color="subdued">Click an order to read what the customer did, step by step, and add your notes.</s-text>
             <s-box paddingInline="base">
               <s-grid gridTemplateColumns={COLUMNS} gap="base">
-                {["Order", "Customer", "How they came", "Items", "Flags"].map((heading) => (
+                {["Order", "Customer", "How they came", "Status"].map((heading) => (
                   <s-text key={heading} type="strong" color="subdued">{heading}</s-text>
                 ))}
               </s-grid>
