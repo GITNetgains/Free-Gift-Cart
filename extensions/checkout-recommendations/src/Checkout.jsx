@@ -13,6 +13,13 @@ const MAX_SEED_PRODUCTS = 3;
 // Marks cart lines added from this block, so after checkout reloads the block
 // still knows them and keeps showing their Remove button.
 const REC_ATTRIBUTE = '_recommendation';
+// These products are never recommended, and can be in the order only once
+// however they were added (the free gift block or checkout's own quantity
+// field). Keep in sync with checkout-free-gift.
+const SINGLE_QUANTITY_PRODUCT_IDS = new Set([
+  'gid://shopify/Product/8708096557231',
+  'gid://shopify/Product/8431587655855',
+]);
 
 const PRODUCT_FIELDS = `
   id
@@ -97,6 +104,33 @@ function Extension() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedKey, addedKey, country, rawConfig, canAdd]);
 
+  // Bring single-quantity products back to one: the first line drops to
+  // quantity 1 and any further lines of the same product are removed.
+  const singleKey = lines
+    .filter((line) => SINGLE_QUANTITY_PRODUCT_IDS.has(line.merchandise?.product?.id))
+    .map((line) => `${line.id}:${line.quantity}`)
+    .join(',');
+  useEffect(() => {
+    if (!singleKey) return;
+    const seen = new Set();
+    const changes = [];
+    for (const line of lines) {
+      const productId = line.merchandise?.product?.id;
+      if (!SINGLE_QUANTITY_PRODUCT_IDS.has(productId)) continue;
+      if (seen.has(productId)) {
+        if (canRemove) changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
+      } else {
+        seen.add(productId);
+        if (line.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: line.id, quantity: 1});
+      }
+    }
+    // One change at a time, so checkout doesn't reject overlapping updates.
+    changes.reduce((previous, change) => previous
+      .then(() => shopify.applyCartLinesChange(change))
+      .catch(() => {}), Promise.resolve());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [singleKey]);
+
   if (!config.enabled || !canAdd) return null;
   if (products === null) {
     return (
@@ -107,6 +141,7 @@ function Extension() {
   }
   const inCart = new Set(cartProductIds);
   const visible = products
+    .filter((product) => !SINGLE_QUANTITY_PRODUCT_IDS.has(product.id))
     .filter((product) => !inCart.has(product.id) || addedIds.has(product.id))
     .slice(0, config.maxProducts);
   if (!visible.length) return null;
@@ -365,8 +400,10 @@ async function loadRecommendations(config, cartProductIds, country) {
 
   // Excluded products (and, when the merchant asks, ones that never ship, like
   // shipping protection or gift cards) are never recommended.
-  // Free gift products and $0 items are never sold here either.
+  // Free gift products, single-quantity products and $0 items are never sold
+  // here either.
   const allowed = (product) => !config.excludedProducts.includes(product.id) &&
+    !SINGLE_QUANTITY_PRODUCT_IDS.has(product.id) &&
     !config.giftProductIds.includes(product.id) &&
     product.variants.some((variant) => Number(variant.price.amount) > 0) &&
     !product.isGiftCard && (!config.hideNonShipping || product.requiresShipping);

@@ -10,6 +10,14 @@ import {useEffect, useState} from 'preact/hooks';
 const NAMESPACE = 'free_gift_cart';
 const KEY = 'settings';
 const GIFT_ATTRIBUTE = '_free_gift';
+// These products can be in the order only once, however they were added
+// (this block or checkout's own quantity field). The recommendations block
+// never shows them.
+// Keep in sync with checkout-recommendations.
+const SINGLE_QUANTITY_PRODUCT_IDS = new Set([
+  'gid://shopify/Product/8708096557231',
+  'gid://shopify/Product/8431587655855',
+]);
 
 export default async () => {
   render(<Extension />, document.body);
@@ -71,6 +79,34 @@ function Extension() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giftKey, eligible, threshold]);
 
+  // Bring single-quantity products back to one: the first line drops to
+  // quantity 1 and any further lines of the same product are removed.
+  const canUpdate = shopify.instructions.value?.lines?.canUpdateCartLine !== false;
+  const singleKey = lines
+    .filter((line) => SINGLE_QUANTITY_PRODUCT_IDS.has(line.merchandise?.product?.id))
+    .map((line) => `${line.id}:${line.quantity}`)
+    .join(',');
+  useEffect(() => {
+    if (!singleKey) return;
+    const seen = new Set();
+    const changes = [];
+    for (const line of lines) {
+      const productId = line.merchandise?.product?.id;
+      if (!SINGLE_QUANTITY_PRODUCT_IDS.has(productId)) continue;
+      if (seen.has(productId)) {
+        if (canRemove) changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
+      } else {
+        seen.add(productId);
+        if (line.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: line.id, quantity: 1});
+      }
+    }
+    // One change at a time, so checkout doesn't reject overlapping updates.
+    changes.reduce((previous, change) => previous
+      .then(() => shopify.applyCartLinesChange(change))
+      .catch(() => {}), Promise.resolve());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [singleKey]);
+
   if (!settings.enabled || !catalog || !catalog.products.length || threshold === null) return null;
 
   // Once the gift is in the cart the block has done its job, so it hides.
@@ -118,6 +154,12 @@ function Extension() {
 
   if (!canAdd) return null;
 
+  // A single-quantity product already in the cart can't be claimed again.
+  const cartProductIds = new Set(lines.map((line) => line.merchandise?.product?.id).filter(Boolean));
+  const claimable = catalog.products.filter((product) =>
+    !(SINGLE_QUANTITY_PRODUCT_IDS.has(product.id) && cartProductIds.has(product.id)));
+  if (!claimable.length) return null;
+
   const variantOf = (product) =>
     product.variants.find((variant) => variant.id === selected[product.id]) || product.variants[0];
   const claim = async (product) => {
@@ -161,7 +203,7 @@ function Extension() {
             <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
           </s-grid>
         </s-clickable>
-        {open && catalog.products.map((product) => {
+        {open && claimable.map((product) => {
           const variant = variantOf(product);
           const busy = busyId === product.id;
           const hasVariants = product.variants.length > 1;

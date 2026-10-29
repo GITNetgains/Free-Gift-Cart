@@ -1,6 +1,11 @@
 query CartValidationsGenerateRunInput {
+  buyerJourney { step }
+  presentmentCurrencyRate
   cart {
     lines {
+      quantity
+      giftMarker: attribute(key: "_free_gift") { value }
+      cost { subtotalAmount { amount } }
       discountAllocations { discountedAmount { amount } }
       merchandise {
         __typename
@@ -15,5 +20,6 @@ query CartValidationsGenerateRunInput {
   }
   shop {
     restrictionSettings: metafield(namespace: "free_gift_cart", key: "no_discount_products") { jsonValue }
+    giftSettings: metafield(namespace: "free_gift_cart", key: "settings") { jsonValue }
   }
 }
