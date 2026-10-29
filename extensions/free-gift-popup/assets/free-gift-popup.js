@@ -22,7 +22,8 @@
   }).map((variant) => ({
     ...variant, imageUrl: liveImages[variant.variantId] || liveImages[variant.productId] || variant.imageUrl,
   })) : [];
-  if (!settings.enabled || variants.length === 0) return;
+  // Out-of-stock gifts aren't offered, but the one-gift limit below still runs.
+  if (!settings.enabled) return;
 
   // minimumSpend is saved in the shop currency (USD) while cart.js amounts are in
   // the buyer's currency, so convert it with the storefront's active rate.
@@ -41,9 +42,20 @@
     map.get(variant.productId).variants.push(variant);
     return map;
   }, new Map()).values());
-  const giftVariantIds = new Set(variants.map((variant) => Number(variant.variantId.split("/").pop())));
+  // Gift products by numeric product id, as cart.js reports them. Their
+  // variants are $0, so anyone can add more from the product URL, the console
+  // or a cart permalink; only one unit of one gift may stay in the cart.
+  // The two below are always gifts (keep in sync with the checkout blocks).
+  const giftProductIds = new Set([
+    8708096557231,
+    8431587655855,
+    ...(Array.isArray(settings.products) ? settings.products : [])
+      .map((variant) => Number(String(variant.productId || "").split("/").pop()))
+      .filter(Boolean),
+  ]);
+  const isGiftItem = (item) => item.properties?._free_gift === "true" || giftProductIds.has(item.product_id);
   let selectedProduct = products[0];
-  let selectedVariant = selectedProduct.variants[0];
+  let selectedVariant = selectedProduct?.variants[0];
   let cartCheckInProgress = false;
   let giftRemovalInProgress = false;
 
@@ -154,9 +166,9 @@
 
   const show = (cart) => {
     const signature = cartSignature(cart);
-    const paidSubtotal = cart.items.reduce((total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price, 0);
-    const alreadyHasGift = cart.items.some((item) => item.properties?._free_gift === "true" && giftVariantIds.has(item.variant_id));
-    if (paidSubtotal < threshold || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
+    const paidSubtotal = cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
+    const alreadyHasGift = cart.items.some(isGiftItem);
+    if (!products.length || paidSubtotal < threshold || alreadyHasGift || sessionStorage.getItem("fgc-dismissed-cart") === signature) return;
     if (root.querySelector(".fgc-overlay")) return;
 
     root.style.setProperty("--fgc-background", settings.backgroundColor || "#FFFFFF");
@@ -196,27 +208,39 @@
       const paidSubtotal = cart.items.reduce(
         // Match the function's subtotal before discounts, so another promotion
         // cannot remove an otherwise eligible gift.
-        (total, item) => item.properties?._free_gift === "true" ? total : total + item.original_line_price,
+        (total, item) => isGiftItem(item) ? total : total + item.original_line_price,
         0,
       );
-      const giftItems = cart.items.filter((item) => item.properties?._free_gift === "true");
-
-      if (paidSubtotal < threshold) {
+      const giftItems = cart.items.filter(isGiftItem);
+      const eligible = paidSubtotal >= threshold;
+      if (!eligible) {
         hidePopup();
         sessionStorage.removeItem("fgc-dismissed-cart");
-        if (giftItems.length) {
-          giftRemovalInProgress = true;
-          const updates = Object.fromEntries(giftItems.map((item) => [item.key, 0]));
-          const removeResponse = await fetch(`${basePath}cart/update.js`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ updates }),
-          });
-          if (removeResponse.ok) window.location.reload();
-          else giftRemovalInProgress = false;
-        }
+      }
+
+      // Below the minimum every gift goes; otherwise one unit of one gift
+      // stays (the claimed line if there is one) and the rest go.
+      const keep = eligible ? giftItems.find((item) => item.properties?._free_gift === "true") || giftItems[0] : null;
+      const updates = {};
+      giftItems.forEach((item) => {
+        if (item !== keep) updates[item.key] = 0;
+        else if (item.quantity > 1) updates[item.key] = 1;
+      });
+      if (Object.keys(updates).length) {
+        giftRemovalInProgress = true;
+        const removeResponse = await fetch(`${basePath}cart/update.js`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ updates }),
+        });
+        // Reload only when the cart really changed, so a refused update
+        // can't loop the page.
+        const updated = removeResponse.ok ? await removeResponse.json() : null;
+        if (updated && updated.item_count !== cart.item_count) window.location.reload();
+        else giftRemovalInProgress = false;
         return;
       }
+      if (!eligible) return;
 
       if (!giftItems.length) show(cart);
       else hidePopup();
