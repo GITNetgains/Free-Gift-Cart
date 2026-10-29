@@ -194,32 +194,6 @@
     renderSelector(signature);
   };
 
-  // The cart template's sections (cart-items, cart-footer, ...) plus Dawn's
-  // header cart icon; Shopify renders at most five per request.
-  const cartSections = () => {
-    const sections = Array.from(document.querySelectorAll('.shopify-section[id^="shopify-section-template"]'))
-      .filter((element) => /cart/i.test(element.id))
-      .map((element) => ({ id: element.id.replace("shopify-section-", ""), target: element }));
-    const cartIcon = document.getElementById("cart-icon-bubble");
-    if (cartIcon) sections.push({ id: "cart-icon-bubble", target: cartIcon });
-    return sections.slice(0, 5);
-  };
-  // Swaps in the freshly rendered sections. Returns false when the cart
-  // sections didn't come back, so the caller falls back to a reload.
-  const renderCartSections = (sections, updated) => {
-    if (!sections.some((section) => section.id !== "cart-icon-bubble") || !updated.sections) return false;
-    const parser = new DOMParser();
-    const replacements = [];
-    for (const section of sections) {
-      const html = updated.sections[section.id];
-      const source = html && parser.parseFromString(html, "text/html").querySelector(".shopify-section");
-      if (!source) return false;
-      replacements.push([section.target, source.innerHTML]);
-    }
-    replacements.forEach(([target, html]) => { target.innerHTML = html; });
-    return true;
-  };
-
   const checkCart = async () => {
     if (cartCheckInProgress || giftRemovalInProgress) return;
     cartCheckInProgress = true;
@@ -254,24 +228,16 @@
       });
       if (Object.keys(updates).length) {
         giftRemovalInProgress = true;
-        // Ask for the cart's own sections in the same request, so the extra
-        // gift vanishes without a reload.
-        const sections = cartSections();
         const removeResponse = await fetch(`${basePath}cart/update.js`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            updates,
-            ...(sections.length ? { sections: sections.map((section) => section.id), sections_url: window.location.pathname } : {}),
-          }),
+          body: JSON.stringify({ updates }),
         });
-        // Refresh only when the cart really changed, so a refused update
+        // Reload only when the cart really changed, so a refused update
         // can't loop the page.
         const updated = removeResponse.ok ? await removeResponse.json() : null;
-        if (updated && updated.item_count !== cart.item_count) {
-          if (!renderCartSections(sections, updated)) window.location.reload();
-          else giftRemovalInProgress = false;
-        } else giftRemovalInProgress = false;
+        if (updated && updated.item_count !== cart.item_count) window.location.reload();
+        else giftRemovalInProgress = false;
         return;
       }
       if (!eligible) return;
