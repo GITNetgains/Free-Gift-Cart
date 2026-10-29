@@ -281,3 +281,17 @@ model HelpDeskStaff {
   @@unique([shop, userId])
   @@index([shop])
 }
+
+// Staff notes on an order, written on the Order logs page.
+model OrderLogNote {
+  id        String   @id @default(cuid())
+  shop      String
+  // Numeric Shopify order ID (legacyResourceId).
+  orderId   String
+  note      String
+  author    String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shop, orderId])
+}
