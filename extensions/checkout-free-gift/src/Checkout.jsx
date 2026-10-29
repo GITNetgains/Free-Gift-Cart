@@ -57,55 +57,45 @@ function Extension() {
 
   const allowedVariantIds = new Set(settings.products.map((product) => product.variantId));
   const giftLines = lines.filter((line) => isGiftLine(line) && allowedVariantIds.has(line.merchandise?.id));
+  // Every line of a gift product, claimed through the app or not (the product
+  // URL, /cart/add.js, a cart permalink).
+  const giftProductIds = new Set([
+    ...SINGLE_QUANTITY_PRODUCT_IDS,
+    ...settings.products.map((product) => product.productId).filter(Boolean),
+  ]);
+  const giftProductLines = lines.filter((line) => giftProductIds.has(line.merchandise?.product?.id));
   // Same subtotal as the discount function: paid lines before discounts.
   const paidSubtotal = lines
-    .filter((line) => !isGiftLine(line))
+    .filter((line) => !isGiftLine(line) && !giftProductIds.has(line.merchandise?.product?.id))
     .reduce((total, line) => total + lineSubtotal(line), 0);
   const threshold = catalog ? (settings.minimumSpend / 100) * catalog.rate : null;
   const eligible = threshold !== null && paidSubtotal >= threshold;
 
-  // Below the minimum the gift would be charged at full price, so take it
-  // out, as the cart popup does.
-  const giftKey = giftLines.map((line) => line.id).join(',');
+  // Below the minimum no gift is allowed, so take every gift product out, as
+  // the cart popup does.
+  const giftKey = giftProductLines.map((line) => line.id).join(',');
   useEffect(() => {
-    if (threshold === null || eligible || !giftLines.length || !canRemove || busyId) return;
+    if (threshold === null || eligible || !giftProductLines.length || !canRemove || busyId) return;
     setBusyId('remove');
-    Promise.all(giftLines.map((line) => shopify.applyCartLinesChange({
+    applyChanges(giftProductLines.map((line) => ({
       type: 'removeCartLine', id: line.id, quantity: line.quantity,
     })))
       .then(() => setRemovedNotice(true))
-      .catch(() => {})
       .finally(() => setBusyId(''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giftKey, eligible, threshold]);
 
-  // Bring single-quantity products back to one: the first line drops to
-  // quantity 1 and any further lines of the same product are removed.
+  // Only one free gift in the whole order: keep one unit, preferring the line
+  // claimed through the app, and remove every other gift product line.
   const canUpdate = shopify.instructions.value?.lines?.canUpdateCartLine !== false;
-  const singleKey = lines
-    .filter((line) => SINGLE_QUANTITY_PRODUCT_IDS.has(line.merchandise?.product?.id))
+  const giftProductKey = giftProductLines
     .map((line) => `${line.id}:${line.quantity}`)
     .join(',');
   useEffect(() => {
-    if (!singleKey) return;
-    const seen = new Set();
-    const changes = [];
-    for (const line of lines) {
-      const productId = line.merchandise?.product?.id;
-      if (!SINGLE_QUANTITY_PRODUCT_IDS.has(productId)) continue;
-      if (seen.has(productId)) {
-        if (canRemove) changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
-      } else {
-        seen.add(productId);
-        if (line.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: line.id, quantity: 1});
-      }
-    }
-    // One change at a time, so checkout doesn't reject overlapping updates.
-    changes.reduce((previous, change) => previous
-      .then(() => shopify.applyCartLinesChange(change))
-      .catch(() => {}), Promise.resolve());
+    if (!giftProductKey) return;
+    applyChanges(oneGiftChanges(lines, giftProductIds, canUpdate, canRemove));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [singleKey]);
+  }, [giftProductKey]);
 
   if (!settings.enabled || !catalog || !catalog.products.length || threshold === null) return null;
 
@@ -154,11 +144,8 @@ function Extension() {
 
   if (!canAdd) return null;
 
-  // A single-quantity product already in the cart can't be claimed again.
-  const cartProductIds = new Set(lines.map((line) => line.merchandise?.product?.id).filter(Boolean));
-  const claimable = catalog.products.filter((product) =>
-    !(SINGLE_QUANTITY_PRODUCT_IDS.has(product.id) && cartProductIds.has(product.id)));
-  if (!claimable.length) return null;
+  // A gift product already in the cart, however it got there, is the one gift.
+  if (giftProductKey) return null;
 
   const variantOf = (product) =>
     product.variants.find((variant) => variant.id === selected[product.id]) || product.variants[0];
@@ -203,7 +190,7 @@ function Extension() {
             <s-icon type={open ? 'chevron-up' : 'chevron-down'} size="small" />
           </s-grid>
         </s-clickable>
-        {open && claimable.map((product) => {
+        {open && catalog.products.map((product) => {
           const variant = variantOf(product);
           const busy = busyId === product.id;
           const hasVariants = product.variants.length > 1;
@@ -272,6 +259,29 @@ function Card({children}) {
       <s-stack gap="base">{children}</s-stack>
     </s-box>
   );
+}
+
+// The cart changes that leave a single unit of a single gift product. Keep in
+// sync with checkout-recommendations.
+function oneGiftChanges(lines, giftProductIds, canUpdate, canRemove) {
+  const giftProductLines = lines.filter((line) => giftProductIds.has(line.merchandise?.product?.id));
+  if (!giftProductLines.length) return [];
+  const keep = giftProductLines.find(isGiftLine) || giftProductLines[0];
+  const changes = [];
+  if (keep.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: keep.id, quantity: 1});
+  if (canRemove) {
+    giftProductLines
+      .filter((line) => line !== keep)
+      .forEach((line) => changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity}));
+  }
+  return changes;
+}
+
+// One change at a time, so checkout doesn't reject overlapping updates.
+function applyChanges(changes) {
+  return changes.reduce((previous, change) => previous
+    .then(() => shopify.applyCartLinesChange(change))
+    .catch(() => {}), Promise.resolve());
 }
 
 function isGiftLine(line) {
@@ -357,6 +367,10 @@ function parseSettings(value) {
     minimumSpend: Math.max(0, Number(data?.minimumSpend) || 0),
     products: (Array.isArray(data?.products) ? data.products : [])
       .filter((product) => String(product?.variantId || '').startsWith('gid://shopify/ProductVariant/'))
-      .map((product) => ({variantId: String(product.variantId), price: String(product.price || '')})),
+      .map((product) => ({
+        variantId: String(product.variantId),
+        productId: String(product.productId || ''),
+        price: String(product.price || ''),
+      })),
   };
 }

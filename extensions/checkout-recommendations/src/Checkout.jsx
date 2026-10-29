@@ -104,32 +104,18 @@ function Extension() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedKey, addedKey, country, rawConfig, canAdd]);
 
-  // Bring single-quantity products back to one: the first line drops to
-  // quantity 1 and any further lines of the same product are removed.
-  const singleKey = lines
-    .filter((line) => SINGLE_QUANTITY_PRODUCT_IDS.has(line.merchandise?.product?.id))
+  // Only one free gift in the whole order: keep one unit, preferring the line
+  // claimed through the app, and remove every other gift product line.
+  const giftProductIds = new Set([...SINGLE_QUANTITY_PRODUCT_IDS, ...config.giftProductIds]);
+  const giftKey = lines
+    .filter((line) => giftProductIds.has(line.merchandise?.product?.id))
     .map((line) => `${line.id}:${line.quantity}`)
     .join(',');
   useEffect(() => {
-    if (!singleKey) return;
-    const seen = new Set();
-    const changes = [];
-    for (const line of lines) {
-      const productId = line.merchandise?.product?.id;
-      if (!SINGLE_QUANTITY_PRODUCT_IDS.has(productId)) continue;
-      if (seen.has(productId)) {
-        if (canRemove) changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
-      } else {
-        seen.add(productId);
-        if (line.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: line.id, quantity: 1});
-      }
-    }
-    // One change at a time, so checkout doesn't reject overlapping updates.
-    changes.reduce((previous, change) => previous
-      .then(() => shopify.applyCartLinesChange(change))
-      .catch(() => {}), Promise.resolve());
+    if (!giftKey) return;
+    applyChanges(oneGiftChanges(lines, giftProductIds, canUpdate, canRemove));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [singleKey]);
+  }, [giftKey]);
 
   if (!config.enabled || !canAdd) return null;
   if (products === null) {
@@ -298,6 +284,30 @@ function Extension() {
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
   );
+}
+
+// The cart changes that leave a single unit of a single gift product. Keep in
+// sync with checkout-free-gift.
+function oneGiftChanges(lines, giftProductIds, canUpdate, canRemove) {
+  const giftLines = lines.filter((line) => giftProductIds.has(line.merchandise?.product?.id));
+  if (!giftLines.length) return [];
+  const keep = giftLines.find((line) => line.attributes?.some((attribute) =>
+    attribute.key === '_free_gift' && attribute.value === 'true')) || giftLines[0];
+  const changes = [];
+  if (keep.quantity > 1 && canUpdate) changes.push({type: 'updateCartLine', id: keep.id, quantity: 1});
+  if (canRemove) {
+    giftLines
+      .filter((line) => line !== keep)
+      .forEach((line) => changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity}));
+  }
+  return changes;
+}
+
+// One change at a time, so checkout doesn't reject overlapping updates.
+function applyChanges(changes) {
+  return changes.reduce((previous, change) => previous
+    .then(() => shopify.applyCartLinesChange(change))
+    .catch(() => {}), Promise.resolve());
 }
 
 // Checkout buttons come in one fixed size, so compact actions are a small
