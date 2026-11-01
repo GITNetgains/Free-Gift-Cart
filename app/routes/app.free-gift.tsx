@@ -136,6 +136,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
+// Shopify Functions get null for a metafield value over 10,000 bytes, and the
+// full settings (every gift variant with its image, title and stock) pass
+// that. The functions only need these fields, so they get this small copy.
+function functionSettings(settings: GiftSettings) {
+  return JSON.stringify({
+    enabled: settings.enabled,
+    minimumSpend: settings.minimumSpend,
+    products: settings.products.map(({ productId, variantId }) => ({ productId, variantId })),
+  });
+}
+
 async function ensureAutomaticDiscount(
   admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
   settings: GiftSettings,
@@ -150,7 +161,7 @@ async function ensureAutomaticDiscount(
       namespace: "$app:free_gift_cart",
       key: "settings",
       type: "json",
-      value: JSON.stringify(settings),
+      value: functionSettings(settings),
     }],
   };
 
@@ -228,7 +239,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
     `,
-    { variables: { metafields: [{ ownerId: shopJson.data!.shop!.id, namespace: "free_gift_cart", key: "settings", type: "json", value: JSON.stringify(settings) }] } },
+    { variables: { metafields: [
+      { ownerId: shopJson.data!.shop!.id, namespace: "free_gift_cart", key: "settings", type: "json", value: JSON.stringify(settings) },
+      { ownerId: shopJson.data!.shop!.id, namespace: "free_gift_cart", key: "function_settings", type: "json", value: functionSettings(settings) },
+    ] } },
   );
   const saveJson = await saveResponse.json();
   const error = saveJson.data?.metafieldsSet?.userErrors?.[0]?.message;

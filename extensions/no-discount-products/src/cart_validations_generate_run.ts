@@ -55,7 +55,10 @@ function freeGiftErrors(input: CartValidationsGenerateRunInput): ValidationError
   const step = input.buyerJourney.step;
   if (step === BuyerJourneyStep.CartInteraction) return [];
 
-  const settings = input.shop.giftSettings?.jsonValue as GiftSettings | undefined;
+  // The full settings come back null once they pass 10,000 bytes, so the app
+  // also saves a small copy for functions. Shops not saved since read the old one.
+  const settings = (input.shop.giftRules?.jsonValue ??
+    input.shop.giftSettings?.jsonValue) as GiftSettings | undefined;
   const giftProductIds = new Set([
     ...ALWAYS_GIFT_PRODUCT_IDS,
     ...(settings?.products || []).map((product) => product.productId).filter((id): id is string => Boolean(id)),
@@ -78,7 +81,9 @@ function freeGiftErrors(input: CartValidationsGenerateRunInput): ValidationError
   // Same rule as the free-gift-discount: paid lines, before discounts, must
   // reach the minimum (saved in shop-currency cents). Checked when the order
   // is placed, so buyers can still change their cart in checkout first.
-  if (step === BuyerJourneyStep.CheckoutCompletion || step == null) {
+  // Settings that can't be read say nothing about the offer, so the order
+  // isn't blocked on them (the one-gift limit above still holds).
+  if (settings && (step === BuyerJourneyStep.CheckoutCompletion || step == null)) {
     const paidSubtotalCents = input.cart.lines.reduce((total, line) => {
       if (isGiftProduct(line) || line.giftMarker?.value === "true") return total;
       return total + Math.round(Number(line.cost.subtotalAmount.amount) * 100);

@@ -110,6 +110,22 @@ describe("free gift validation", () => {
     expect(messages(result)).toEqual([expect.stringContaining("isn't available")]);
   });
 
+  test("reads the small function copy of the settings first", () => {
+    const lines = [line(normalProductId, false, false, { amount: "299.99" }), giftLine(slingProductId, { gift: true })];
+    const data = input(false, lines, { gift: null });
+    data.shop.giftRules = { jsonValue: { enabled: true, minimumSpend: 25000, products: [] } };
+    expect(cartValidationsGenerateRun(data)).toEqual({ operations: [] });
+  });
+
+  test("doesn't block the order when the settings come back null (over 10,000 bytes)", () => {
+    const one = [paid, giftLine(slingProductId, { gift: true })];
+    expect(cartValidationsGenerateRun(input(false, one, { gift: null }))).toEqual({ operations: [] });
+    const two = [paid, giftLine(slingProductId, { gift: true, quantity: 2 })];
+    expect(messages(cartValidationsGenerateRun(input(false, two, { gift: null })))).toEqual([
+      expect.stringContaining("Only one free gift"),
+    ]);
+  });
+
   test("leaves cart changes alone so buyers can fix their cart", () => {
     const lines = [giftLine(slingProductId), giftLine(slingProductId)];
     expect(cartValidationsGenerateRun(input(false, lines, { step: "CART_INTERACTION" }))).toEqual({ operations: [] });

@@ -16,6 +16,7 @@ query CartInput {
     }
   }
   shop {
+    giftRules: metafield(namespace: "free_gift_cart", key: "function_settings") { jsonValue }
     giftSettings: metafield(namespace: "free_gift_cart", key: "settings") { jsonValue }
     restrictionSettings: metafield(namespace: "free_gift_cart", key: "no_discount_products") { jsonValue }
   }

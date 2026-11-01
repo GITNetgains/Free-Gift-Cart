@@ -39,6 +39,7 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
   // function. Keep the shop metafield fallback for discounts created by older
   // app versions while merchants migrate through their next settings save.
   const settings = (input.discount.giftSettings?.jsonValue ??
+    input.shop.giftRules?.jsonValue ??
     input.shop.giftSettings?.jsonValue) as GiftSettings | undefined;
   if (!settings?.enabled || !Array.isArray(settings.products)) return { operations };
 
