@@ -406,36 +406,37 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
             <TierFields tier={tier} index={index} onChange={updateTier} onRemove={() => setTiers(view.tiers.filter((item) => item.id !== tier.id))} />
             <s-divider />
             <s-stack gap="small-100">
-              <s-text type="strong">Gifts in this tier</s-text>
-              <s-text color="subdued">Same as Tier 1, unless you swap a product for another one.</s-text>
+              <s-text type="strong">Replace Tier 1 gifts</s-text>
+              <s-text color="subdued">{`For each Tier 1 gift, choose what the shopper gets in Tier ${index + 1}. Leave "Same product" to keep it.`}</s-text>
             </s-stack>
-            {baseGroups.length === 0 ? <s-text color="subdued">Choose the Tier 1 gift products first.</s-text> : <s-table>
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Tier 1 gift</s-table-header>
-                <s-table-header>Becomes</s-table-header>
-                <s-table-header>Variants</s-table-header>
-                <s-table-header></s-table-header>
-              </s-table-header-row>
-              <s-table-body>{baseGroups.map((group) => {
+            {baseGroups.length === 0 ? <s-text color="subdued">Choose the Tier 1 gift products first.</s-text> : <s-stack gap="small-300">
+              {baseGroups.map((group) => {
                 const replacement = tier.replacements.find((item) => item.fromProductId === group.productId);
                 const summary = productSummary(replacement?.products || group.variants);
-                return <s-table-row key={group.productId}>
-                  <s-table-cell><GiftThumb product={group.variants[0]} /></s-table-cell>
-                  <s-table-cell>
-                    {replacement
-                      ? <s-stack direction="inline" gap="small-200" alignItems="center"><s-icon type="arrow-right" tone="success" /><GiftThumb product={replacement.products[0]} /></s-stack>
-                      : <s-text color="subdued">No change</s-text>}
-                  </s-table-cell>
-                  <s-table-cell>{summary.options}</s-table-cell>
-                  <s-table-cell>
-                    <s-stack direction="inline" gap="small-200" justifyContent="end">
-                      {replacement && <s-button variant="tertiary" onClick={() => clearReplacement(tier, group.productId)}>Undo</s-button>}
-                      <s-button icon="replace" onClick={() => pickReplacement(tier, group.productId)}>{replacement ? "Change" : "Swap"}</s-button>
+                return <s-box key={group.productId} padding="small-200" border="base" borderRadius="base">
+                  <s-grid gridTemplateColumns="minmax(0, 1fr) auto minmax(0, 1fr) auto" gap="base" alignItems="center">
+                    <s-stack gap="small-100">
+                      <s-text color="subdued">Tier 1 gift</s-text>
+                      <GiftThumb product={group.variants[0]} />
                     </s-stack>
-                  </s-table-cell>
-                </s-table-row>;
-              })}</s-table-body>
-            </s-table>}
+                    <s-icon type="arrow-right" tone={replacement ? "success" : "neutral"} />
+                    <s-stack gap="small-100">
+                      <s-text color="subdued">{`In Tier ${index + 1}`}</s-text>
+                      {replacement
+                        ? <s-stack direction="inline" gap="small-200" alignItems="center"><GiftThumb product={replacement.products[0]} /><s-badge tone="success">Replaced</s-badge></s-stack>
+                        : <s-stack direction="inline" gap="small-200" alignItems="center"><GiftThumb product={group.variants[0]} /><s-badge>Same product</s-badge></s-stack>}
+                      <s-text color="subdued">{summary.options} · {summary.skus}</s-text>
+                    </s-stack>
+                    <s-stack direction="inline" gap="small-200">
+                      {replacement && <s-button variant="tertiary" onClick={() => clearReplacement(tier, group.productId)}>Keep same</s-button>}
+                      <s-button variant={replacement ? "secondary" : "primary"} icon="replace" onClick={() => pickReplacement(tier, group.productId)}>
+                        {replacement ? "Change" : "Replace with…"}
+                      </s-button>
+                    </s-stack>
+                  </s-grid>
+                </s-box>;
+              })}
+            </s-stack>}
           </s-stack>
         </s-section>;
       })}
