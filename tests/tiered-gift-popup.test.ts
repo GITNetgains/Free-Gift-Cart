@@ -28,7 +28,27 @@ type Item = { key: string; variant_id: number; product_id: number; quantity: num
 const paid = (cents: number): Item => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
 const giftLine = (key: string, variant: number, tier: string): Item => ({ key, variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
 
-async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }) {
+// A Dawn-style cart row: id CartItem-<line>, a product link and a quantity selector.
+function cartRow(line: number) {
+  const attributes: Record<string, string> = { href: "/products/hoodie?variant=31" };
+  const link = {
+    dataset: {} as Record<string, string>,
+    getAttribute: (name: string) => attributes[name] ?? null,
+    setAttribute: (name: string, value: string) => { attributes[name] = value; },
+    removeAttribute: (name: string) => { delete attributes[name]; },
+  };
+  const quantityBox = { hidden: false, querySelector: () => null };
+  const quantityInput = { hidden: false, closest: () => quantityBox };
+  const row = {
+    id: `CartItem-${line}`, classes: new Set<string>(),
+    classList: { add(name: string) { row.classes.add(name); } },
+    closest: () => row,
+    querySelectorAll: (selector: string) => selector === "a[href]" ? (attributes.href ? [link] : []) : selector.includes("updates[]") ? [quantityInput] : [],
+  };
+  return { row, link: attributes, quantityBox };
+}
+
+async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }, rows: Array<ReturnType<typeof cartRow>> = []) {
   let html = "";
   // Every innerHTML the popup writes (cards, then each options refresh).
   const writes: string[] = [];
@@ -50,6 +70,7 @@ async function run(items: Item[], pathname = "/products/case", shop = { currency
     dataset: { cartPath: "/cart", shopCurrency: shop.currency } as Record<string, string>, hidden: true, classList: { add() {} }, style: { setProperty() {} },
     querySelector: (selector: string) => nodes[selector] || (selector === ".fgc-overlay" ? (html ? element() : null) : element()),
     querySelectorAll: () => [],
+    contains: () => false,
     insertAdjacentHTML: (_: string, value: string) => { html += value; },
   };
   const fetch = async (url: string, init?: { body?: string }) => {
@@ -63,12 +84,14 @@ async function run(items: Item[], pathname = "/products/case", shop = { currency
   };
   runInNewContext(source, {
     window, document: {
-      getElementById: () => root, addEventListener() {}, visibilityState: "visible",
+      getElementById: () => root, addEventListener() {}, visibilityState: "visible", body: {},
+      querySelectorAll: (selector: string) => rows.filter(({ row }) => selector.includes(`#${row.id},`) || selector.endsWith(`#${row.id}`)).map(({ row }) => row),
       documentElement: { classList: { add() {}, remove() {} }, lang: "en" },
       createElement: () => { let text = ""; return { set textContent(value: string) { text = value; }, get innerHTML() { return text.replaceAll("<", "&lt;"); } }; },
     },
     sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    XMLHttpRequest: function XMLHttpRequest() {}, Intl, JSON, Number, String, Math, Set, Map, Object, Array, Promise,
+    XMLHttpRequest: function XMLHttpRequest() {}, MutationObserver: class { observe() {} }, Element: class {},
+    Intl, JSON, Number, String, Math, Set, Map, Object, Array, Promise,
   });
   await new Promise((resolve) => setTimeout(resolve, 20));
   return { html, content: writes.join("\n"), updates };
@@ -135,5 +158,17 @@ describe("price gifts popup", () => {
     // Only black exists in size S, so gray isn't offered.
     expect(option("black")).toContain("is-selected");
     expect(option("gray")).toBeUndefined();
+  });
+
+  test("the gift line in the cart has no product link and no quantity selector; paid lines are untouched", async () => {
+    const paidRow = cartRow(1);
+    const giftRow = cartRow(2);
+    await run([paid(40000), giftLine("gift", 31, "t2")], "/cart", undefined, [paidRow, giftRow]);
+    expect(giftRow.link.href).toBeUndefined();
+    expect(giftRow.link["aria-disabled"]).toBe("true");
+    expect(giftRow.quantityBox.hidden).toBe(true);
+    expect(giftRow.row.classes.has("fgc-gift-line")).toBe(true);
+    expect(paidRow.link.href).toBe("/products/hoodie?variant=31");
+    expect(paidRow.quantityBox.hidden).toBe(false);
   });
 });

@@ -298,6 +298,64 @@
     root.querySelector(".fgc-close")?.focus({ preventScroll: true });
   };
 
+  // Gift lines in the theme's cart (page and drawer) can't be opened or
+  // changed: their product links stop working and the quantity selector is
+  // hidden. The remove button stays. Rows are found by line key or line
+  // number (Dawn-style ids); a product link with ?variant= is the fallback
+  // when no paid line shares the variant.
+  let lastCart = null;
+  const ROW = "tr, li, .cart-item, .cart-drawer-item, [class*='cart-item'], [class*='line-item'], [class*='CartItem']";
+  const rowsFor = (item, index) => {
+    const rows = new Set();
+    const line = index + 1;
+    document.querySelectorAll(`[data-key="${item.key}"], [data-line-item-key="${item.key}"], [data-cart-item-key="${item.key}"], [data-item-key="${item.key}"], #CartItem-${line}, #CartDrawer-Item-${line}`)
+      .forEach((element) => rows.add(element.closest(ROW) || element));
+    document.querySelectorAll(`input[data-index="${line}"], [data-line="${line}"]`).forEach((element) => {
+      const row = element.closest(ROW);
+      if (row) rows.add(row);
+    });
+    const sharedWithPaid = lastCart.items.some((other) => other !== item && other.variant_id === item.variant_id && !isGiftItem(other));
+    if (!rows.size && !sharedWithPaid) {
+      document.querySelectorAll(`a[href*="variant=${item.variant_id}"]`).forEach((link) => {
+        const row = link.closest(ROW);
+        if (row) rows.add(row);
+      });
+    }
+    return [...rows].filter((row) => row && row !== document.body && row !== root && !root.contains(row));
+  };
+  const lockRow = (row) => {
+    row.classList.add("fgc-gift-line");
+    row.querySelectorAll("a[href]").forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      if (!/\/products\//.test(href)) return;
+      link.dataset.fgcHref = href;
+      link.removeAttribute("href");
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("tabindex", "-1");
+    });
+    row.querySelectorAll("input[name='updates[]'], input[type='number'], quantity-input, .quantity, [class*='quantity-selector'], [class*='quantity__']").forEach((element) => {
+      // Hide the selector, never the remove button that may sit beside it.
+      const box = element.closest("quantity-input, .quantity, [class*='quantity-selector']") || element;
+      if (box.querySelector("cart-remove-button, [href*='/cart/change'], [class*='remove'], [aria-label*='emove']")) element.hidden = true;
+      else box.hidden = true;
+    });
+  };
+  const lockGiftRows = () => {
+    if (!lastCart) return;
+    lastCart.items.forEach((item, index) => { if (isGiftItem(item)) rowsFor(item, index).forEach(lockRow); });
+  };
+  // Themes redraw the cart after changes; lock the new rows too.
+  let lockTimer = 0;
+  new MutationObserver(() => {
+    window.clearTimeout(lockTimer);
+    lockTimer = window.setTimeout(lockGiftRows, 60);
+  }).observe(document.body, { childList: true, subtree: true });
+  // A product link that a theme script adds back is blocked on click.
+  document.addEventListener("click", (event) => {
+    const link = event.target instanceof Element ? event.target.closest(".fgc-gift-line a") : null;
+    if (link && /\/products\//.test(link.getAttribute("href") || link.dataset.fgcHref || "")) event.preventDefault();
+  }, true);
+
   const checkCart = async () => {
     if (busy) { pending = true; return; }
     busy = true;
@@ -305,6 +363,8 @@
       const response = await nativeFetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!response.ok) return;
       const cart = await response.json();
+      lastCart = cart;
+      lockGiftRows();
       const subtotal = paidSubtotal(cart);
       const tier = tierFor(subtotal, cart.currency);
 
