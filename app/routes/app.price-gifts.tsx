@@ -193,24 +193,6 @@ function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size
   </s-stack>;
 }
 
-// The overview card for one tier: range, what the shopper gets, gift pictures.
-function TierCard({ tier, index, tiers }: { tier: GiftTier; index: number; tiers: GiftTier[] }) {
-  const groups = baseProductGroups(tier.products);
-  return <s-box padding="base" border="base" borderRadius="large" background={index === 0 ? "base" : "subdued"}>
-    <s-stack gap="small-300">
-      <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent="space-between">
-        <s-text color="subdued" type="strong">TIER {index + 1}</s-text>
-        <s-badge tone={tier.mode === "all" ? "success" : "info"}>{tier.mode === "all" ? "All gifts free" : "Pick 1 gift"}</s-badge>
-      </s-stack>
-      <s-heading>{tierRange(tiers, index)}</s-heading>
-      {groups.length === 0 ? <s-text color="subdued">No gifts yet</s-text> : groups.map((group, groupIndex) => <s-stack key={group.productId} gap="small-300">
-        {groupIndex > 0 && <s-text color="subdued">{tier.mode === "all" ? "+" : "or"}</s-text>}
-        <GiftThumb product={group.variants[0]} />
-      </s-stack>)}
-    </s-stack>
-  </s-box>;
-}
-
 function TierFields({ tier, index, onChange, onRemove }: {
   tier: GiftTier; index: number; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
@@ -347,13 +329,6 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
             onChange={(event) => setSettings((current) => ({ ...current, enabled: event.currentTarget.checked ?? false }))} />
         </s-grid>
       </s-section>
-
-      {/* Overview */}
-      {view.tiers.length > 0 && <s-section heading="Overview">
-        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base">
-          {view.tiers.map((tier, index) => <TierCard key={tier.id} tier={tier} index={index} tiers={view.tiers} />)}
-        </s-grid>
-      </s-section>}
 
       {/* Tier 1 */}
       {base ? <s-section heading={`Tier 1 · ${tierRange(view.tiers, 0)}`}>
