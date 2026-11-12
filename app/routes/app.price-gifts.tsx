@@ -193,23 +193,33 @@ function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size
   </s-stack>;
 }
 
-function TierFields({ tier, index, onChange, onRemove }: {
-  tier: GiftTier; index: number; onChange: (tier: GiftTier) => void; onRemove?: () => void;
+// Tier title with its Remove button, then the two settings side by side,
+// top-aligned, each with one helper line so the fields line up.
+function TierFields({ tier, index, tiers, onChange, onRemove }: {
+  tier: GiftTier; index: number; tiers: GiftTier[]; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
-  return <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base" alignItems="end">
-    <s-number-field label="Starts at cart value" prefix="$" inputMode="numeric" min={0} step={1}
-      details={index === 0 ? "Paid subtotal, before discounts, gifts excluded." : `Takes over from Tier ${index} at this amount.`}
-      value={String(Math.round(tier.minimumSpend / 100))}
-      onChange={(event) => onChange({ ...tier, minimumSpend: Math.max(0, Math.trunc(Number(event.currentTarget.value) || 0)) * 100 })} />
-    <s-select label="Shopper gets" value={tier.mode}
-      onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : "one" })}>
-      <s-option value="one">Pick 1 gift</s-option>
-      <s-option value="all">All gifts free</s-option>
-    </s-select>
-    {onRemove && <s-stack direction="inline" justifyContent="end">
-      <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button>
-    </s-stack>}
-  </s-grid>;
+  return <s-stack gap="base">
+    <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+      <s-stack direction="inline" gap="small-200" alignItems="center">
+        <s-heading>Tier {index + 1}</s-heading>
+        <s-badge>{tierRange(tiers, index)}</s-badge>
+        <s-badge tone={tier.mode === "all" ? "success" : "info"}>{tier.mode === "all" ? "All gifts free" : "Pick 1 gift"}</s-badge>
+      </s-stack>
+      {onRemove ? <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button> : <span />}
+    </s-grid>
+    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base" alignItems="start">
+      <s-number-field label="Starts at cart value" prefix="$" inputMode="numeric" min={0} step={1}
+        details={index === 0 ? "Paid subtotal, before discounts, gifts excluded." : `Takes over from Tier ${index} at this amount.`}
+        value={String(Math.round(tier.minimumSpend / 100))}
+        onChange={(event) => onChange({ ...tier, minimumSpend: Math.max(0, Math.trunc(Number(event.currentTarget.value) || 0)) * 100 })} />
+      <s-select label="Shopper gets" value={tier.mode}
+        details={tier.mode === "all" ? "Every gift in this tier is added free." : "The shopper chooses one gift."}
+        onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : "one" })}>
+        <s-option value="one">Pick 1 gift</s-option>
+        <s-option value="all">All gifts free</s-option>
+      </s-select>
+    </s-grid>
+  </s-stack>;
 }
 
 export default function PriceGifts() {
@@ -331,9 +341,9 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
       </s-section>
 
       {/* Tier 1 */}
-      {base ? <s-section heading={`Tier 1 · ${tierRange(view.tiers, 0)}`}>
+      {base ? <s-section>
         <s-stack gap="base">
-          <TierFields tier={base} index={0} onChange={updateTier} onRemove={view.tiers.length === 1 ? () => setTiers([]) : undefined} />
+          <TierFields tier={base} index={0} tiers={view.tiers} onChange={updateTier} onRemove={view.tiers.length === 1 ? () => setTiers([]) : undefined} />
           <s-divider />
           <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
             <s-text type="strong">Gift products ({countProducts(base.products)}/{MAX_TIER_PRODUCTS})</s-text>
@@ -376,9 +386,9 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
       {/* Higher tiers */}
       {view.tiers.slice(1).map((tier, offset) => {
         const index = offset + 1;
-        return <s-section key={tier.id} heading={`Tier ${index + 1} · ${tierRange(view.tiers, index)}`}>
+        return <s-section key={tier.id}>
           <s-stack gap="base">
-            <TierFields tier={tier} index={index} onChange={updateTier} onRemove={() => setTiers(view.tiers.filter((item) => item.id !== tier.id))} />
+            <TierFields tier={tier} index={index} tiers={view.tiers} onChange={updateTier} onRemove={() => setTiers(view.tiers.filter((item) => item.id !== tier.id))} />
             <s-divider />
             <s-stack gap="small-100">
               <s-text type="strong">Replace Tier 1 gifts</s-text>
