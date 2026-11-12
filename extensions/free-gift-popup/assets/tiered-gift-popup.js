@@ -57,8 +57,12 @@
 
   // Always-gift products (their variants are $0), as in free-gift-popup.js.
   const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
+  // Every tier gift variant. A $0 line of one, added from its product page
+  // rather than the popup, is a gift too; a paid line of it is a purchase.
+  const tierVariantIds = new Set(tiers.flatMap((tier) => tier.allProducts.flatMap((product) => [...product.variantIds])));
   const isTierGift = (item) => Boolean(item.properties?._tier_gift);
-  const isGiftItem = (item) => isTierGift(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
+  const isFreeTierVariant = (item) => !isTierGift(item) && tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0;
+  const isGiftItem = (item) => isTierGift(item) || isFreeTierVariant(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
   // Before discounts, like the discount function.
   const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
   const activeTier = (cart) => {
@@ -220,10 +224,12 @@
 
       // Keep only this tier's gifts: one unit per gift product, and a single
       // gift in "one" tiers. Lower-tier gifts, other gifts and extra units go.
+      // The newest gift wins, so adding another gift replaces the earlier
+      // one. cart.js lists the most recently added line first.
       const updates = {};
       const kept = new Set();
       cart.items.filter(isGiftItem).forEach((item) => {
-        const product = tier && item.properties?._tier_gift === tier.id
+        const product = tier && (item.properties?._tier_gift === tier.id || isFreeTierVariant(item))
           ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
         if (!product || kept.has(product.id) || (tier.mode === "one" && kept.size > 0)) { updates[item.key] = 0; return; }
         kept.add(product.id);
