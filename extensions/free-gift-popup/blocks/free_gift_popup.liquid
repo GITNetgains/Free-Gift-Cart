@@ -1,6 +1,44 @@
 {% assign gift_settings = shop.metafields.free_gift_cart.settings.value %}
+{% assign tier_settings = shop.metafields.tiered_gift.settings.value %}
 
-{% if gift_settings != blank and gift_settings.enabled %}
+{% if tier_settings != blank and tier_settings.enabled and tier_settings.tiers.size > 0 %}
+  {% comment %}
+    Price gifts (spend tiers, app/routes/app.price-gifts.tsx) are on: the same
+    popup offers the gifts of the cart's tier, run by tiered-gift-popup.js.
+    Text and colors still come from the Free gift settings. Stores without
+    price gift settings never reach this branch.
+  {% endcomment %}
+  <div id="free-gift-cart-root" data-free-gift-master data-cart-path="{{ routes.cart_url }}" hidden>
+    <script type="application/json" data-free-gift-settings>{% if gift_settings != blank %}{{ gift_settings | json }}{% else %}{}{% endif %}</script>
+    <script type="application/json" data-tiered-gift-settings>{{ tier_settings | json }}</script>
+    <script type="application/json" data-tiered-gift-inventory>
+      {
+        {% assign inventory_first = true %}
+        {% for tier in tier_settings.tiers %}
+          {% for gift in tier.products %}
+            {% if gift.productHandle != blank %}
+              {% assign inventory_product = all_products[gift.productHandle] %}
+              {% assign inventory_variant_id = gift.variantId | split: '/' | last | plus: 0 %}
+              {% for inventory_variant in inventory_product.variants %}
+                {% if inventory_variant.id == inventory_variant_id %}
+                  {% unless inventory_first %},{% endunless %}
+                  {{ gift.variantId | json }}: {
+                    "available": {% if inventory_variant.inventory_management != blank and inventory_variant.inventory_quantity <= 0 %}false{% else %}{{ inventory_variant.available | json }}{% endif %},
+                    "image": {% if inventory_variant.featured_image != blank %}{{ inventory_variant.featured_image | image_url: width: 600 | json }}{% elsif inventory_product.featured_image != blank %}{{ inventory_product.featured_image | image_url: width: 600 | json }}{% else %}null{% endif %},
+                    "productImage": {% if inventory_product.featured_image != blank %}{{ inventory_product.featured_image | image_url: width: 600 | json }}{% else %}null{% endif %}
+                  }
+                  {% assign inventory_first = false %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      }
+    </script>
+  </div>
+  {{ 'free-gift-popup.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'tiered-gift-popup.js' | asset_url }}" defer></script>
+{% elsif gift_settings != blank and gift_settings.enabled %}
   <div id="free-gift-cart-root" data-free-gift-master data-cart-path="{{ routes.cart_url }}" hidden>
     <script type="application/json" data-free-gift-settings>{{ gift_settings | json }}</script>
     <script type="application/json" data-free-gift-inventory>

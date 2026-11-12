@@ -1,18 +1,23 @@
-// Spend-tier gifts on the cart page. Settings come from the "Price gifts" page
-// in the app (app/routes/app.price-gifts.tsx); the tiered-gift-discount
-// function makes the claimed lines free. Lines carry `_tier_gift: <tier id>`.
+// Price gifts (spend tiers) in the Free Gift App (Master) popup. The embed
+// loads this instead of free-gift-popup.js only while price gift settings are
+// on (app/routes/app.price-gifts.tsx), and it draws the same popup with the
+// same classes and CSS. The tiered-gift-discount function makes claimed lines
+// free; they carry `_tier_gift: <tier id>`.
 (() => {
-  const root = document.getElementById("tiered-gift-root");
+  const root = document.getElementById("free-gift-cart-root");
   if (!root || root.dataset.initialized === "true") return;
   root.dataset.initialized = "true";
   const cartPath = root.dataset.cartPath || "/cart";
   if (window.location.pathname.replace(/\/$/, "") !== cartPath.replace(/\/$/, "")) return;
 
-  let settings;
-  try { settings = JSON.parse(root.querySelector("[data-tiered-gift-settings]")?.textContent || "{}"); } catch { return; }
-  if (!settings.enabled || !Array.isArray(settings.tiers)) return;
-  let live = {};
-  try { live = JSON.parse(root.querySelector("[data-tiered-gift-inventory]")?.textContent || "{}"); } catch { live = {}; }
+  const readJson = (selector) => {
+    try { return JSON.parse(root.querySelector(selector)?.textContent || "{}") || {}; } catch { return null; }
+  };
+  const tierSettings = readJson("[data-tiered-gift-settings]");
+  if (!tierSettings?.enabled || !Array.isArray(tierSettings.tiers)) return;
+  // Popup text and colors from the Free gift settings.
+  const look = readJson("[data-free-gift-settings]") || {};
+  const live = readJson("[data-tiered-gift-inventory]") || {};
 
   const rate = Number(window.Shopify?.currency?.rate) || 1;
   const basePath = window.Shopify?.routes?.root || "/";
@@ -30,12 +35,16 @@
   };
 
   // Tiers low to high, each with its gift products grouped from variants.
-  const tiers = settings.tiers.map((tier) => {
+  const tiers = tierSettings.tiers.map((tier) => {
     const products = new Map();
     (tier.products || []).forEach((variant) => {
-      if (!products.has(variant.productId)) products.set(variant.productId, { id: variant.productId, title: variant.productTitle, variants: [], allVariantIds: new Set() });
+      if (!products.has(variant.productId)) products.set(variant.productId, {
+        id: variant.productId, title: variant.productTitle,
+        imageUrl: live[variant.variantId]?.productImage || variant.imageUrl,
+        variants: [], variantIds: new Set(),
+      });
       const product = products.get(variant.productId);
-      product.allVariantIds.add(numericId(variant.variantId));
+      product.variantIds.add(numericId(variant.variantId));
       if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
     });
     return {
@@ -46,139 +55,161 @@
     };
   }).sort((a, b) => a.threshold - b.threshold);
 
+  // Always-gift products (their variants are $0), as in free-gift-popup.js.
+  const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
   const isTierGift = (item) => Boolean(item.properties?._tier_gift);
-  const isAnyGift = (item) => isTierGift(item) || item.properties?._free_gift === "true";
-  const paidSubtotal = (cart) => cart.items.reduce((total, item) => isAnyGift(item) ? total : total + item.original_line_price, 0);
+  const isGiftItem = (item) => isTierGift(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
+  // Before discounts, like the discount function.
+  const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
   const activeTier = (cart) => {
     const subtotal = paidSubtotal(cart);
     return [...tiers].reverse().find((tier) => subtotal >= tier.threshold) || null;
   };
-  const productFor = (tier, item) => tier.allProducts.find((product) => product.allVariantIds.has(item.variant_id));
 
   const variantValues = (variant) => {
     if (Array.isArray(variant.optionValues) && variant.optionValues.length) return variant.optionValues;
     if (!variant.variantTitle || variant.variantTitle === "Default Title") return [];
     return variant.variantTitle.split(" / ");
   };
+  const inferredOptionName = (values, index) => {
+    const sizes = new Set(["XXS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]);
+    if (values.every((value) => sizes.has(String(value).toUpperCase()))) return "Size";
+    const colors = ["black", "white", "gray", "grey", "navy", "blue", "red", "green", "yellow", "pink", "purple", "brown", "orange"];
+    if (values.every((value) => colors.some((color) => String(value).toLowerCase().includes(color)))) return "Color";
+    return `Option ${index + 1}`;
+  };
   const optionGroups = (product) => {
     const count = Math.max(0, ...product.variants.map((variant) => variantValues(variant).length));
-    return Array.from({ length: count }, (_, index) => ({
-      name: product.variants.find((variant) => variant.optionNames?.[index])?.optionNames[index] || `Option ${index + 1}`,
-      values: [...new Set(product.variants.map((variant) => variantValues(variant)[index]).filter(Boolean))],
-    }));
+    return Array.from({ length: count }, (_, index) => {
+      const values = [...new Set(product.variants.map((variant) => variantValues(variant)[index]).filter(Boolean))];
+      const name = product.variants.find((variant) => variant.optionNames?.[index])?.optionNames[index];
+      return { name: name || inferredOptionName(values, index), values };
+    });
   };
 
   let busy = false;
-  // Chosen variant per product, and the chosen product in "one" tiers.
-  let chosenVariant = {};
-  let chosenProductId = "";
+  // The card whose options are showing (in "one" tiers, also the chosen
+  // gift) and the chosen variant per product.
+  let focusedId = "";
+  const chosen = {};
+  const variantOf = (product) => product.variants.find((variant) => variant.variantId === chosen[product.id]) || product.variants[0];
 
-  const signatureOf = (cart, tier) => `${tier.id}|${cart.items.filter((item) => !isAnyGift(item))
-    .map((item) => `${item.variant_id}:${item.quantity}`).sort().join(",")}`;
-  const hide = () => {
-    document.documentElement.classList.remove("tgp-lock");
-    root.querySelector(".tgp-overlay")?.remove();
+  const signatureOf = (cart, tier) => `${tier.id}|${cart.items.filter((item) => !isGiftItem(item))
+    .map((item) => `${item.variant_id}:${item.quantity}`).sort().join("|")}`;
+  const hidePopup = () => {
+    document.documentElement.classList.remove("fgc-lock");
+    root.querySelector(".fgc-overlay")?.remove();
     root.hidden = true;
   };
-  const dismiss = (signature) => {
-    try { sessionStorage.setItem("tgp-dismissed", signature); } catch { /* storage blocked */ }
-    hide();
+  const close = (signature) => {
+    try { sessionStorage.setItem("fgc-dismissed-cart", signature); } catch { /* storage blocked */ }
+    hidePopup();
   };
-  const dismissed = (signature) => { try { return sessionStorage.getItem("tgp-dismissed") === signature; } catch { return false; } };
+  const dismissed = (signature) => { try { return sessionStorage.getItem("fgc-dismissed-cart") === signature; } catch { return false; } };
 
-  const productHtml = (tier, product) => {
-    const variant = chosenVariant[product.id] || product.variants[0];
-    const selected = tier.mode === "all" || product.id === chosenProductId;
-    const values = variantValues(variant);
-    const groups = selected ? optionGroups(product) : [];
-    return `<div class="tgp-product${selected ? " is-selected" : ""}" data-product="${escapeHtml(product.id)}">
-      <button class="tgp-card" type="button" data-pick="${escapeHtml(product.id)}" ${tier.mode === "all" ? "disabled" : ""}>
-        ${variant.imageUrl ? `<img src="${escapeHtml(variant.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
-        <strong>${escapeHtml(product.title)}</strong>
-        <span class="tgp-free">🎁 FREE</span>
-      </button>
-      ${groups.map((group, index) => `<fieldset class="tgp-options"><legend>${escapeHtml(group.name)}</legend>
-        ${group.values.map((value) => `<button type="button" class="tgp-option${values[index] === value ? " is-selected" : ""}" data-product-option="${escapeHtml(product.id)}" data-index="${index}" data-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`).join("")}
-      </fieldset>`).join("")}
-    </div>`;
-  };
+  const renderSelector = (tier, offered) => {
+    const focused = offered.find((product) => product.id === focusedId) || offered[0];
+    const selectedVariant = variantOf(focused);
+    const groups = optionGroups(focused);
+    const selectedValues = variantValues(selectedVariant);
+    const cards = offered.map((product) => {
+      const selected = tier.mode === "all" || product.id === focused.id;
+      const image = product.id === focused.id ? selectedVariant?.imageUrl || product.imageUrl : (variantOf(product)?.imageUrl || product.imageUrl);
+      return `
+      <button class="fgc-product${selected ? " is-selected" : ""}" type="button" data-product-id="${escapeHtml(product.id)}">
+        <span class="fgc-check" aria-hidden="true">${selected ? "✓" : ""}</span>
+        ${image ? `<img class="fgc-product-image" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
+        <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
+        <span class="fgc-free">🎁 FREE</span>
+      </button>`;
+    }).join("");
+    const forTitle = tier.mode === "all" && offered.length > 1 ? ` (${focused.title})` : "";
+    const options = groups.map((group, groupIndex) => `
+      <fieldset class="fgc-option-group">
+        <legend>Choose your ${escapeHtml(group.name.toLowerCase())}${escapeHtml(forTitle)}</legend>
+        <div class="fgc-options">${group.values.map((value) =>
+          `<button class="fgc-option${selectedValues[groupIndex] === value ? " is-selected" : ""}" type="button" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`
+        ).join("")}</div>
+      </fieldset>`).join("");
 
-  const render = (tier, missing, signature) => {
-    const dialog = root.querySelector(".tgp-content");
-    if (!dialog) return;
-    const intro = tier.mode === "all"
-      ? `${missing.length > 1 ? "These gifts are" : "This gift is"} on us.`
-      : "Choose 1 gift.";
-    dialog.innerHTML = `<p class="tgp-intro">${escapeHtml(intro)}</p>
-      <div class="tgp-products">${missing.map((product) => productHtml(tier, product)).join("")}</div>
-      <button class="tgp-claim" type="button">🎁 ${escapeHtml(settings.buttonLabel || "Claim my free gift")}</button>
-      <p class="tgp-status" aria-live="polite"></p>`;
-    dialog.querySelectorAll("[data-pick]").forEach((button) => button.addEventListener("click", () => {
-      chosenProductId = button.dataset.pick;
-      render(tier, missing, signature);
+    root.querySelector(".fgc-content").innerHTML = `
+      <div class="fgc-products">${cards}</div>
+      ${groups.length ? `<div class="fgc-variant-panel">${options}</div>` : ""}
+      <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
+      <p class="fgc-status" aria-live="polite"></p>
+      <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
+
+    root.querySelectorAll("[data-product-id]").forEach((card) => card.addEventListener("click", () => {
+      focusedId = card.dataset.productId;
+      renderSelector(tier, offered);
     }));
-    dialog.querySelectorAll("[data-product-option]").forEach((button) => button.addEventListener("click", () => {
-      const product = missing.find((item) => item.id === button.dataset.productOption);
-      const current = chosenVariant[product.id] || product.variants[0];
-      const wanted = [...variantValues(current)];
-      wanted[Number(button.dataset.index)] = button.dataset.value;
-      chosenVariant[product.id] = product.variants.find((variant) => wanted.every((value, index) => variantValues(variant)[index] === value))
-        || product.variants.find((variant) => variantValues(variant)[Number(button.dataset.index)] === button.dataset.value)
-        || current;
-      render(tier, missing, signature);
+    root.querySelectorAll("[data-option-index]").forEach((button) => button.addEventListener("click", () => {
+      const index = Number(button.dataset.optionIndex);
+      const wanted = [...variantValues(selectedVariant)];
+      wanted[index] = button.dataset.optionValue;
+      const next = focused.variants.find((variant) => {
+        const values = variantValues(variant);
+        return wanted.every((value, optionIndex) => !value || values[optionIndex] === value);
+      }) || focused.variants.find((variant) => variantValues(variant)[index] === button.dataset.optionValue) || selectedVariant;
+      chosen[focused.id] = next.variantId;
+      renderSelector(tier, offered);
     }));
-    dialog.querySelector(".tgp-claim").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      const status = dialog.querySelector(".tgp-status");
-      const claim = tier.mode === "all" ? missing : missing.filter((product) => product.id === chosenProductId);
-      button.disabled = true;
+    root.querySelector(".fgc-claim")?.addEventListener("click", async () => {
+      const claim = root.querySelector(".fgc-claim");
+      const status = root.querySelector(".fgc-status");
+      const products = tier.mode === "all" ? offered : [focused];
+      claim.disabled = true;
       busy = true;
       try {
         const response = await fetch(`${basePath}cart/add.js`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ items: claim.map((product) => ({
-            id: numericId((chosenVariant[product.id] || product.variants[0]).variantId),
-            quantity: 1,
-            properties: { _tier_gift: tier.id },
+          body: JSON.stringify({ items: products.map((product) => ({
+            id: numericId(variantOf(product).variantId), quantity: 1, properties: { _tier_gift: tier.id },
           })) }),
         });
         if (!response.ok) throw new Error("Gift could not be added. Please try another option.");
-        status.textContent = settings.successMessage || "Free gift added.";
+        status.textContent = look.successMessage || "Free gift added.";
         window.setTimeout(() => window.location.reload(), 650);
       } catch (error) {
         status.textContent = error instanceof Error ? error.message : "Gift could not be added.";
-        button.disabled = false;
+        claim.disabled = false;
         busy = false;
       }
     });
   };
 
-  const show = (tier, missing, signature) => {
-    if (root.querySelector(".tgp-overlay")) return;
-    if (!missing.some((product) => product.id === chosenProductId)) chosenProductId = missing[0].id;
-    root.style.setProperty("--tgp-background", settings.backgroundColor || "#FFFFFF");
-    root.style.setProperty("--tgp-text", settings.textColor || "#111111");
-    root.style.setProperty("--tgp-button", settings.buttonColor || "#111111");
-    root.style.setProperty("--tgp-button-text", settings.buttonTextColor || "#FFFFFF");
-    root.style.setProperty("--tgp-overlay", settings.overlayColor || "#000000B3");
-    root.insertAdjacentHTML("beforeend", `<div class="tgp-overlay" role="presentation">
-      <section class="tgp-dialog" role="dialog" aria-modal="true" aria-labelledby="tgp-heading">
-        <button class="tgp-close" type="button" aria-label="Close">&times;</button>
-        <h2 class="tgp-heading" id="tgp-heading">${escapeHtml(settings.heading || "You've unlocked a free gift!")}</h2>
-        <p class="tgp-subheading">${escapeHtml(settings.subheading || "")}</p>
-        <div class="tgp-content"></div>
-        <p class="tgp-footer">*Free gift items are not eligible for exchange or replacement.*</p>
+  const show = (tier, offered, signature) => {
+    if (root.querySelector(".fgc-overlay")) return;
+    if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
+    const several = tier.mode === "all" && offered.length > 1;
+    const subheading = tier.mode === "all"
+      ? `${several ? "All gifts below are" : "The gift below is"} free with your order. Choose your options and add ${several ? "them" : "it"} to your cart.`
+      : look.subheading || "Choose 1 gift below and add it to your cart.";
+    root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
+    root.style.setProperty("--fgc-text", look.textColor || "#111827");
+    root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
+    root.style.setProperty("--fgc-button-text", look.buttonTextColor || "#FFFFFF");
+    root.style.setProperty("--fgc-overlay", look.overlayColor || "#111827B3");
+    root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
+      <section class="fgc-dialog" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
+        <button class="fgc-close" type="button" aria-label="Close">&times;</button>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
+        <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
+        <div class="fgc-content"></div>
+        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </section></div>`);
     root.hidden = false;
-    document.documentElement.classList.add("tgp-lock");
-    root.querySelector(".tgp-close").addEventListener("click", () => dismiss(signature));
-    root.querySelector(".tgp-overlay").addEventListener("click", (event) => { if (event.target === event.currentTarget) dismiss(signature); });
-    root.onkeydown = (event) => { if (event.key === "Escape") dismiss(signature); };
-    render(tier, missing, signature);
+    document.documentElement.classList.add("fgc-lock");
+    root.querySelector(".fgc-close")?.addEventListener("click", () => close(signature));
+    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(signature); });
+    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(signature); };
+    root.querySelector(".fgc-close")?.focus();
+    renderSelector(tier, offered);
   };
 
-  const check = async () => {
+  const checkCart = async () => {
     if (busy) return;
     busy = true;
     try {
@@ -186,21 +217,20 @@
       if (!response.ok) return;
       const cart = await response.json();
       const tier = activeTier(cart);
-      const giftItems = cart.items.filter(isTierGift);
 
-      // Keep only lines of the current tier: one line per gift product, one
-      // unit each, and a single line in "one" tiers. Everything else goes.
+      // Keep only this tier's gifts: one unit per gift product, and a single
+      // gift in "one" tiers. Lower-tier gifts, other gifts and extra units go.
       const updates = {};
-      const keptProducts = new Set();
-      giftItems.forEach((item) => {
-        const product = tier && item.properties._tier_gift === tier.id ? productFor(tier, item) : null;
-        const allowed = product && !keptProducts.has(product.id) && (tier.mode === "all" || keptProducts.size === 0);
-        if (!allowed) { updates[item.key] = 0; return; }
-        keptProducts.add(product.id);
+      const kept = new Set();
+      cart.items.filter(isGiftItem).forEach((item) => {
+        const product = tier && item.properties?._tier_gift === tier.id
+          ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
+        if (!product || kept.has(product.id) || (tier.mode === "one" && kept.size > 0)) { updates[item.key] = 0; return; }
+        kept.add(product.id);
         if (item.quantity > 1) updates[item.key] = 1;
       });
       if (Object.keys(updates).length) {
-        hide();
+        hidePopup();
         const update = await fetch(`${basePath}cart/update.js`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -208,19 +238,17 @@
         });
         // Reload only when the cart changed, so a refused update can't loop.
         const updated = update.ok ? await update.json() : null;
-        if (updated && JSON.stringify(updated.items.map((item) => [item.key, item.quantity])) !== JSON.stringify(cart.items.map((item) => [item.key, item.quantity]))) {
-          window.location.reload();
-          return;
-        }
+        const shape = (items) => JSON.stringify(items.map((item) => [item.key, item.quantity]));
+        if (updated && shape(updated.items) !== shape(cart.items)) { window.location.reload(); return; }
       }
 
-      if (!tier) { hide(); return; }
-      const missing = tier.mode === "all"
-        ? tier.products.filter((product) => !keptProducts.has(product.id))
-        : (keptProducts.size ? [] : tier.products);
+      if (!tier) { hidePopup(); try { sessionStorage.removeItem("fgc-dismissed-cart"); } catch { /* blocked */ } return; }
+      const offered = tier.mode === "all"
+        ? tier.products.filter((product) => !kept.has(product.id))
+        : (kept.size ? [] : tier.products);
+      if (!offered.length) { hidePopup(); return; }
       const signature = signatureOf(cart, tier);
-      if (!missing.length || dismissed(signature)) { if (!missing.length) hide(); return; }
-      show(tier, missing, signature);
+      if (!dismissed(signature)) show(tier, offered, signature);
     } catch {
       // The next poll retries network failures.
     } finally {
@@ -228,6 +256,6 @@
     }
   };
 
-  check();
-  window.setInterval(check, 1000);
+  checkCart();
+  window.setInterval(checkCart, 1000);
 })();
