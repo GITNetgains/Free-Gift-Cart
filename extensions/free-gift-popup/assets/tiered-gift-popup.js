@@ -129,28 +129,27 @@
   };
   const close = (tier) => { setDismissed(tier.id); hidePopup(); };
 
-  // Best variant for a click: it must have the clicked value, and keeps as
-  // many of the other current choices as possible (so picking a size keeps
-  // the colour when that combination exists).
+  // Variant for a click: it keeps the options above the clicked one, takes
+  // the clicked value, and keeps the options below when that combination
+  // exists (otherwise the first one that does).
   const pickVariant = (product, index, value) => {
     const current = variantValues(variantOf(product));
-    let best = null;
-    let bestScore = -1;
-    product.variants.forEach((variant) => {
+    const candidates = product.variants.filter((variant) => {
       const values = variantValues(variant);
-      if (values[index] !== value) return;
-      const score = values.reduce((total, item, optionIndex) => total + (optionIndex !== index && item === current[optionIndex] ? 1 : 0), 0);
-      if (score > bestScore) { best = variant; bestScore = score; }
+      return values[index] === value && current.slice(0, index).every((item, optionIndex) => values[optionIndex] === item);
     });
-    return best || variantOf(product);
+    const keepsLower = candidates.find((variant) => variantValues(variant).every((item, optionIndex) => optionIndex <= index || item === current[optionIndex]));
+    return keepsLower || candidates[0] || variantOf(product);
   };
-  // A value is shown as available when a variant has it together with the
-  // other current choices; otherwise it is dimmed (a click still works and
-  // switches the other option to one that exists).
-  const comboExists = (product, index, value) => {
+  // Options cascade: the first option (e.g. size) lists every value; each
+  // later option (e.g. colour) lists only the values that exist with the
+  // choices above it, so a shopper never sees a combination that isn't there.
+  const valuesFor = (product, index, values) => {
     const current = variantValues(variantOf(product));
-    return product.variants.some((variant) => variantValues(variant).every((item, optionIndex) =>
-      optionIndex === index ? item === value : item === current[optionIndex]));
+    return values.filter((value) => product.variants.some((variant) => {
+      const options = variantValues(variant);
+      return options[index] === value && current.slice(0, index).every((item, optionIndex) => options[optionIndex] === item);
+    }));
   };
 
   // Options for one product. In "all" tiers every gift gets its own block,
@@ -164,10 +163,9 @@
       ${groups.map((group, groupIndex) => `
       <fieldset class="fgc-option-group">
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
-        <div class="fgc-options">${group.values.map((value) => {
+        <div class="fgc-options">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
-          const exists = isSelected || comboExists(product, groupIndex, value);
-          return `<button class="fgc-option${isSelected ? " is-selected" : ""}${exists ? "" : " is-unavailable"}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
+          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
         }).join("")}</div>
       </fieldset>`).join("")}
     </div>`;

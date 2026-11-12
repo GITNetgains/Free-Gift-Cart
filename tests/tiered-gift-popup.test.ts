@@ -116,13 +116,16 @@ describe("price gifts popup", () => {
     expect(content).toContain("Choose your color");
   });
 
-  test("values that don't exist with the current choice are dimmed, not hidden", async () => {
+  test("colours follow the chosen size: only combinations that exist are listed", async () => {
     const { content } = await run([paid(40000)]);
     const panel = content.slice(content.lastIndexOf("data-options-for"));
     const option = (value: string) => panel.match(new RegExp(`<button class="fgc-option([^"]*)"[^>]*data-option-value="${value}"`))?.[1];
+    // Every size is listed; S/black is chosen.
     expect(option("S")).toContain("is-selected");
     expect(option("M")).toBe("");
-    expect(option("L")).toContain("is-unavailable");
-    expect(option("gray")).toContain("is-unavailable");
+    expect(option("L")).toBe("");
+    // Only black exists in size S, so gray isn't offered.
+    expect(option("black")).toContain("is-selected");
+    expect(option("gray")).toBeUndefined();
   });
 });

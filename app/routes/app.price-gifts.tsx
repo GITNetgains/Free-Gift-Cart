@@ -309,7 +309,7 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
     setTiers([...view.tiers, {
       id: newTierId(),
       minimumSpend: view.tiers.length ? highest + 10000 : 12000,
-      mode: view.tiers.length ? "all" : "one",
+      mode: "one",
       products: [], replacements: [],
     }]);
   };

@@ -13,8 +13,6 @@
 .fgc-tier-options + .fgc-tier-options { border-top: 1px solid #eaecf0; margin-top: 10px; padding-top: 10px; }
 .fgc-tier-options-title { font-size: 14px; font-weight: 900; margin: 0 0 6px; }
 
-/* A value that doesn't exist with the other current choice. */
-.fgc-option.is-unavailable { opacity: .45; text-decoration: line-through; }
 .fgc-option { transition: background-color .12s, border-color .12s, color .12s; }
 .fgc-product { transition: border-color .12s, box-shadow .12s; }
 .fgc-product-image[hidden] { display: none; }
