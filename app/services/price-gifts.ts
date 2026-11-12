@@ -59,6 +59,9 @@ export type PriceGiftSettings = {
   overlayColor: string;
   tiers: GiftTier[];
   discountId?: string;
+  // The store currency at the last save. Tier minimums are US dollars; only
+  // a USD store converts them to the buyer's currency.
+  shopCurrency?: string;
 };
 
 export const DEFAULT_PRICE_GIFT_SETTINGS: PriceGiftSettings = {
@@ -145,6 +148,7 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
 export function functionSettings(settings: PriceGiftSettings) {
   return JSON.stringify({
     enabled: settings.enabled,
+    shopCurrency: settings.shopCurrency,
     tiers: settings.tiers.map((tier) => ({
       id: tier.id,
       minimumSpend: tier.minimumSpend,

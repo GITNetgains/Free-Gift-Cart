@@ -17,6 +17,7 @@ const SETTINGS_QUERY = `#graphql
   query PriceGiftSettings {
     shop {
       id
+      currencyCode
       metafield(namespace: "tiered_gift", key: "settings") { jsonValue }
     }
   }
@@ -138,10 +139,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false, error: "Choose the Tier 1 gift products before turning price gifts on." };
   }
   settings = await enrichProducts(admin, settings);
+  const shopJson = await (await admin.graphql(SETTINGS_QUERY)).json();
+  settings.shopCurrency = shopJson.data?.shop?.currencyCode;
   const discount = await ensureDiscount(admin, settings);
   if (discount.discountId) settings.discountId = discount.discountId;
 
-  const shopJson = await (await admin.graphql(SETTINGS_QUERY)).json();
   const saveJson = await (await admin.graphql(
     `#graphql
       mutation SavePriceGiftSettings($metafields: [MetafieldsSetInput!]!) {

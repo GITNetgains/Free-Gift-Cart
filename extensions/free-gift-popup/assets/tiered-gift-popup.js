@@ -26,7 +26,16 @@
   const live = readJson("[data-tiered-gift-inventory]") || {};
 
   const nativeFetch = window.fetch.bind(window);
-  const rate = Number(window.Shopify?.currency?.rate) || 1;
+  // Tier minimums are US dollars, as the admin page shows them. A USD cart
+  // compares directly; a USD store converts to the buyer's currency with the
+  // storefront rate. Otherwise (e.g. an INR store showing "$") the numbers
+  // compare as they are. Same rule as the tiered-gift-discount function.
+  const shopCurrency = root.dataset.shopCurrency || "";
+  const thresholdRate = (cartCurrency) => {
+    if (cartCurrency === "USD") return 1;
+    if (shopCurrency === "USD") return Number(window.Shopify?.currency?.rate) || 1;
+    return 1;
+  };
   const basePath = window.Shopify?.routes?.root || "/";
   const numericId = (gid) => Number(String(gid || "").split("/").pop());
   const escapeHtml = (value) => {
@@ -56,11 +65,11 @@
     });
     return {
       id: tier.id, mode: tier.mode === "all" ? "all" : "one",
-      threshold: Math.round(Number(tier.minimumSpend || 0) * rate),
+      minimum: Number(tier.minimumSpend || 0),
       allProducts: [...products.values()],
       products: [...products.values()].filter((product) => product.variants.length),
     };
-  }).sort((a, b) => a.threshold - b.threshold);
+  }).sort((a, b) => a.minimum - b.minimum);
 
   // Always-gift products (their variants are $0), as in free-gift-popup.js.
   const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
@@ -72,7 +81,10 @@
   const isGiftItem = (item) => isTierGift(item) || isFreeTierVariant(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
   // Before discounts, like the discount function.
   const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
-  const tierFor = (subtotal) => [...tiers].reverse().find((tier) => subtotal >= tier.threshold) || null;
+  const tierFor = (subtotal, cartCurrency) => {
+    const rate = thresholdRate(cartCurrency);
+    return [...tiers].reverse().find((tier) => subtotal >= Math.round(tier.minimum * rate)) || null;
+  };
 
   const variantValues = (variant) => {
     if (Array.isArray(variant.optionValues) && variant.optionValues.length) return variant.optionValues;
@@ -230,7 +242,7 @@
       if (!response.ok) return;
       const cart = await response.json();
       const subtotal = paidSubtotal(cart);
-      const tier = tierFor(subtotal);
+      const tier = tierFor(subtotal, cart.currency);
 
       // Keep only this tier's gifts: one unit per gift product, and a single
       // gift in "one" tiers. Lower-tier gifts, other gifts and extra units go.

@@ -16,11 +16,12 @@ const settings = {
 
 type Gift = { id: string; tier: string; variantId: string };
 
-function input(paid: string, gifts: Gift[], rate = "1.0"): CartInput {
+function input(paid: string, gifts: Gift[], rate = "1.0", cartCurrency = "USD", shopCurrency = "USD"): CartInput {
   return {
     presentmentCurrencyRate: rate,
-    discount: { discountClasses: [DiscountClass.Product], tierSettings: { jsonValue: settings } },
+    discount: { discountClasses: [DiscountClass.Product], tierSettings: { jsonValue: { ...settings, shopCurrency } } },
     cart: {
+      cost: { subtotalAmount: { currencyCode: cartCurrency } },
       lines: [
         { id: "paid", quantity: 1, tierMarker: null, oldGiftMarker: null,
           merchandise: { __typename: "ProductVariant", id: "gid://shopify/ProductVariant/999", product: { id: "gid://shopify/Product/999" } },
@@ -67,9 +68,20 @@ describe("tiered gift discount", () => {
     expect(targets(cartLinesDiscountsGenerateRun(input("150.00", [{ id: "g1", tier: "t120", variantId: SLING3.variantId }])))).toEqual([]);
   });
 
-  test("thresholds follow the buyer currency rate", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("200.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0")))).toEqual([]);
-    expect(targets(cartLinesDiscountsGenerateRun(input("240.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0")))).toEqual(["g1"]);
+  test("a USD store converts thresholds to the buyer currency", () => {
+    expect(targets(cartLinesDiscountsGenerateRun(input("200.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0", "EUR")))).toEqual([]);
+    expect(targets(cartLinesDiscountsGenerateRun(input("240.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0", "EUR")))).toEqual(["g1"]);
+  });
+
+  test("an INR store with a USD cart compares dollars directly", () => {
+    // presentment rate INR -> USD is tiny; converting would make $120 about $1.4.
+    expect(targets(cartLinesDiscountsGenerateRun(input("17.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "0.012", "USD", "INR")))).toEqual([]);
+    expect(targets(cartLinesDiscountsGenerateRun(input("120.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "0.012", "USD", "INR")))).toEqual(["g1"]);
+  });
+
+  test("an INR store with an INR cart compares the numbers as shown", () => {
+    expect(targets(cartLinesDiscountsGenerateRun(input("119.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "1.0", "INR", "INR")))).toEqual([]);
+    expect(targets(cartLinesDiscountsGenerateRun(input("120.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "1.0", "INR", "INR")))).toEqual(["g1"]);
   });
 
   test("gift lines do not count toward the subtotal", () => {

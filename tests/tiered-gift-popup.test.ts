@@ -23,7 +23,7 @@ type Item = { key: string; variant_id: number; product_id: number; quantity: num
 const paid = (cents: number): Item => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
 const giftLine = (key: string, variant: number, tier: string): Item => ({ key, variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
 
-async function run(items: Item[], pathname = "/products/case") {
+async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }) {
   let html = "";
   let content = "";
   const updates: Array<Record<string, number>> = [];
@@ -34,7 +34,7 @@ async function run(items: Item[], pathname = "/products/case") {
     "[data-tiered-gift-inventory]": { textContent: "{}" },
   };
   const root = {
-    dataset: { cartPath: "/cart" } as Record<string, string>, hidden: true, classList: { add() {} }, style: { setProperty() {} },
+    dataset: { cartPath: "/cart", shopCurrency: shop.currency } as Record<string, string>, hidden: true, classList: { add() {} }, style: { setProperty() {} },
     querySelector: (selector: string) => nodes[selector] || (selector === ".fgc-overlay" ? (html ? element() : null) : element()),
     querySelectorAll: () => [],
     insertAdjacentHTML: (_: string, value: string) => { html += value; },
@@ -46,7 +46,7 @@ async function run(items: Item[], pathname = "/products/case") {
   };
   const window = {
     fetch, location: { pathname, reload() {} }, setInterval() {}, setTimeout() {},
-    Shopify: { currency: { rate: "1.0", active: "USD" }, routes: { root: "/" } },
+    Shopify: { currency: { rate: shop.rate, active: "USD" }, routes: { root: "/" } },
   };
   runInNewContext(source, {
     window, document: {
@@ -87,5 +87,12 @@ describe("price gifts popup", () => {
     const { updates, html } = await run([giftLine("newest", 21, "t1"), paid(30000), giftLine("earlier", 11, "t1")]);
     expect(updates).toEqual([{ earlier: 0 }]);
     expect(html).toBe("");
+  });
+
+  test("an INR store showing dollars opens Tier 1 at $299, not at $17", async () => {
+    const inrShop = { currency: "INR", rate: "0.012" };
+    expect((await run([paid(1700)], "/products/case", inrShop)).html).toBe("");
+    expect((await run([paid(29800)], "/products/case", inrShop)).html).toBe("");
+    expect((await run([paid(29900)], "/products/case", inrShop)).html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
   });
 });

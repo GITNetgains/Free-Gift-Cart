@@ -18,7 +18,18 @@ type Tier = {
   mode: "one" | "all";
   products: Array<{ productId: string; variantId: string }>;
 };
-type TierSettings = { enabled?: boolean; tiers?: Tier[] };
+// shopCurrency: the store's currency when the settings were saved.
+type TierSettings = { enabled?: boolean; shopCurrency?: string; tiers?: Tier[] };
+
+// Tier minimums are US dollars, as the admin page shows them. A USD cart
+// compares directly; a USD store converts to the buyer's currency with the
+// presentment rate. Otherwise (e.g. an INR store showing "$") the numbers
+// compare as they are, matching what the shopper sees.
+export function thresholdRate(cartCurrency: string | undefined, shopCurrency: string | undefined, presentmentRate: number) {
+  if (cartCurrency === "USD") return 1;
+  if (shopCurrency === "USD") return presentmentRate || 1;
+  return 1;
+}
 
 export function activeTier(tiers: Tier[], paidSubtotalCents: number, currencyRate: number) {
   return [...tiers]
@@ -35,8 +46,8 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
     Boolean(line.tierMarker?.value) || line.oldGiftMarker?.value === "true";
   const paidSubtotalCents = input.cart.lines.reduce((total, line) =>
     isGift(line) ? total : total + Math.round(Number(line.cost.subtotalAmount.amount) * 100), 0);
-  // minimumSpend is in the shop currency; cart amounts are in the buyer's.
-  const tier = activeTier(settings.tiers, paidSubtotalCents, Number(input.presentmentCurrencyRate) || 1);
+  const rate = thresholdRate(input.cart.cost.subtotalAmount.currencyCode, settings.shopCurrency, Number(input.presentmentCurrencyRate) || 1);
+  const tier = activeTier(settings.tiers, paidSubtotalCents, rate);
   if (!tier) return { operations: [] };
 
   const productByVariant = new Map(tier.products.map((product) => [product.variantId, product.productId]));
