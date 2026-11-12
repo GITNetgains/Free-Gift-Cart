@@ -1,10 +1,12 @@
 // Cart page progress banner for Price gifts (spend tiers). The Free Gift
 // Progress Bar block loads this instead of free-gift-cart-banner.js only while
 // price gift settings are on (app/routes/app.price-gifts.tsx). Same markup and
-// CSS as the Free gift banner; the target is the next tier:
-//   below Tier 1      -> progress to Tier 1, Tier 1 gifts
-//   between tiers     -> progress to the next tier, its gifts ("upgrade")
-//   top tier reached  -> full bar; hidden once its gift is in the cart
+// CSS as the Free gift banner:
+//   below Tier 1                  -> progress to Tier 1, Tier 1 gifts
+//   a tier reached, gift not yet  -> "unlocked", full bar, that tier's gifts
+//   its gift in the cart          -> progress to the next tier, its gifts
+//                                    (prices and bar against that tier)
+//   top tier's gift in the cart   -> hidden
 (() => {
   document.querySelectorAll(".fgcb-root[data-tiered]:not([data-initialized])").forEach((root) => {
     root.dataset.initialized = "true";
@@ -66,24 +68,30 @@
       const paid = paidSubtotal(cart);
       const thresholds = tiers.map((tier) => Math.round(tier.minimum * rate));
       const reached = thresholds.filter((threshold) => paid >= threshold).length; // tiers unlocked
-      const top = reached === tiers.length;
-      const target = tiers[top ? tiers.length - 1 : reached];
-      const targetThreshold = thresholds[top ? tiers.length - 1 : reached];
       const hasGift = cart.items.some((item) => Boolean(item.properties?._tier_gift) || (tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0));
 
-      // Top tier with its gift claimed: nothing left to unlock.
-      if ((top && hasGift) || !target.products.length) { root.hidden = true; return; }
+      // Which tier the banner is about: the reached tier while its gift is
+      // still to be chosen, otherwise the next tier to unlock.
+      const unlocked = reached > 0 && !hasGift;
+      if (!unlocked && reached === tiers.length) { root.hidden = true; return; }
+      const index = unlocked ? reached - 1 : reached;
+      const target = tiers[index];
+      const targetThreshold = thresholds[index];
+      if (!target.products.length) { root.hidden = true; return; }
 
       const remaining = Math.max(0, targetThreshold - paid);
-      const pct = targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
+      const pct = unlocked ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
       const money = (cents) => formatMoney(cents, cart.currency);
-      const pill = top ? "FREE GIFT UNLOCKED" : reached ? `TIER ${reached} UNLOCKED` : "FREE GIFT AWAITS";
-      const heading = top
+      const upgrade = !unlocked && reached > 0;
+      const pill = unlocked
+        ? (tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED")
+        : upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
+      const heading = unlocked
         ? `You've unlocked your <strong>FREE</strong> gift!`
-        : reached
+        : upgrade
           ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
           : `Add <strong>${money(remaining)}</strong> more to unlock your <strong>FREE</strong> gift!`;
-      const label = top ? "Choose your gift" : reached ? "Upgrade to" : "Choose your gift";
+      const label = upgrade ? "Upgrade to" : "Choose your gift";
 
       const cards = target.products.map((product, index) => `
         <div class="fgcb-product">

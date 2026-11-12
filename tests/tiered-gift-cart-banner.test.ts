@@ -44,16 +44,26 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).toContain("Sling 2.0");
   });
 
-  test("between tiers it counts down to Tier 2 with the upgrade gifts", async () => {
-    const root = await render([paid(30000), tierGift(11, "t1")]);
+  test("Tier 1 reached but no gift yet: unlocked, Tier 1 gifts", async () => {
+    const root = await render([paid(30000)]);
     expect(root.innerHTML).toContain("TIER 1 UNLOCKED");
-    expect(root.innerHTML).toContain("upgrade");
-    expect(root.innerHTML).toContain("$99.00");
-    expect(root.innerHTML).toContain("Sling 3.0");
+    expect(root.innerHTML).toContain("You've unlocked");
+    expect(root.innerHTML).toContain("Sling 2.0");
+    expect(root.innerHTML).not.toContain("Sling 3.0");
+    expect(root.innerHTML).toContain("width:100%");
   });
 
-  test("at the top tier with the gift claimed it hides", async () => {
+  test("Tier 1 gift in the cart: everything switches to Tier 2", async () => {
+    const root = await render([paid(30000), tierGift(11, "t1")]);
+    expect(root.innerHTML).toContain("UPGRADE TO TIER 2");
+    expect(root.innerHTML).toContain("$99.00");
+    expect(root.innerHTML).toContain("$300.00&nbsp;/&nbsp;$399.00");
+    expect(root.innerHTML).toContain("Sling 3.0");
+    expect(root.innerHTML).not.toContain("Sling 2.0");
+  });
+
+  test("Tier 2 reached: unlocked until its gift is claimed, then hidden", async () => {
+    expect((await render([paid(40000)])).innerHTML).toContain("TIER 2 UNLOCKED");
     expect((await render([paid(40000), tierGift(31, "t2")])).hidden).toBe(true);
-    expect((await render([paid(40000)])).innerHTML).toContain("FREE GIFT UNLOCKED");
   });
 });
