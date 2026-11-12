@@ -7,8 +7,10 @@
     popup offers the gifts of the cart's tier, run by tiered-gift-popup.js.
     Text and colors still come from the Free gift settings. Stores without
     price gift settings never reach this branch.
+    No data-free-gift-master here: the Free gift cart banner and product
+    widget check for it, and they follow the Free gift minimum, not the tiers.
   {% endcomment %}
-  <div id="free-gift-cart-root" data-free-gift-master data-cart-path="{{ routes.cart_url }}" hidden>
+  <div id="free-gift-cart-root" data-cart-path="{{ routes.cart_url }}" hidden>
     <script type="application/json" data-free-gift-settings>{% if gift_settings != blank %}{{ gift_settings | json }}{% else %}{}{% endif %}</script>
     <script type="application/json" data-tiered-gift-settings>{{ tier_settings | json }}</script>
     <script type="application/json" data-tiered-gift-inventory>
