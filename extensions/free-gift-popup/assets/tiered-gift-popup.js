@@ -126,9 +126,14 @@
 
   // Closing the popup hides it for that tier until the cart drops below it
   // or reaches another tier.
+  // Closing remembers the tier and the cart's paid items: any cart change
+  // (or a "Choose your free gift" click on the cart banner) opens it again.
   const DISMISS_KEY = "fgc-tier-dismissed";
-  const dismissedTier = () => { try { return sessionStorage.getItem(DISMISS_KEY) || ""; } catch { return ""; } };
+  const dismissedSignature = () => { try { return sessionStorage.getItem(DISMISS_KEY) || ""; } catch { return ""; } };
   const setDismissed = (value) => { try { value ? sessionStorage.setItem(DISMISS_KEY, value) : sessionStorage.removeItem(DISMISS_KEY); } catch { /* blocked */ } };
+  let currentSignature = "";
+  const signatureOf = (cart, tier) => `${tier.id}|${cart.items.filter((item) => !isGiftItem(item))
+    .map((item) => `${item.variant_id}:${item.quantity}`).sort().join(",")}`;
 
   const hidePopup = () => {
     openKey = "";
@@ -136,7 +141,7 @@
     root.querySelector(".fgc-overlay")?.remove();
     root.hidden = true;
   };
-  const close = (tier) => { setDismissed(tier.id); hidePopup(); };
+  const close = () => { setDismissed(currentSignature); hidePopup(); };
 
   // Variant for a click: it keeps the options above the clicked one, takes
   // the clicked value, and keeps the options below when that combination
@@ -297,9 +302,9 @@
       </section></div>`);
     root.hidden = false;
     document.documentElement.classList.add("fgc-lock");
-    root.querySelector(".fgc-close")?.addEventListener("click", () => close(tier));
-    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(tier); });
-    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(tier); };
+    root.querySelector(".fgc-close")?.addEventListener("click", () => close());
+    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(); };
     renderSelector(tier, offered);
     root.querySelector(".fgc-close")?.focus({ preventScroll: true });
   };
@@ -406,7 +411,8 @@
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
       if (!offered.length) { hidePopup(); return; }
-      if (dismissedTier() !== tier.id) show(tier, offered);
+      currentSignature = signatureOf(cart, tier);
+      if (dismissedSignature() !== currentSignature) show(tier, offered);
     } catch {
       // The next check retries network failures.
     } finally {
@@ -433,6 +439,8 @@
   // Classic (non-AJAX) add-to-cart forms land on the cart page or reload,
   // which the first check covers.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkCart(); });
+  // "Choose your free gift" on the cart banner (tiered-gift-cart-banner.js).
+  document.addEventListener("fgc:open-gift", () => { setDismissed(""); checkCart(); });
 
   checkCart();
   // The cart page's own quantity controls vary by theme, so it also polls.

@@ -48,7 +48,7 @@ function cartRow(line: number) {
   return { row, link: attributes, quantityBox };
 }
 
-async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }, rows: Array<ReturnType<typeof cartRow>> = []) {
+async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }, rows: Array<ReturnType<typeof cartRow>> = [], dismissed: string | null = null) {
   let html = "";
   // Every innerHTML the popup writes (cards, then each options refresh).
   const writes: string[] = [];
@@ -89,7 +89,7 @@ async function run(items: Item[], pathname = "/products/case", shop = { currency
       documentElement: { classList: { add() {}, remove() {} }, lang: "en" },
       createElement: () => { let text = ""; return { set textContent(value: string) { text = value; }, get innerHTML() { return text.replaceAll("<", "&lt;"); } }; },
     },
-    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    sessionStorage: { getItem: () => dismissed, setItem() {}, removeItem() {} },
     XMLHttpRequest: function XMLHttpRequest() {}, MutationObserver: class { observe() {} }, Element: class {},
     Intl, JSON, Number, String, Math, Set, Map, Object, Array, Promise,
   });
@@ -170,5 +170,13 @@ describe("price gifts popup", () => {
     expect(giftRow.row.classes.has("fgc-gift-line")).toBe(true);
     expect(paidRow.link.href).toBe("/products/hoodie?variant=31");
     expect(paidRow.quantityBox.hidden).toBe(false);
+  });
+
+  test("closing the popup only holds for that cart; a changed cart opens it again", async () => {
+    // Closed earlier on this exact cart: stays closed.
+    expect((await run([paid(30000)], "/cart", undefined, [], "t1|999:1")).html).toBe("");
+    // Closed with an older cart (or the old per-tier flag): opens again.
+    expect((await run([paid(30000)], "/cart", undefined, [], "t1|888:1")).html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
+    expect((await run([paid(30000)], "/cart", undefined, [], "t1")).html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
   });
 });

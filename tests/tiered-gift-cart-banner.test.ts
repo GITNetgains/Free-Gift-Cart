@@ -19,7 +19,7 @@ const tierGift = (variant: number, tier: string) => ({ key: "g", variant_id: var
 
 async function render(items: unknown[], shopCurrency = "INR") {
   const root = {
-    dataset: { shopCurrency } as Record<string, string>, hidden: true, innerHTML: "",
+    dataset: { shopCurrency } as Record<string, string>, hidden: true, innerHTML: "", addEventListener() {},
     querySelector: () => ({ textContent: JSON.stringify(settings) }),
   };
   runInNewContext(source, {
@@ -51,6 +51,7 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).toContain("Sling 2.0");
     expect(root.innerHTML).not.toContain("Sling 3.0");
     expect(root.innerHTML).toContain("width:100%");
+    expect(root.innerHTML).toContain("data-open-gift");
   });
 
   test("Tier 1 gift in the cart: everything switches to Tier 2", async () => {

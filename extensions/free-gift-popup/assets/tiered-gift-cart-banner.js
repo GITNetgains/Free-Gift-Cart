@@ -107,8 +107,11 @@
           ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}">` : ""}
           <div class="fgcb-product-info"><span class="fgcb-product-title">${escapeHtml(product.title)}</span><span class="fgcb-free">FREE</span></div>
         </div>${index < target.products.length - 1 ? `<span class="fgcb-or"><span>OR</span></span>` : ""}`).join("");
-      const continueLink = (placement) =>
-        `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
+      // Unlocked: the link opens the gift popup (tiered-gift-popup.js),
+      // even after the shopper closed it. Otherwise: keep shopping.
+      const continueLink = (placement) => unlocked
+        ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>Choose your free gift <span aria-hidden="true">&rarr;</span></a>`
+        : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
 
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
@@ -129,6 +132,13 @@
       </div>`;
       root.hidden = false;
     };
+
+    root.addEventListener("click", (event) => {
+      const link = event.target instanceof Element ? event.target.closest("[data-open-gift]") : null;
+      if (!link) return;
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent("fgc:open-gift"));
+    });
 
     const checkCart = async () => {
       try {
