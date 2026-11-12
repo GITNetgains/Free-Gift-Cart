@@ -35,9 +35,11 @@ export type TierReplacement = { fromProductId: string; products: TierGiftProduct
 
 export type GiftTier = {
   id: string;
-  // Lowest paid cart subtotal, in shop-currency cents. The tier runs up to the
-  // next tier's minimum.
+  // Paid cart subtotal range, in dollar cents, both ends included. With no
+  // maximum the tier runs up to the next tier's minimum (no limit for the
+  // last tier).
   minimumSpend: number;
+  maximumSpend?: number | null;
   // "one": the shopper picks one of the gifts. "all": every gift is free.
   mode: "one" | "all";
   // First tier: the chosen gifts. Higher tiers: computed from the first
@@ -114,6 +116,9 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
     .map((tier) => ({
       id: typeof tier?.id === "string" && /^[a-z0-9]{1,24}$/i.test(tier.id) ? tier.id : newTierId(),
       minimumSpend: Math.max(0, Math.round((Number(tier?.minimumSpend) || 0) / 100) * 100),
+      maximumSpend: tier?.maximumSpend === null || tier?.maximumSpend === undefined || String(tier.maximumSpend) === ""
+        ? null
+        : Math.max(0, Math.round((Number(tier.maximumSpend) || 0) / 100) * 100),
       // One gift per order in every tier.
       mode: "one" as const,
       products: limitProducts(Array.isArray(tier?.products) ? tier.products : []),
@@ -153,6 +158,7 @@ export function functionSettings(settings: PriceGiftSettings) {
     tiers: settings.tiers.map((tier) => ({
       id: tier.id,
       minimumSpend: tier.minimumSpend,
+      maximumSpend: tier.maximumSpend ?? null,
       mode: tier.mode,
       products: tier.products.map(({ productId, variantId }) => ({ productId, variantId })),
     })),
@@ -163,7 +169,27 @@ export const formatDollars = (cents: number) => `$${Math.round(cents / 100).toLo
 
 // "$120 – $299" / "$300 or more", from the next tier's minimum.
 export function tierRange(tiers: GiftTier[], index: number) {
+  const tier = tiers[index];
   const next = tiers[index + 1];
-  const from = formatDollars(tiers[index].minimumSpend);
+  const from = formatDollars(tier.minimumSpend);
+  if (tier.maximumSpend != null) return `${from} – ${formatDollars(tier.maximumSpend)}`;
   return next ? `${from} – ${formatDollars(next.minimumSpend - 100)}` : `${from} or more`;
+}
+
+// Problems that stop a save: a maximum below its minimum, or ranges that
+// overlap the next tier.
+export function tierRangeErrors(tiers: GiftTier[]) {
+  const errors: string[] = [];
+  tiers.forEach((tier, index) => {
+    const next = tiers[index + 1];
+    if (tier.maximumSpend != null && tier.maximumSpend < tier.minimumSpend) {
+      errors.push(`Tier ${index + 1}: the maximum is below the minimum.`);
+    }
+    if (next && next.minimumSpend === tier.minimumSpend) {
+      errors.push(`Tier ${index + 1} and Tier ${index + 2} start at the same amount.`);
+    } else if (next && tier.maximumSpend != null && tier.maximumSpend >= next.minimumSpend) {
+      errors.push(`Tier ${index + 1} ends at ${formatDollars(tier.maximumSpend)}, inside Tier ${index + 2} (from ${formatDollars(next.minimumSpend)}).`);
+    }
+  });
+  return errors;
 }

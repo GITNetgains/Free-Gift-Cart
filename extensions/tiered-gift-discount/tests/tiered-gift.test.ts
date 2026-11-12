@@ -84,6 +84,20 @@ describe("tiered gift discount", () => {
     expect(targets(cartLinesDiscountsGenerateRun(input("120.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "1.0", "INR", "INR")))).toEqual(["g1"]);
   });
 
+  test("a tier stops at its maximum: a gap before the next tier gives nothing", () => {
+    // Tier 1 $120 – $200, Tier 2 from $300.
+    const withMax = (paid: string) => {
+      const data = input(paid, [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }]);
+      data.discount.tierSettings = { jsonValue: {
+        ...settings, shopCurrency: "USD",
+        tiers: [{ ...settings.tiers[0], maximumSpend: 20000 }, settings.tiers[1]],
+      } };
+      return data;
+    };
+    expect(targets(cartLinesDiscountsGenerateRun(withMax("200.00")))).toEqual(["g1"]);
+    expect(targets(cartLinesDiscountsGenerateRun(withMax("250.00")))).toEqual([]);
+  });
+
   test("gift lines do not count toward the subtotal", () => {
     expect(targets(cartLinesDiscountsGenerateRun(input("100.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }])))).toEqual([]);
   });

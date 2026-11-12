@@ -7,6 +7,7 @@
 //   its gift in the cart          -> progress to the next tier, its gifts
 //                                    (prices and bar against that tier)
 //   top tier's gift in the cart   -> hidden
+//   past a tier's maximum (gap)   -> progress to the next tier ("unlock")
 (() => {
   document.querySelectorAll(".fgcb-root[data-tiered]:not([data-initialized])").forEach((root) => {
     root.dataset.initialized = "true";
@@ -51,7 +52,10 @@
         });
         products.get(variant.productId).variantIds.add(numericId(variant.variantId));
       });
-      return { id: tier.id, minimum: Number(tier.minimumSpend || 0), products: [...products.values()] };
+      return {
+        id: tier.id, minimum: Number(tier.minimumSpend || 0), products: [...products.values()],
+        maximum: tier.maximumSpend == null || tier.maximumSpend === "" ? null : Number(tier.maximumSpend),
+      };
     }).sort((a, b) => a.minimum - b.minimum);
 
     // Gift lines don't count toward the total, as in the popup.
@@ -70,9 +74,14 @@
       const reached = thresholds.filter((threshold) => paid >= threshold).length; // tiers unlocked
       const hasGift = cart.items.some((item) => Boolean(item.properties?._tier_gift) || (tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0));
 
+      // Past the reached tier's maximum (a gap before the next tier) no tier
+      // applies, so the banner counts toward the next one.
+      const current = reached > 0 ? tiers[reached - 1] : null;
+      const pastMax = Boolean(current && current.maximum != null && paid > Math.round(current.maximum * rate));
+
       // Which tier the banner is about: the reached tier while its gift is
       // still to be chosen, otherwise the next tier to unlock.
-      const unlocked = reached > 0 && !hasGift;
+      const unlocked = reached > 0 && !pastMax && !hasGift;
       if (!unlocked && reached === tiers.length) { root.hidden = true; return; }
       const index = unlocked ? reached - 1 : reached;
       const target = tiers[index];
@@ -82,7 +91,7 @@
       const remaining = Math.max(0, targetThreshold - paid);
       const pct = unlocked ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
       const money = (cents) => formatMoney(cents, cart.currency);
-      const upgrade = !unlocked && reached > 0;
+      const upgrade = !unlocked && reached > 0 && !pastMax;
       const pill = unlocked
         ? (tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED")
         : upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";

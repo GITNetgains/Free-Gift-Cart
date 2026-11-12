@@ -14,6 +14,8 @@ type Tier = {
   // Lowest paid subtotal for this tier, in shop-currency cents. A tier runs
   // up to the next tier's minimum.
   minimumSpend: number;
+  // Optional upper end, included. Empty: until the next tier's minimum.
+  maximumSpend?: number | null;
   // "one": the shopper picks one gift. "all": every gift product is free.
   mode: "one" | "all";
   products: Array<{ productId: string; variantId: string }>;
@@ -31,10 +33,15 @@ export function thresholdRate(cartCurrency: string | undefined, shopCurrency: st
   return 1;
 }
 
+// The highest tier whose minimum the cart reaches, unless the cart is past
+// that tier's maximum (a gap before the next tier: no gift).
 export function activeTier(tiers: Tier[], paidSubtotalCents: number, currencyRate: number) {
-  return [...tiers]
+  const tier = [...tiers]
     .sort((a, b) => b.minimumSpend - a.minimumSpend)
-    .find((tier) => paidSubtotalCents >= Math.round(tier.minimumSpend * currencyRate));
+    .find((candidate) => paidSubtotalCents >= Math.round(candidate.minimumSpend * currencyRate));
+  if (!tier) return undefined;
+  if (tier.maximumSpend != null && paidSubtotalCents > Math.round(tier.maximumSpend * currencyRate)) return undefined;
+  return tier;
 }
 
 export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscountsGenerateRunResult {

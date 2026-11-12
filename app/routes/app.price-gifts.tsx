@@ -7,7 +7,7 @@ import { authenticate } from "../shopify.server";
 import type { DiscountClass as AdminDiscountClass } from "../types/admin.types";
 import {
   MAX_TIER_PRODUCTS, MAX_TIERS, PRICE_GIFT_NAMESPACE, baseProductGroups, countProducts, functionSettings,
-  newTierId, normalizeSettings, priceGiftsEnabledFor, tierRange,
+  newTierId, normalizeSettings, priceGiftsEnabledFor, tierRange, tierRangeErrors,
   type GiftTier, type PriceGiftSettings, type TierGiftProduct,
 } from "../services/price-gifts";
 
@@ -132,8 +132,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false, error: "Your changes couldn't be saved. Reload the page and try again." };
   }
   let settings = normalizeSettings(incoming);
-  if (new Set(settings.tiers.map((tier) => tier.minimumSpend)).size !== settings.tiers.length) {
-    return { ok: false, error: "Two tiers have the same minimum cart value." };
+  const rangeError = tierRangeErrors(settings.tiers)[0];
+  if (rangeError) {
+    return { ok: false, error: rangeError };
   }
   if (settings.enabled && (settings.tiers.length === 0 || settings.tiers[0].products.length === 0)) {
     return { ok: false, error: "Choose the Tier 1 gift products before turning price gifts on." };
@@ -201,6 +202,9 @@ function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size
 function TierFields({ tier, index, tiers, onChange, onRemove }: {
   tier: GiftTier; index: number; tiers: GiftTier[]; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
+  const next = tiers[index + 1];
+  // This tier's own range problems, shown under its fields.
+  const errors = tierRangeErrors(tiers).filter((error) => error.startsWith(`Tier ${index + 1}:`) || error.startsWith(`Tier ${index + 1} `));
   return <s-stack gap="base">
     <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
       <s-stack direction="inline" gap="small-200" alignItems="center">
@@ -210,14 +214,21 @@ function TierFields({ tier, index, tiers, onChange, onRemove }: {
       </s-stack>
       {onRemove ? <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button> : <span />}
     </s-grid>
-    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base" alignItems="start">
-      <s-number-field label="Starts at cart value" prefix="$" inputMode="numeric" min={0} step={1}
-        details={index === 0
-          ? "Paid subtotal, before discounts, gifts excluded. The shopper picks 1 gift."
-          : `From this amount the shopper picks 1 gift of Tier ${index + 1}; the Tier ${index} gift is removed.`}
+    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base" alignItems="start">
+      <s-number-field label="Min cart value" prefix="$" inputMode="numeric" min={0} step={1}
+        details={index === 0 ? "Paid subtotal, before discounts, gifts excluded." : `Tier ${index} gift is swapped for this tier's gift.`}
         value={String(Math.round(tier.minimumSpend / 100))}
         onChange={(event) => onChange({ ...tier, minimumSpend: Math.max(0, Math.trunc(Number(event.currentTarget.value) || 0)) * 100 })} />
+      <s-number-field label="Max cart value" prefix="$" inputMode="numeric" min={0} step={1}
+        placeholder={next ? String(Math.round(next.minimumSpend / 100) - 1) : "No limit"}
+        details={next ? `Leave empty to run until Tier ${index + 2} starts.` : "Leave empty for no upper limit."}
+        value={tier.maximumSpend == null ? "" : String(Math.round(tier.maximumSpend / 100))}
+        onChange={(event) => {
+          const raw = String(event.currentTarget.value ?? "").trim();
+          onChange({ ...tier, maximumSpend: raw === "" ? null : Math.max(0, Math.trunc(Number(raw) || 0)) * 100 });
+        }} />
     </s-grid>
+    {errors.map((error) => <s-text key={error} tone="critical">{error}</s-text>)}
   </s-stack>;
 }
 

@@ -69,6 +69,8 @@
       // with mode "all" are treated the same.
       id: tier.id, mode: "one",
       minimum: Number(tier.minimumSpend || 0),
+      // Optional upper end, included; empty runs until the next tier.
+      maximum: tier.maximumSpend == null || tier.maximumSpend === "" ? null : Number(tier.maximumSpend),
       allProducts: [...products.values()],
       products: [...products.values()].filter((product) => product.variants.length),
     };
@@ -84,9 +86,13 @@
   const isGiftItem = (item) => isTierGift(item) || isFreeTierVariant(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
   // Before discounts, like the discount function.
   const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
+  // The highest tier whose minimum the cart reaches, unless the cart is past
+  // its maximum (a gap before the next tier: no gift). Same as the function.
   const tierFor = (subtotal, cartCurrency) => {
     const rate = thresholdRate(cartCurrency);
-    return [...tiers].reverse().find((tier) => subtotal >= Math.round(tier.minimum * rate)) || null;
+    const tier = [...tiers].reverse().find((candidate) => subtotal >= Math.round(candidate.minimum * rate));
+    if (!tier || (tier.maximum != null && subtotal > Math.round(tier.maximum * rate))) return null;
+    return tier;
   };
 
   const variantValues = (variant) => {
