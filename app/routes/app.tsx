@@ -4,16 +4,17 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import { priceGiftsEnabledFor } from "../services/price-gifts";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { apiKey: process.env.SHOPIFY_API_KEY || "", priceGifts: priceGiftsEnabledFor(session.shop) };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, priceGifts } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -21,6 +22,7 @@ export default function App() {
         <s-link href="/app/dashboard">Dashboard</s-link>
         <s-link href="/app/photo-checks">Photo checks</s-link>
         <s-link href="/app/free-gift">Free gift settings</s-link>
+        {priceGifts && <s-link href="/app/price-gifts">Price gifts</s-link>}
         <s-link href="/app/order-logs">Order logs</s-link>
         <s-link href="/app/checkout-notices">Checkout notices</s-link>
         <s-link href="/app/checkout-recommendations">Checkout recommendations</s-link>

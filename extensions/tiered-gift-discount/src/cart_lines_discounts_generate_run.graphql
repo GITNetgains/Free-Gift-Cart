@@ -1,0 +1,22 @@
+query CartInput {
+  presentmentCurrencyRate
+  cart {
+    lines {
+      id
+      quantity
+      tierMarker: attribute(key: "_tier_gift") { value }
+      oldGiftMarker: attribute(key: "_free_gift") { value }
+      merchandise {
+        __typename
+        ... on ProductVariant { id product { id } }
+      }
+      cost {
+        subtotalAmount { amount }
+      }
+    }
+  }
+  discount {
+    discountClasses
+    tierSettings: metafield(namespace: "$app:tiered_gift", key: "settings") { jsonValue }
+  }
+}

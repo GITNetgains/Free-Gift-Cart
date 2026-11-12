@@ -192,6 +192,19 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.2)(jiti@2.7.0)(supports-color@7.2.0)(yaml@2.9.1)
 
+  extensions/tiered-gift-discount:
+    dependencies:
+      '@shopify/shopify_function':
+        specifier: ^2.0.1
+        version: 2.0.1(@parcel/watcher@2.6.0)(@types/node@22.20.2)(supports-color@7.2.0)
+    devDependencies:
+      '@shopify/shopify-function-test-helpers':
+        specifier: ^1.0.0
+        version: 1.1.0
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.2)(jiti@2.7.0)(supports-color@7.2.0)(yaml@2.9.1)
+
 packages:
 
   '@ardatan/relay-compiler@13.0.2':
