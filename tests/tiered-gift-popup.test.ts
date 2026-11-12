@@ -10,12 +10,16 @@ const gift = (product: string, variant: string, title: string, price = "30.00") 
 });
 const sling2 = gift("1", "11", "Zion Cases Sling 2.0");
 const shirt = gift("2", "21", "FREE GIFT | T-Shirt");
+// T-shirt sizes and colours: S/black, M/black and L/gray exist; L/black and S/gray don't.
+const shirtVariants = [["21", "S", "black"], ["22", "M", "black"], ["23", "L", "gray"]].map(([id, size, color]) => ({
+  ...shirt, variantId: `gid://shopify/ProductVariant/${id}`, variantTitle: `${size} / ${color}`, optionNames: ["Size", "Color"], optionValues: [size, color],
+}));
 const sling3 = gift("3", "31", "Zion Cases Sling 3.0");
 const settings = {
   enabled: true,
   tiers: [
     { id: "t1", minimumSpend: 29900, mode: "one", products: [sling2, shirt] },
-    { id: "t2", minimumSpend: 39900, mode: "all", products: [sling3, shirt] },
+    { id: "t2", minimumSpend: 39900, mode: "all", products: [sling3, ...shirtVariants] },
   ],
 };
 
@@ -25,9 +29,17 @@ const giftLine = (key: string, variant: number, tier: string): Item => ({ key, v
 
 async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", rate: "1.0" }) {
   let html = "";
-  let content = "";
+  // Every innerHTML the popup writes (cards, then each options refresh).
+  const writes: string[] = [];
   const updates: Array<Record<string, number>> = [];
-  const element = () => ({ set innerHTML(value: string) { content = value; }, get innerHTML() { return content; }, addEventListener() {}, focus() {}, classList: { add() {} } });
+  const element = (): Record<string, unknown> => {
+    let inner = "";
+    return {
+      set innerHTML(value: string) { inner = value; writes.push(value); }, get innerHTML() { return inner; },
+      addEventListener() {}, focus() {}, classList: { add() {}, toggle() {} }, hidden: false,
+      querySelector: () => element(), querySelectorAll: () => [],
+    };
+  };
   const nodes: Record<string, { textContent: string }> = {
     "[data-tiered-gift-settings]": { textContent: JSON.stringify(settings) },
     "[data-free-gift-settings]": { textContent: "{}" },
@@ -58,7 +70,7 @@ async function run(items: Item[], pathname = "/products/case", shop = { currency
     XMLHttpRequest: function XMLHttpRequest() {}, Intl, JSON, Number, String, Math, Set, Map, Object, Array, Promise,
   });
   await new Promise((resolve) => setTimeout(resolve, 20));
-  return { html, content, updates };
+  return { html, content: writes.join("\n"), updates };
 }
 
 describe("price gifts popup", () => {
@@ -94,5 +106,23 @@ describe("price gifts popup", () => {
     expect((await run([paid(1700)], "/products/case", inrShop)).html).toBe("");
     expect((await run([paid(29800)], "/products/case", inrShop)).html).toBe("");
     expect((await run([paid(29900)], "/products/case", inrShop)).html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
+  });
+
+  test("an all-gifts tier shows each gift's own options, titled", async () => {
+    const { content } = await run([paid(40000)]);
+    expect(content).toContain('data-options-for="gid://shopify/Product/2"');
+    expect(content).toContain('fgc-tier-options-title">FREE GIFT | T-Shirt<');
+    expect(content).toContain("Choose your size");
+    expect(content).toContain("Choose your color");
+  });
+
+  test("values that don't exist with the current choice are dimmed, not hidden", async () => {
+    const { content } = await run([paid(40000)]);
+    const panel = content.slice(content.lastIndexOf("data-options-for"));
+    const option = (value: string) => panel.match(new RegExp(`<button class="fgc-option([^"]*)"[^>]*data-option-value="${value}"`))?.[1];
+    expect(option("S")).toContain("is-selected");
+    expect(option("M")).toBe("");
+    expect(option("L")).toContain("is-unavailable");
+    expect(option("gray")).toContain("is-unavailable");
   });
 });
