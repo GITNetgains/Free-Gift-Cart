@@ -1,7 +1,8 @@
 // Price gifts (spend tiers) in the Free Gift App (Master) popup. The embed
 // loads this instead of free-gift-popup.js only while price gift settings are
-// on (app/routes/app.price-gifts.tsx). It draws the same popup (same classes
-// and CSS, plus tiered-gift-popup.css under .fgc-tier). The
+// on (app/routes/app.price-gifts.tsx). It draws the same popup with the same
+// classes and CSS (tiered-gift-popup.css only shows "+" instead of "OR"
+// between gifts in all-gift tiers). The
 // tiered-gift-discount function makes claimed lines free; they carry
 // `_tier_gift: <tier id>`.
 //
@@ -23,7 +24,6 @@
   // Popup text and colors from the Free gift settings.
   const look = readJson("[data-free-gift-settings]") || {};
   const live = readJson("[data-tiered-gift-inventory]") || {};
-  root.classList.add("fgc-tier");
 
   const nativeFetch = window.fetch.bind(window);
   const rate = Number(window.Shopify?.currency?.rate) || 1;
@@ -33,15 +33,6 @@
     const element = document.createElement("div");
     element.textContent = String(value ?? "");
     return element.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  };
-  const shortTitle = (title) => String(title || "").replace(/^\s*free\s*gift\s*[|:-]\s*/i, "");
-  let currency = window.Shopify?.currency?.active || "USD";
-  const money = (cents) => {
-    try {
-      return new Intl.NumberFormat(document.documentElement.lang || undefined, {
-        style: "currency", currency, minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2,
-      }).format(cents / 100);
-    } catch { return `${(cents / 100).toFixed(2)}`; }
   };
   const inStock = (variant) => {
     const state = live[variant.variantId];
@@ -55,7 +46,7 @@
     const products = new Map();
     (tier.products || []).forEach((variant) => {
       if (!products.has(variant.productId)) products.set(variant.productId, {
-        id: variant.productId, title: shortTitle(variant.productTitle),
+        id: variant.productId, title: variant.productTitle,
         imageUrl: live[variant.variantId]?.productImage || variant.imageUrl,
         variants: [], variantIds: new Set(),
       });
@@ -125,43 +116,40 @@
   };
   const close = (tier) => { setDismissed(tier.id); hidePopup(); };
 
-  const giftNames = (tier) => tier.products.map((product) => product.title).join(tier.mode === "all" ? " + " : " or ");
 
   const renderSelector = (tier, offered) => {
     const focused = offered.find((product) => product.id === focusedId) || offered[0];
     const selectedVariant = variantOf(focused);
     const groups = optionGroups(focused);
     const selectedValues = variantValues(selectedVariant);
+    // Same markup as free-gift-popup.js. In "all" tiers every card is ticked
+    // and the clicked card shows its options.
     const cards = offered.map((product) => {
       const selected = tier.mode === "all" || product.id === focused.id;
-      const variant = variantOf(product);
-      const image = variant?.imageUrl || product.imageUrl;
-      const worth = Math.round(Number(variant?.price || 0) * 100 * rate);
+      const image = product.id === focused.id ? selectedVariant?.imageUrl || product.imageUrl : product.imageUrl;
       return `
-      <button class="fgc-product${selected ? " is-selected" : ""}${product.id === focused.id ? " is-focused" : ""}" type="button" data-product-id="${escapeHtml(product.id)}" aria-pressed="${selected}">
+      <button class="fgc-product${selected ? " is-selected" : ""}" type="button" data-product-id="${escapeHtml(product.id)}">
         <span class="fgc-check" aria-hidden="true">${selected ? "✓" : ""}</span>
-        <span class="fgc-tier-image">${image ? `<img class="fgc-product-image" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}</span>
+        ${image ? `<img class="fgc-product-image" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
         <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
-        <span class="fgc-tier-price">${worth > 0 ? `<s>${escapeHtml(money(worth))}</s>` : ""}<span class="fgc-free">FREE</span></span>
+        <span class="fgc-free">🎁 FREE</span>
       </button>`;
-    }).join(`<span class="fgc-tier-join" aria-hidden="true">${tier.mode === "all" ? "+" : "OR"}</span>`);
-    const forTitle = tier.mode === "all" && offered.length > 1 ? ` · ${focused.title}` : "";
+    }).join("");
+    const forTitle = tier.mode === "all" && offered.length > 1 ? ` (${focused.title})` : "";
     const options = groups.map((group, groupIndex) => `
       <fieldset class="fgc-option-group">
-        <legend>Choose your ${escapeHtml(group.name.toLowerCase())}<span class="fgc-tier-for">${escapeHtml(forTitle)}</span></legend>
+        <legend>Choose your ${escapeHtml(group.name.toLowerCase())}${escapeHtml(forTitle)}</legend>
         <div class="fgc-options">${group.values.map((value) =>
           `<button class="fgc-option${selectedValues[groupIndex] === value ? " is-selected" : ""}" type="button" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`
         ).join("")}</div>
       </fieldset>`).join("");
-    const label = tier.mode === "all" && offered.length > 1
-      ? `Add ${offered.length} free gifts`
-      : look.buttonLabel || "Claim my free gift";
 
     root.querySelector(".fgc-content").innerHTML = `
-      <div class="fgc-products fgc-tier-products" data-count="${offered.length}">${cards}</div>
+      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}">${cards}</div>
       ${groups.length ? `<div class="fgc-variant-panel">${options}</div>` : ""}
-      <button class="fgc-claim" type="button"><span aria-hidden="true">🎁</span> ${escapeHtml(label)}</button>
-      <p class="fgc-status" aria-live="polite"></p>`;
+      <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
+      <p class="fgc-status" aria-live="polite"></p>
+      <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
 
     root.querySelectorAll("[data-product-id]").forEach((card) => card.addEventListener("click", () => {
       focusedId = card.dataset.productId;
@@ -194,7 +182,6 @@
         });
         if (!response.ok) throw new Error("Gift could not be added. Please try another option.");
         status.textContent = look.successMessage || "Free gift added.";
-        claim.classList.add("is-done");
         // Reload so the theme's cart (page, drawer, count) shows the gift.
         window.setTimeout(() => window.location.reload(), 700);
       } catch (error) {
@@ -205,18 +192,13 @@
     });
   };
 
-  const show = (tier, offered, subtotal) => {
+  const show = (tier, offered) => {
     if (root.querySelector(".fgc-overlay")) return;
     if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
-    const tierNumber = tiers.indexOf(tier) + 1;
-    const next = tiers[tiers.indexOf(tier) + 1];
     const several = tier.mode === "all" && offered.length > 1;
     const subheading = tier.mode === "all"
-      ? `${several ? "These gifts are" : "This gift is"} yours, free. Pick your options and add ${several ? "them" : "it"} to your cart.`
-      : look.subheading || "Pick 1 gift below and add it to your cart.";
-    const upsell = next && next.products.length
-      ? `<p class="fgc-tier-next"><span>Add <strong>${escapeHtml(money(next.threshold - subtotal))}</strong> more to unlock</span> <strong>${escapeHtml(giftNames(next))}</strong></p>`
-      : "";
+      ? `${several ? "All gifts below are" : "The gift below is"} free with your order. Choose your options and add ${several ? "them" : "it"} to your cart.`
+      : look.subheading || "Choose 1 gift below and add it to your cart.";
     root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", look.textColor || "#111827");
     root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
@@ -225,13 +207,11 @@
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
-        <div class="fgc-tier-badge">Tier ${tierNumber} unlocked · ${escapeHtml(money(tier.threshold))}+ order</div>
-        <div class="fgc-header"><span class="fgc-gift" aria-hidden="true">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
         <div class="fgc-content"></div>
-        ${upsell}
-        <div class="fgc-benefits"><span>◆&nbsp; Secure checkout</span><span>▰&nbsp; Fast shipping</span><span>★&nbsp; Loved by collectors</span></div>
-        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement. Limited quantities available.*</p>
+        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </section></div>`);
     root.hidden = false;
     document.documentElement.classList.add("fgc-lock");
@@ -249,7 +229,6 @@
       const response = await nativeFetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!response.ok) return;
       const cart = await response.json();
-      if (cart.currency) currency = cart.currency;
       const subtotal = paidSubtotal(cart);
       const tier = tierFor(subtotal);
 
@@ -285,7 +264,7 @@
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
       if (!offered.length) { hidePopup(); return; }
-      if (dismissedTier() !== tier.id) show(tier, offered, subtotal);
+      if (dismissedTier() !== tier.id) show(tier, offered);
     } catch {
       // The next check retries network failures.
     } finally {

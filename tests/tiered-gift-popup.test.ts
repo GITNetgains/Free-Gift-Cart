@@ -68,11 +68,11 @@ describe("price gifts popup", () => {
 
   test("crossing Tier 1 on any page opens the pick-one popup", async () => {
     const { html, content } = await run([paid(29900)]);
-    expect(html).toContain("Tier 1 unlocked");
-    expect(html).toContain("more to unlock");
+    expect(html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
+    expect(html).toContain("fgc-urgency");
     expect(content).toContain("Zion Cases Sling 2.0");
-    expect(content).toContain(">T-Shirt<");
-    expect(content).toContain(">OR<");
+    expect(content).toContain("FREE GIFT | T-Shirt");
+    expect(content).not.toContain("fgc-products--all");
   });
 
   test("Tier 2 offers every gift and removes the Tier 1 gift", async () => {
@@ -80,7 +80,7 @@ describe("price gifts popup", () => {
     expect(updates).toEqual([{ old: 0 }]);
     expect(html).toContain("FREE GIFTS");
     expect(content).toContain("Zion Cases Sling 3.0");
-    expect(content).toContain(">+<");
+    expect(content).toContain("fgc-products--all");
   });
 
   test("in a pick-one tier the newest gift replaces the earlier one", async () => {
