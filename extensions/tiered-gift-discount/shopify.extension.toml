@@ -3,6 +3,7 @@ api_version = "2026-07"
 [[extensions]]
 name = "t:name"
 handle = "tiered-gift-discount"
+uid = "e203fec1-b8ac-1667-cffe-5b7f8b4af7d9dfcb4949"
 type = "function"
 description = "t:description"
 
