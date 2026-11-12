@@ -114,7 +114,8 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
     .map((tier) => ({
       id: typeof tier?.id === "string" && /^[a-z0-9]{1,24}$/i.test(tier.id) ? tier.id : newTierId(),
       minimumSpend: Math.max(0, Math.round((Number(tier?.minimumSpend) || 0) / 100) * 100),
-      mode: tier?.mode === "all" ? "all" as const : "one" as const,
+      // One gift per order in every tier.
+      mode: "one" as const,
       products: limitProducts(Array.isArray(tier?.products) ? tier.products : []),
       replacements: (Array.isArray(tier?.replacements) ? tier.replacements : [])
         .filter((replacement) => typeof replacement?.fromProductId === "string")

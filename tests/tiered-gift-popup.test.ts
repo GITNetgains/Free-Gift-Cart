@@ -19,7 +19,8 @@ const settings = {
   enabled: true,
   tiers: [
     { id: "t1", minimumSpend: 29900, mode: "one", products: [sling2, shirt] },
-    { id: "t2", minimumSpend: 39900, mode: "all", products: [sling3, ...shirtVariants] },
+    // Saved as "all" by an older version: still one gift.
+    { id: "t2", minimumSpend: 39900, mode: "all", products: [...shirtVariants, sling3] },
   ],
 };
 
@@ -87,12 +88,19 @@ describe("price gifts popup", () => {
     expect(content).not.toContain("fgc-products--all");
   });
 
-  test("Tier 2 offers every gift and removes the Tier 1 gift", async () => {
+  test("Tier 2 removes the Tier 1 gift and offers one gift, even if saved as all", async () => {
     const { html, content, updates } = await run([paid(40000), giftLine("old", 11, "t1")]);
     expect(updates).toEqual([{ old: 0 }]);
-    expect(html).toContain("FREE GIFTS");
+    expect(html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
+    expect(html).not.toContain("FREE GIFTS");
     expect(content).toContain("Zion Cases Sling 3.0");
-    expect(content).toContain("fgc-products--all");
+    expect(content).not.toContain("fgc-products--all");
+  });
+
+  test("Tier 2 keeps a single Tier 2 gift and removes any second one", async () => {
+    const { updates, html } = await run([giftLine("newest", 31, "t2"), paid(40000), giftLine("earlier", 21, "t2")]);
+    expect(updates).toEqual([{ earlier: 0 }]);
+    expect(html).toBe("");
   });
 
   test("in a pick-one tier the newest gift replaces the earlier one", async () => {
@@ -108,10 +116,10 @@ describe("price gifts popup", () => {
     expect((await run([paid(29900)], "/products/case", inrShop)).html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
   });
 
-  test("an all-gifts tier shows each gift's own options, titled", async () => {
+  test("only the chosen gift's options show", async () => {
     const { content } = await run([paid(40000)]);
     expect(content).toContain('data-options-for="gid://shopify/Product/2"');
-    expect(content).toContain('fgc-tier-options-title">FREE GIFT | T-Shirt<');
+    expect(content).not.toContain('data-options-for="gid://shopify/Product/3"');
     expect(content).toContain("Choose your size");
     expect(content).toContain("Choose your color");
   });

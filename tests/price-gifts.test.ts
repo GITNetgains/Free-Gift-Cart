@@ -40,7 +40,8 @@ describe("price gift settings", () => {
 
   test("the function copy keeps only ids and rules", () => {
     expect(JSON.parse(functionSettings(settings)).tiers[1]).toEqual({
-      id: "high", minimumSpend: 30000, mode: "all",
+      // Saved as "all", but every tier gives one gift.
+      id: "high", minimumSpend: 30000, mode: "one",
       products: [sling3, shirtS, shirtM].map(({ productId, variantId }) => ({ productId, variantId })),
     });
   });

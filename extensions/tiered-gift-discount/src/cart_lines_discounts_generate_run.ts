@@ -57,7 +57,8 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
     if (line.tierMarker?.value !== tier.id || line.merchandise.__typename !== "ProductVariant") continue;
     const productId = productByVariant.get(line.merchandise.id);
     if (!productId || discountedProducts.has(productId)) continue;
-    if (tier.mode === "one" && targets.length >= 1) break;
+    // One free gift per order, whatever mode older settings were saved with.
+    if (targets.length >= 1) break;
     discountedProducts.add(productId);
     targets.push({ cartLine: { id: line.id, quantity: 1 } });
   }

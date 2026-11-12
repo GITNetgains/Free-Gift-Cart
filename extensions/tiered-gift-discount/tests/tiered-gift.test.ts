@@ -52,12 +52,12 @@ describe("tiered gift discount", () => {
     expect(targets(result)).toEqual(["g1"]);
   });
 
-  test("300+ makes every gift of the tier free", () => {
+  test("300+ makes only one gift free, even if the tier was saved as all", () => {
     const result = cartLinesDiscountsGenerateRun(input("300.00", [
       { id: "g1", tier: "t300", variantId: SLING3.variantId },
       { id: "g2", tier: "t300", variantId: SHIRT.variantId },
     ]));
-    expect(targets(result)).toEqual(["g1", "g2"]);
+    expect(targets(result)).toEqual(["g1"]);
   });
 
   test("a gift claimed for the lower tier is not free in the higher tier", () => {

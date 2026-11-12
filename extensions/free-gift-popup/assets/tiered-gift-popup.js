@@ -64,7 +64,10 @@
       if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
     });
     return {
-      id: tier.id, mode: tier.mode === "all" ? "all" : "one",
+      // One gift per order in every tier: the shopper picks one, and reaching
+      // a higher tier swaps the lower tier's gift out. Older settings saved
+      // with mode "all" are treated the same.
+      id: tier.id, mode: "one",
       minimum: Number(tier.minimumSpend || 0),
       allProducts: [...products.values()],
       products: [...products.values()].filter((product) => product.variants.length),

@@ -195,8 +195,9 @@ function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size
   </s-stack>;
 }
 
-// Tier title with its Remove button, then the two settings side by side,
-// top-aligned, each with one helper line so the fields line up.
+// Tier title with its Remove button, then the starting cart value. Every
+// tier gives one gift: the shopper picks it, and a higher tier replaces the
+// lower tier's gift.
 function TierFields({ tier, index, tiers, onChange, onRemove }: {
   tier: GiftTier; index: number; tiers: GiftTier[]; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
@@ -205,21 +206,17 @@ function TierFields({ tier, index, tiers, onChange, onRemove }: {
       <s-stack direction="inline" gap="small-200" alignItems="center">
         <s-heading>Tier {index + 1}</s-heading>
         <s-badge>{tierRange(tiers, index)}</s-badge>
-        <s-badge tone={tier.mode === "all" ? "success" : "info"}>{tier.mode === "all" ? "All gifts free" : "Pick 1 gift"}</s-badge>
+        <s-badge tone="info">Pick 1 gift</s-badge>
       </s-stack>
       {onRemove ? <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button> : <span />}
     </s-grid>
     <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base" alignItems="start">
       <s-number-field label="Starts at cart value" prefix="$" inputMode="numeric" min={0} step={1}
-        details={index === 0 ? "Paid subtotal, before discounts, gifts excluded." : `Takes over from Tier ${index} at this amount.`}
+        details={index === 0
+          ? "Paid subtotal, before discounts, gifts excluded. The shopper picks 1 gift."
+          : `From this amount the shopper picks 1 gift of Tier ${index + 1}; the Tier ${index} gift is removed.`}
         value={String(Math.round(tier.minimumSpend / 100))}
         onChange={(event) => onChange({ ...tier, minimumSpend: Math.max(0, Math.trunc(Number(event.currentTarget.value) || 0)) * 100 })} />
-      <s-select label="Shopper gets" value={tier.mode}
-        details={tier.mode === "all" ? "Every gift in this tier is added free." : "The shopper chooses one gift."}
-        onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : "one" })}>
-        <s-option value="one">Pick 1 gift</s-option>
-        <s-option value="all">All gifts free</s-option>
-      </s-select>
     </s-grid>
   </s-stack>;
 }
@@ -430,7 +427,7 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
 
       {base && view.tiers.length < MAX_TIERS && <s-section>
         <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-          <s-text color="subdued">Add a higher cart value with bigger gifts, e.g. from $300 Sling 3.0 + T-shirt.</s-text>
+          <s-text color="subdued">Add a higher cart value with a bigger gift, e.g. from $399 swap Sling 2.0 for Sling 3.0.</s-text>
           <s-button icon="plus" onClick={addTier}>Add higher tier</s-button>
         </s-stack>
       </s-section>}
