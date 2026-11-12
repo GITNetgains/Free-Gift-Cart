@@ -37,6 +37,7 @@
     </script>
   </div>
   {{ 'free-gift-popup.css' | asset_url | stylesheet_tag }}
+  {{ 'tiered-gift-popup.css' | asset_url | stylesheet_tag }}
   <script src="{{ 'tiered-gift-popup.js' | asset_url }}" defer></script>
 {% elsif gift_settings != blank and gift_settings.enabled %}
   <div id="free-gift-cart-root" data-free-gift-master data-cart-path="{{ routes.cart_url }}" hidden>

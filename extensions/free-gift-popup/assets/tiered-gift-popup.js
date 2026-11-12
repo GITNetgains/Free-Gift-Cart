@@ -1,14 +1,19 @@
 // Price gifts (spend tiers) in the Free Gift App (Master) popup. The embed
 // loads this instead of free-gift-popup.js only while price gift settings are
-// on (app/routes/app.price-gifts.tsx), and it draws the same popup with the
-// same classes and CSS. The tiered-gift-discount function makes claimed lines
-// free; they carry `_tier_gift: <tier id>`.
+// on (app/routes/app.price-gifts.tsx). It draws the same popup (same classes
+// and CSS, plus tiered-gift-popup.css under .fgc-tier). The
+// tiered-gift-discount function makes claimed lines free; they carry
+// `_tier_gift: <tier id>`.
+//
+// It runs on every page: the popup opens as soon as the cart crosses a tier's
+// minimum, whether the item was added from a product page, a cart drawer or
+// the cart page.
 (() => {
   const root = document.getElementById("free-gift-cart-root");
   if (!root || root.dataset.initialized === "true") return;
   root.dataset.initialized = "true";
-  const cartPath = root.dataset.cartPath || "/cart";
-  if (window.location.pathname.replace(/\/$/, "") !== cartPath.replace(/\/$/, "")) return;
+  const cartPath = (root.dataset.cartPath || "/cart").replace(/\/$/, "");
+  const onCartPage = window.location.pathname.replace(/\/$/, "") === cartPath;
 
   const readJson = (selector) => {
     try { return JSON.parse(root.querySelector(selector)?.textContent || "{}") || {}; } catch { return null; }
@@ -18,7 +23,9 @@
   // Popup text and colors from the Free gift settings.
   const look = readJson("[data-free-gift-settings]") || {};
   const live = readJson("[data-tiered-gift-inventory]") || {};
+  root.classList.add("fgc-tier");
 
+  const nativeFetch = window.fetch.bind(window);
   const rate = Number(window.Shopify?.currency?.rate) || 1;
   const basePath = window.Shopify?.routes?.root || "/";
   const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -26,6 +33,15 @@
     const element = document.createElement("div");
     element.textContent = String(value ?? "");
     return element.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  };
+  const shortTitle = (title) => String(title || "").replace(/^\s*free\s*gift\s*[|:-]\s*/i, "");
+  let currency = window.Shopify?.currency?.active || "USD";
+  const money = (cents) => {
+    try {
+      return new Intl.NumberFormat(document.documentElement.lang || undefined, {
+        style: "currency", currency, minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2,
+      }).format(cents / 100);
+    } catch { return `${(cents / 100).toFixed(2)}`; }
   };
   const inStock = (variant) => {
     const state = live[variant.variantId];
@@ -39,7 +55,7 @@
     const products = new Map();
     (tier.products || []).forEach((variant) => {
       if (!products.has(variant.productId)) products.set(variant.productId, {
-        id: variant.productId, title: variant.productTitle,
+        id: variant.productId, title: shortTitle(variant.productTitle),
         imageUrl: live[variant.variantId]?.productImage || variant.imageUrl,
         variants: [], variantIds: new Set(),
       });
@@ -65,10 +81,7 @@
   const isGiftItem = (item) => isTierGift(item) || isFreeTierVariant(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
   // Before discounts, like the discount function.
   const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
-  const activeTier = (cart) => {
-    const subtotal = paidSubtotal(cart);
-    return [...tiers].reverse().find((tier) => subtotal >= tier.threshold) || null;
-  };
+  const tierFor = (subtotal) => [...tiers].reverse().find((tier) => subtotal >= tier.threshold) || null;
 
   const variantValues = (variant) => {
     if (Array.isArray(variant.optionValues) && variant.optionValues.length) return variant.optionValues;
@@ -92,24 +105,27 @@
   };
 
   let busy = false;
+  let pending = false;
   // The card whose options are showing (in "one" tiers, also the chosen
   // gift) and the chosen variant per product.
   let focusedId = "";
   const chosen = {};
   const variantOf = (product) => product.variants.find((variant) => variant.variantId === chosen[product.id]) || product.variants[0];
 
-  const signatureOf = (cart, tier) => `${tier.id}|${cart.items.filter((item) => !isGiftItem(item))
-    .map((item) => `${item.variant_id}:${item.quantity}`).sort().join("|")}`;
+  // Closing the popup hides it for that tier until the cart drops below it
+  // or reaches another tier.
+  const DISMISS_KEY = "fgc-tier-dismissed";
+  const dismissedTier = () => { try { return sessionStorage.getItem(DISMISS_KEY) || ""; } catch { return ""; } };
+  const setDismissed = (value) => { try { value ? sessionStorage.setItem(DISMISS_KEY, value) : sessionStorage.removeItem(DISMISS_KEY); } catch { /* blocked */ } };
+
   const hidePopup = () => {
     document.documentElement.classList.remove("fgc-lock");
     root.querySelector(".fgc-overlay")?.remove();
     root.hidden = true;
   };
-  const close = (signature) => {
-    try { sessionStorage.setItem("fgc-dismissed-cart", signature); } catch { /* storage blocked */ }
-    hidePopup();
-  };
-  const dismissed = (signature) => { try { return sessionStorage.getItem("fgc-dismissed-cart") === signature; } catch { return false; } };
+  const close = (tier) => { setDismissed(tier.id); hidePopup(); };
+
+  const giftNames = (tier) => tier.products.map((product) => product.title).join(tier.mode === "all" ? " + " : " or ");
 
   const renderSelector = (tier, offered) => {
     const focused = offered.find((product) => product.id === focusedId) || offered[0];
@@ -118,30 +134,34 @@
     const selectedValues = variantValues(selectedVariant);
     const cards = offered.map((product) => {
       const selected = tier.mode === "all" || product.id === focused.id;
-      const image = product.id === focused.id ? selectedVariant?.imageUrl || product.imageUrl : (variantOf(product)?.imageUrl || product.imageUrl);
+      const variant = variantOf(product);
+      const image = variant?.imageUrl || product.imageUrl;
+      const worth = Math.round(Number(variant?.price || 0) * 100 * rate);
       return `
-      <button class="fgc-product${selected ? " is-selected" : ""}" type="button" data-product-id="${escapeHtml(product.id)}">
+      <button class="fgc-product${selected ? " is-selected" : ""}${product.id === focused.id ? " is-focused" : ""}" type="button" data-product-id="${escapeHtml(product.id)}" aria-pressed="${selected}">
         <span class="fgc-check" aria-hidden="true">${selected ? "✓" : ""}</span>
-        ${image ? `<img class="fgc-product-image" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}
+        <span class="fgc-tier-image">${image ? `<img class="fgc-product-image" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}</span>
         <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
-        <span class="fgc-free">🎁 FREE</span>
+        <span class="fgc-tier-price">${worth > 0 ? `<s>${escapeHtml(money(worth))}</s>` : ""}<span class="fgc-free">FREE</span></span>
       </button>`;
-    }).join("");
-    const forTitle = tier.mode === "all" && offered.length > 1 ? ` (${focused.title})` : "";
+    }).join(`<span class="fgc-tier-join" aria-hidden="true">${tier.mode === "all" ? "+" : "OR"}</span>`);
+    const forTitle = tier.mode === "all" && offered.length > 1 ? ` · ${focused.title}` : "";
     const options = groups.map((group, groupIndex) => `
       <fieldset class="fgc-option-group">
-        <legend>Choose your ${escapeHtml(group.name.toLowerCase())}${escapeHtml(forTitle)}</legend>
+        <legend>Choose your ${escapeHtml(group.name.toLowerCase())}<span class="fgc-tier-for">${escapeHtml(forTitle)}</span></legend>
         <div class="fgc-options">${group.values.map((value) =>
           `<button class="fgc-option${selectedValues[groupIndex] === value ? " is-selected" : ""}" type="button" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`
         ).join("")}</div>
       </fieldset>`).join("");
+    const label = tier.mode === "all" && offered.length > 1
+      ? `Add ${offered.length} free gifts`
+      : look.buttonLabel || "Claim my free gift";
 
     root.querySelector(".fgc-content").innerHTML = `
-      <div class="fgc-products">${cards}</div>
+      <div class="fgc-products fgc-tier-products" data-count="${offered.length}">${cards}</div>
       ${groups.length ? `<div class="fgc-variant-panel">${options}</div>` : ""}
-      <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
-      <p class="fgc-status" aria-live="polite"></p>
-      <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
+      <button class="fgc-claim" type="button"><span aria-hidden="true">🎁</span> ${escapeHtml(label)}</button>
+      <p class="fgc-status" aria-live="polite"></p>`;
 
     root.querySelectorAll("[data-product-id]").forEach((card) => card.addEventListener("click", () => {
       focusedId = card.dataset.productId;
@@ -165,7 +185,7 @@
       claim.disabled = true;
       busy = true;
       try {
-        const response = await fetch(`${basePath}cart/add.js`, {
+        const response = await nativeFetch(`${basePath}cart/add.js`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ items: products.map((product) => ({
@@ -174,7 +194,9 @@
         });
         if (!response.ok) throw new Error("Gift could not be added. Please try another option.");
         status.textContent = look.successMessage || "Free gift added.";
-        window.setTimeout(() => window.location.reload(), 650);
+        claim.classList.add("is-done");
+        // Reload so the theme's cart (page, drawer, count) shows the gift.
+        window.setTimeout(() => window.location.reload(), 700);
       } catch (error) {
         status.textContent = error instanceof Error ? error.message : "Gift could not be added.";
         claim.disabled = false;
@@ -183,13 +205,18 @@
     });
   };
 
-  const show = (tier, offered, signature) => {
+  const show = (tier, offered, subtotal) => {
     if (root.querySelector(".fgc-overlay")) return;
     if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
+    const tierNumber = tiers.indexOf(tier) + 1;
+    const next = tiers[tiers.indexOf(tier) + 1];
     const several = tier.mode === "all" && offered.length > 1;
     const subheading = tier.mode === "all"
-      ? `${several ? "All gifts below are" : "The gift below is"} free with your order. Choose your options and add ${several ? "them" : "it"} to your cart.`
-      : look.subheading || "Choose 1 gift below and add it to your cart.";
+      ? `${several ? "These gifts are" : "This gift is"} yours, free. Pick your options and add ${several ? "them" : "it"} to your cart.`
+      : look.subheading || "Pick 1 gift below and add it to your cart.";
+    const upsell = next && next.products.length
+      ? `<p class="fgc-tier-next"><span>Add <strong>${escapeHtml(money(next.threshold - subtotal))}</strong> more to unlock</span> <strong>${escapeHtml(giftNames(next))}</strong></p>`
+      : "";
     root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", look.textColor || "#111827");
     root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
@@ -198,29 +225,33 @@
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
-        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
+        <div class="fgc-tier-badge">Tier ${tierNumber} unlocked · ${escapeHtml(money(tier.threshold))}+ order</div>
+        <div class="fgc-header"><span class="fgc-gift" aria-hidden="true">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
-        <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
         <div class="fgc-content"></div>
-        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
+        ${upsell}
+        <div class="fgc-benefits"><span>◆&nbsp; Secure checkout</span><span>▰&nbsp; Fast shipping</span><span>★&nbsp; Loved by collectors</span></div>
+        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement. Limited quantities available.*</p>
       </section></div>`);
     root.hidden = false;
     document.documentElement.classList.add("fgc-lock");
-    root.querySelector(".fgc-close")?.addEventListener("click", () => close(signature));
-    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(signature); });
-    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(signature); };
+    root.querySelector(".fgc-close")?.addEventListener("click", () => close(tier));
+    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(tier); });
+    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(tier); };
     root.querySelector(".fgc-close")?.focus();
     renderSelector(tier, offered);
   };
 
   const checkCart = async () => {
-    if (busy) return;
+    if (busy) { pending = true; return; }
     busy = true;
     try {
-      const response = await fetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const response = await nativeFetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!response.ok) return;
       const cart = await response.json();
-      const tier = activeTier(cart);
+      if (cart.currency) currency = cart.currency;
+      const subtotal = paidSubtotal(cart);
+      const tier = tierFor(subtotal);
 
       // Keep only this tier's gifts: one unit per gift product, and a single
       // gift in "one" tiers. Lower-tier gifts, other gifts and extra units go.
@@ -237,31 +268,52 @@
       });
       if (Object.keys(updates).length) {
         hidePopup();
-        const update = await fetch(`${basePath}cart/update.js`, {
+        const update = await nativeFetch(`${basePath}cart/update.js`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ updates }),
         });
-        // Reload only when the cart changed, so a refused update can't loop.
+        // Reload the cart page only when the cart changed, so a refused
+        // update can't loop. Other pages keep their place.
         const updated = update.ok ? await update.json() : null;
         const shape = (items) => JSON.stringify(items.map((item) => [item.key, item.quantity]));
-        if (updated && shape(updated.items) !== shape(cart.items)) { window.location.reload(); return; }
+        if (onCartPage && updated && shape(updated.items) !== shape(cart.items)) { window.location.reload(); return; }
       }
 
-      if (!tier) { hidePopup(); try { sessionStorage.removeItem("fgc-dismissed-cart"); } catch { /* blocked */ } return; }
+      if (!tier) { hidePopup(); setDismissed(""); return; }
       const offered = tier.mode === "all"
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
       if (!offered.length) { hidePopup(); return; }
-      const signature = signatureOf(cart, tier);
-      if (!dismissed(signature)) show(tier, offered, signature);
+      if (dismissedTier() !== tier.id) show(tier, offered, subtotal);
     } catch {
-      // The next poll retries network failures.
+      // The next check retries network failures.
     } finally {
       busy = false;
+      if (pending) { pending = false; window.setTimeout(checkCart, 100); }
     }
   };
 
+  // Re-check right after the theme changes the cart (fetch or XHR to
+  // /cart/add, /cart/change, /cart/update, /cart/clear).
+  const CART_CHANGE = /\/cart\/(add|change|update|clear)(\.js)?(\?|$)/;
+  const afterCartChange = () => window.setTimeout(checkCart, 350);
+  window.fetch = function (input, init) {
+    const url = typeof input === "string" ? input : input?.url || "";
+    const result = nativeFetch(input, init);
+    if (CART_CHANGE.test(url)) result.then(afterCartChange, () => {});
+    return result;
+  };
+  const nativeOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (CART_CHANGE.test(String(url))) this.addEventListener("loadend", afterCartChange);
+    return nativeOpen.call(this, method, url, ...rest);
+  };
+  // Classic (non-AJAX) add-to-cart forms land on the cart page or reload,
+  // which the first check covers.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkCart(); });
+
   checkCart();
-  window.setInterval(checkCart, 1000);
+  // The cart page's own quantity controls vary by theme, so it also polls.
+  if (onCartPage) window.setInterval(checkCart, 1000);
 })();

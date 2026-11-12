@@ -1,0 +1,97 @@
+/* Price gifts popup. Loaded after free-gift-popup.css only while price gift
+   settings are on, and scoped to .fgc-tier, so the Free gift popup on other
+   stores is untouched. */
+.fgc-tier .fgc-overlay { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.fgc-tier .fgc-dialog {
+  max-width: 640px; padding: 22px 28px 18px; border-radius: 22px;
+  animation: fgc-tier-in .22s ease-out;
+}
+@keyframes fgc-tier-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fgc-tier .fgc-dialog { animation: none; } }
+
+.fgc-tier .fgc-close { width: 36px; height: 36px; font-size: 26px; right: 12px; top: 12px; border-color: #e4e7ec; color: #475467; }
+.fgc-tier .fgc-close:hover { background: #f2f4f7; }
+
+.fgc-tier .fgc-tier-badge {
+  display: table; margin: 0 auto 10px; padding: 5px 12px; border-radius: 999px;
+  background: color-mix(in srgb, var(--fgc-button, #ef0b18) 10%, transparent);
+  color: var(--fgc-button, #ef0b18); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+}
+.fgc-tier .fgc-header { margin: 0 44px 4px; }
+.fgc-tier .fgc-heading { font-size: 22px; letter-spacing: .01em; }
+.fgc-tier .fgc-subheading { max-width: 440px; margin: 0 auto 16px; color: #475467; line-height: 1.45; }
+
+/* Gift cards with an OR / + between them. */
+.fgc-tier .fgc-tier-products { display: flex; align-items: stretch; justify-content: center; gap: 10px; }
+.fgc-tier .fgc-product {
+  flex: 1 1 0; min-width: 0; max-width: 240px; min-height: 0; padding: 12px 12px 14px; gap: 8px;
+  border: 2px solid #e4e7ec; border-radius: 16px; background: #fff;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.fgc-tier .fgc-product::after { content: none !important; }
+.fgc-tier .fgc-product:hover { border-color: #c7ccd4; transform: translateY(-1px); }
+.fgc-tier .fgc-product.is-selected { border-color: var(--fgc-button, #ef0b18); box-shadow: 0 10px 24px rgba(16, 24, 40, .08); }
+.fgc-tier .fgc-product.is-focused { box-shadow: 0 0 0 4px color-mix(in srgb, var(--fgc-button, #ef0b18) 14%, transparent), 0 10px 24px rgba(16, 24, 40, .08); }
+.fgc-tier .fgc-check { width: 26px; height: 26px; right: 10px; top: 10px; font-size: 15px; z-index: 1; background: #fff; }
+.fgc-tier .fgc-product.is-selected .fgc-check { background: var(--fgc-button, #ef0b18); border-color: var(--fgc-button, #ef0b18); }
+.fgc-tier .fgc-tier-image {
+  display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1;
+  border-radius: 12px; background: #f6f7f9; overflow: hidden;
+}
+.fgc-tier .fgc-product-image { width: 86%; height: 86%; object-fit: contain; }
+.fgc-tier .fgc-product-title { margin: 0; font-size: 14px; font-weight: 700; line-height: 1.3; color: #101828; }
+.fgc-tier .fgc-tier-price { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; }
+.fgc-tier .fgc-tier-price s { color: #98a2b3; font-size: 13px; font-weight: 600; }
+.fgc-tier .fgc-free { margin: 0; padding: 4px 12px; font-size: 13px; letter-spacing: .04em; background: var(--fgc-button, #ef0b18); color: var(--fgc-button-text, #fff); }
+.fgc-tier .fgc-tier-join {
+  align-self: center; flex: none; display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%; background: #101828; color: #fff; font-size: 12px; font-weight: 900;
+}
+
+/* Option chips. */
+.fgc-tier .fgc-variant-panel { margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: #f9fafb; }
+.fgc-tier .fgc-option-group { margin: 0 0 10px; }
+.fgc-tier .fgc-option-group:last-child { margin-bottom: 0; }
+.fgc-tier .fgc-option-group legend { margin-bottom: 8px; font-size: 13px; font-weight: 800; color: #344054; }
+.fgc-tier .fgc-tier-for { color: #667085; font-weight: 600; }
+.fgc-tier .fgc-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.fgc-tier .fgc-option {
+  min-width: 52px; min-height: 40px; padding: 8px 14px; border: 1.5px solid #d0d5dd; border-radius: 10px;
+  background: #fff; font-size: 14px; font-weight: 700;
+}
+.fgc-tier .fgc-option:hover { border-color: #101828; }
+.fgc-tier .fgc-option.is-selected { background: #101828; border-color: #101828; color: #fff; box-shadow: none; }
+
+/* Claim button, upsell, trust row. */
+.fgc-tier .fgc-claim {
+  display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px;
+  min-height: 52px; border-radius: 12px; font-size: 17px; letter-spacing: .02em; transition: filter .15s, transform .15s;
+}
+.fgc-tier .fgc-claim:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+.fgc-tier .fgc-claim.is-done { opacity: 1; background: #12b76a; }
+.fgc-tier .fgc-status { min-height: 0; margin: 8px 0 0; font-weight: 700; }
+.fgc-tier .fgc-status:empty { display: none; }
+.fgc-tier .fgc-tier-next {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 6px;
+  margin: 14px 0 0; padding: 10px 14px; border: 1px dashed #d0d5dd; border-radius: 12px;
+  color: #344054; font-size: 13px; text-align: center;
+}
+.fgc-tier .fgc-tier-next strong { color: #101828; }
+.fgc-tier .fgc-benefits { margin-top: 14px; padding-top: 12px; border-top: 1px solid #f2f4f7; font-size: 13px; color: #667085; justify-content: center; gap: 22px; }
+.fgc-tier .fgc-dialog .fgc-footer { margin-top: 8px; font-size: 11px; text-align: center; color: #98a2b3; }
+
+@media (max-width: 760px) {
+  .fgc-tier .fgc-dialog { padding: 18px 14px 14px; border-radius: 18px; }
+  .fgc-tier .fgc-header { margin: 0 36px 4px; }
+  .fgc-tier .fgc-heading { font-size: 17px; }
+  .fgc-tier .fgc-subheading { font-size: 13px; margin-bottom: 12px; }
+  .fgc-tier .fgc-tier-products { gap: 6px; }
+  .fgc-tier .fgc-product { padding: 8px 8px 10px; border-radius: 14px; }
+  .fgc-tier .fgc-product-title { font-size: 12px; }
+  .fgc-tier .fgc-tier-price s { font-size: 11px; }
+  .fgc-tier .fgc-free { font-size: 11px; padding: 3px 9px; }
+  .fgc-tier .fgc-tier-join { width: 26px; height: 26px; font-size: 10px; }
+  .fgc-tier .fgc-option { min-height: 44px; }
+  .fgc-tier .fgc-claim { font-size: 15px; min-height: 50px; }
+  .fgc-tier .fgc-benefits { gap: 6px 14px; font-size: 11px; }
+}
