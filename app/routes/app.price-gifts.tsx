@@ -168,31 +168,65 @@ function stockLabel(product: TierGiftProduct): { label: string; tone: "success" 
   return { label: `${quantity} in stock`, tone: quantity < 5 ? "warning" : "success" };
 }
 
-const variantText = (variants: TierGiftProduct[]) => variants
-  .map((variant) => variant.variantTitle === "Default Title" ? "Default" : variant.variantTitle).join(", ");
-const skuText = (variants: TierGiftProduct[]) => variants.map((variant) => variant.sku).filter(Boolean).join(", ") || "—";
+// "FREE GIFT | Zion Cases Short-Sleeve Unisex T-Shirt" -> "Zion Cases Short-Sleeve Unisex T-Shirt"
+const shortTitle = (title: string) => title.replace(/^\s*free\s*gift\s*[|:-]\s*/i, "");
 
-function GiftThumb({ product }: { product: TierGiftProduct }) {
-  return <s-stack direction="inline" gap="base" alignItems="center">
-    <s-thumbnail src={product.imageUrl || undefined} alt={product.productTitle} size="small" />
-    <s-text>{product.productTitle}</s-text>
+// One summary per gift product instead of a row per variant.
+function productSummary(variants: TierGiftProduct[]) {
+  const skus = variants.filter((variant) => variant.sku).length;
+  const unavailable = variants.filter((variant) => stockLabel(variant).tone === "critical").length;
+  const tracked = variants.filter((variant) => variant.inventoryTracked);
+  const units = tracked.reduce((total, variant) => total + Math.max(0, Number(variant.inventoryQuantity ?? 0)), 0);
+  const options = variants.every((variant) => variant.variantTitle === "Default Title")
+    ? "No options"
+    : `${variants.length} variant${variants.length === 1 ? "" : "s"}`;
+  const stock = unavailable
+    ? { label: `${unavailable} of ${variants.length} out of stock`, tone: "warning" as const }
+    : tracked.length ? { label: `${units} in stock`, tone: "success" as const } : { label: "Not tracked", tone: "neutral" as const };
+  return { options, skus: skus ? `${skus} SKU${skus === 1 ? "" : "s"}` : "No SKU", stock };
+}
+
+function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size?: "small" | "small-200" }) {
+  return <s-stack direction="inline" gap="small-200" alignItems="center">
+    <s-thumbnail src={product.imageUrl || undefined} alt={product.productTitle} size={size} />
+    <s-text type="strong">{shortTitle(product.productTitle)}</s-text>
   </s-stack>;
 }
 
-function TierHeader({ tier, index, tiers, onChange, onRemove }: {
-  tier: GiftTier; index: number; tiers: GiftTier[]; onChange: (tier: GiftTier) => void; onRemove?: () => void;
+// The overview card for one tier: range, what the shopper gets, gift pictures.
+function TierCard({ tier, index, tiers }: { tier: GiftTier; index: number; tiers: GiftTier[] }) {
+  const groups = baseProductGroups(tier.products);
+  return <s-box padding="base" border="base" borderRadius="large" background={index === 0 ? "base" : "subdued"}>
+    <s-stack gap="small-300">
+      <s-stack direction="inline" gap="small-200" alignItems="center" justifyContent="space-between">
+        <s-text color="subdued" type="strong">TIER {index + 1}</s-text>
+        <s-badge tone={tier.mode === "all" ? "success" : "info"}>{tier.mode === "all" ? "All gifts free" : "Pick 1 gift"}</s-badge>
+      </s-stack>
+      <s-heading>{tierRange(tiers, index)}</s-heading>
+      {groups.length === 0 ? <s-text color="subdued">No gifts yet</s-text> : groups.map((group, groupIndex) => <s-stack key={group.productId} gap="small-300">
+        {groupIndex > 0 && <s-text color="subdued">{tier.mode === "all" ? "+" : "or"}</s-text>}
+        <GiftThumb product={group.variants[0]} />
+      </s-stack>)}
+    </s-stack>
+  </s-box>;
+}
+
+function TierFields({ tier, index, onChange, onRemove }: {
+  tier: GiftTier; index: number; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
-  return <s-grid gridTemplateColumns="1fr 1fr auto" gap="base" alignItems="end">
-    <s-number-field label="Minimum cart value" prefix="$" inputMode="numeric" min={0} step={1}
-      details={index === 0 ? "Paid cart subtotal, before discounts and without gifts." : `Replaces Tier ${index} from this amount.`}
+  return <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base" alignItems="end">
+    <s-number-field label="Starts at cart value" prefix="$" inputMode="numeric" min={0} step={1}
+      details={index === 0 ? "Paid subtotal, before discounts, gifts excluded." : `Takes over from Tier ${index} at this amount.`}
       value={String(Math.round(tier.minimumSpend / 100))}
       onChange={(event) => onChange({ ...tier, minimumSpend: Math.max(0, Math.trunc(Number(event.currentTarget.value) || 0)) * 100 })} />
     <s-select label="Shopper gets" value={tier.mode}
       onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : "one" })}>
-      <s-option value="one">One gift of their choice</s-option>
-      <s-option value="all">All gifts, free</s-option>
+      <s-option value="one">Pick 1 gift</s-option>
+      <s-option value="all">All gifts free</s-option>
     </s-select>
-    {onRemove ? <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button> : <span />}
+    {onRemove && <s-stack direction="inline" justifyContent="end">
+      <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button>
+    </s-stack>}
   </s-grid>;
 }
 
@@ -200,7 +234,7 @@ export default function PriceGifts() {
   const data = useLoaderData<typeof loader>();
   if (!data.allowed) {
     return <s-page heading="Price gifts">
-      <s-section><s-paragraph>This feature isn't available on this store.</s-paragraph></s-section>
+      <s-section><s-paragraph>{"This feature isn't available on this store."}</s-paragraph></s-section>
     </s-page>;
   }
   return <PriceGiftsEditor initial={data.settings} />;
@@ -290,90 +324,113 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
   const live = saved.enabled && Boolean(saved.tiers[0]?.products.length) && Boolean(saved.discountId);
 
   return (
-    <s-page heading="Price gifts">
+    <s-page heading="Price gifts" inlineSize="large">
       <SaveBar id="price-gifts-save-bar" open={dirty || saving}>
         <button variant="primary" onClick={submit} {...(saving ? { loading: "" } : {})}>Save</button>
         <button onClick={() => setSettings(saved)} disabled={saving}>Discard</button>
       </SaveBar>
       <s-button slot="primary-action" variant="primary" icon="save" disabled={!dirty} onClick={submit} {...(saving ? { loading: true } : {})}>Save</s-button>
 
+      {/* Status */}
       <s-section>
-        <s-stack gap="base">
-          <s-stack direction="inline" gap="small-200" alignItems="center">
-            <s-heading>Spend tiers</s-heading>
-            <s-badge tone={live ? "success" : saved.enabled ? "warning" : "neutral"}>{live ? "Live on storefront" : saved.enabled ? "Setup incomplete" : "Paused"}</s-badge>
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <s-stack gap="small-200">
+            <s-stack direction="inline" gap="small-200" alignItems="center">
+              <s-heading>Gifts by cart value</s-heading>
+              <s-badge tone={live ? "success" : saved.enabled ? "warning" : "neutral"} icon={live ? "check-circle" : undefined}>
+                {live ? "Live" : saved.enabled ? "Setup incomplete" : "Off"}
+              </s-badge>
+            </s-stack>
+            <s-text color="subdued">{"Shoppers get the gifts of their cart's tier in the cart page popup. Popup text and colors come from Free gift settings."}</s-text>
           </s-stack>
-          <s-switch label="Enable price gifts"
-            details="While on, the Free Gift App (Master) popup on the cart page offers these tier gifts instead of the Free gift settings products. Popup text and colors still come from Free gift settings."
-            checked={settings.enabled} onChange={(event) => setSettings((current) => ({ ...current, enabled: event.currentTarget.checked ?? false }))} />
-          {view.tiers.map((tier, index) => <s-text key={tier.id}>
-            Tier {index + 1} ({tierRange(view.tiers, index)}): {tier.mode === "all" ? "all of" : "one of"} {
-              [...new Set(tier.products.map((product) => product.productTitle))].join(tier.mode === "all" ? " + " : " or ") || "no products yet"}
-          </s-text>)}
-        </s-stack>
+          <s-switch label="Enabled" labelAccessibilityVisibility="exclusive" checked={settings.enabled}
+            onChange={(event) => setSettings((current) => ({ ...current, enabled: event.currentTarget.checked ?? false }))} />
+        </s-grid>
       </s-section>
 
-      {base && <s-section heading={`Tier 1: ${tierRange(view.tiers, 0)}`}>
+      {/* Overview */}
+      {view.tiers.length > 0 && <s-section heading="Overview">
+        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))" gap="base">
+          {view.tiers.map((tier, index) => <TierCard key={tier.id} tier={tier} index={index} tiers={view.tiers} />)}
+        </s-grid>
+      </s-section>}
+
+      {/* Tier 1 */}
+      {base ? <s-section heading={`Tier 1 · ${tierRange(view.tiers, 0)}`}>
         <s-stack gap="base">
-          <TierHeader tier={base} index={0} tiers={view.tiers} onChange={updateTier}
-            onRemove={view.tiers.length === 1 ? () => setTiers([]) : undefined} />
-          {base.products.length > 0 && <s-table>
-            <s-table-header-row>
-              <s-table-header listSlot="primary">Gift product</s-table-header>
-              <s-table-header>Variant</s-table-header>
-              <s-table-header>SKU</s-table-header>
-              <s-table-header listSlot="secondary">Stock</s-table-header>
-              <s-table-header></s-table-header>
-            </s-table-header-row>
-            <s-table-body>{base.products.map((product) => {
-              const stock = stockLabel(product);
-              return <s-table-row key={product.variantId}>
-                <s-table-cell><GiftThumb product={product} /></s-table-cell>
-                <s-table-cell>{product.variantTitle === "Default Title" ? "—" : product.variantTitle}</s-table-cell>
-                <s-table-cell>{product.sku || "—"}</s-table-cell>
-                <s-table-cell><s-badge tone={stock.tone}>{stock.label}</s-badge></s-table-cell>
-                <s-table-cell>
-                  <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel={`Remove ${product.productTitle} ${product.variantTitle}`}
-                    onClick={() => updateTier({ ...base, products: base.products.filter((item) => item.variantId !== product.variantId) })} />
-                </s-table-cell>
-              </s-table-row>;
-            })}</s-table-body>
-          </s-table>}
-          <s-stack direction="inline" gap="base" alignItems="center">
-            <s-button icon="product-add" onClick={pickBaseProducts}>{base.products.length ? "Add or change gift products" : "Select gift products"}</s-button>
-            <s-text color="subdued">{countProducts(base.products)}/{MAX_TIER_PRODUCTS} products</s-text>
+          <TierFields tier={base} index={0} onChange={updateTier} onRemove={view.tiers.length === 1 ? () => setTiers([]) : undefined} />
+          <s-divider />
+          <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+            <s-text type="strong">Gift products ({countProducts(base.products)}/{MAX_TIER_PRODUCTS})</s-text>
+            <s-button icon="product-add" onClick={pickBaseProducts}>{base.products.length ? "Add or change" : "Select products"}</s-button>
           </s-stack>
+          {baseGroups.length === 0
+            ? <s-text color="subdued">Choose the products shoppers can get in this tier.</s-text>
+            : <s-table>
+              <s-table-header-row>
+                <s-table-header listSlot="primary">Product</s-table-header>
+                <s-table-header>Variants</s-table-header>
+                <s-table-header>SKU</s-table-header>
+                <s-table-header listSlot="secondary">Stock</s-table-header>
+                <s-table-header></s-table-header>
+              </s-table-header-row>
+              <s-table-body>{baseGroups.map((group) => {
+                const summary = productSummary(group.variants);
+                return <s-table-row key={group.productId}>
+                  <s-table-cell><GiftThumb product={group.variants[0]} /></s-table-cell>
+                  <s-table-cell>{summary.options}</s-table-cell>
+                  <s-table-cell>{summary.skus}</s-table-cell>
+                  <s-table-cell><s-badge tone={summary.stock.tone}>{summary.stock.label}</s-badge></s-table-cell>
+                  <s-table-cell>
+                    <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel={`Remove ${group.title}`}
+                      onClick={() => updateTier({ ...base, products: base.products.filter((item) => item.productId !== group.productId) })} />
+                  </s-table-cell>
+                </s-table-row>;
+              })}</s-table-body>
+            </s-table>}
+        </s-stack>
+      </s-section> : <s-section>
+        <s-stack gap="base" alignItems="center">
+          <s-icon type="gift-card" />
+          <s-heading>Set up your first tier</s-heading>
+          <s-text color="subdued">Example: from $120 the shopper picks Sling 2.0 or a T-shirt.</s-text>
+          <s-button variant="primary" icon="plus" onClick={addTier}>Add Tier 1</s-button>
         </s-stack>
       </s-section>}
 
+      {/* Higher tiers */}
       {view.tiers.slice(1).map((tier, offset) => {
         const index = offset + 1;
-        return <s-section key={tier.id} heading={`Tier ${index + 1}: ${tierRange(view.tiers, index)}`}>
+        return <s-section key={tier.id} heading={`Tier ${index + 1} · ${tierRange(view.tiers, index)}`}>
           <s-stack gap="base">
-            <TierHeader tier={tier} index={index} tiers={view.tiers} onChange={updateTier}
-              onRemove={() => setTiers(view.tiers.filter((item) => item.id !== tier.id))} />
-            {baseGroups.length === 0 ? <s-paragraph color="subdued">Choose the Tier 1 gift products first.</s-paragraph> : <s-table>
+            <TierFields tier={tier} index={index} onChange={updateTier} onRemove={() => setTiers(view.tiers.filter((item) => item.id !== tier.id))} />
+            <s-divider />
+            <s-stack gap="small-100">
+              <s-text type="strong">Gifts in this tier</s-text>
+              <s-text color="subdued">Same as Tier 1, unless you swap a product for another one.</s-text>
+            </s-stack>
+            {baseGroups.length === 0 ? <s-text color="subdued">Choose the Tier 1 gift products first.</s-text> : <s-table>
               <s-table-header-row>
                 <s-table-header listSlot="primary">Tier 1 gift</s-table-header>
-                <s-table-header>In this tier</s-table-header>
-                <s-table-header>SKU</s-table-header>
+                <s-table-header>Becomes</s-table-header>
+                <s-table-header>Variants</s-table-header>
                 <s-table-header></s-table-header>
               </s-table-header-row>
               <s-table-body>{baseGroups.map((group) => {
                 const replacement = tier.replacements.find((item) => item.fromProductId === group.productId);
-                const shown = replacement?.products || group.variants;
+                const summary = productSummary(replacement?.products || group.variants);
                 return <s-table-row key={group.productId}>
                   <s-table-cell><GiftThumb product={group.variants[0]} /></s-table-cell>
                   <s-table-cell>
                     {replacement
-                      ? <s-stack gap="small-100"><GiftThumb product={replacement.products[0]} /><s-text color="subdued">{variantText(replacement.products)}</s-text></s-stack>
-                      : <s-text color="subdued">Same product</s-text>}
+                      ? <s-stack direction="inline" gap="small-200" alignItems="center"><s-icon type="arrow-right" tone="success" /><GiftThumb product={replacement.products[0]} /></s-stack>
+                      : <s-text color="subdued">No change</s-text>}
                   </s-table-cell>
-                  <s-table-cell>{skuText(shown)}</s-table-cell>
+                  <s-table-cell>{summary.options}</s-table-cell>
                   <s-table-cell>
-                    <s-stack direction="inline" gap="small-200">
-                      <s-button onClick={() => pickReplacement(tier, group.productId)}>{replacement ? "Change" : "Replace with…"}</s-button>
-                      {replacement && <s-button variant="tertiary" onClick={() => clearReplacement(tier, group.productId)}>Use same</s-button>}
+                    <s-stack direction="inline" gap="small-200" justifyContent="end">
+                      {replacement && <s-button variant="tertiary" onClick={() => clearReplacement(tier, group.productId)}>Undo</s-button>}
+                      <s-button icon="replace" onClick={() => pickReplacement(tier, group.productId)}>{replacement ? "Change" : "Swap"}</s-button>
                     </s-stack>
                   </s-table-cell>
                 </s-table-row>;
@@ -383,17 +440,12 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
         </s-section>;
       })}
 
-      <s-section>
-        <s-stack gap="base">
-          {view.tiers.length < MAX_TIERS && <s-stack direction="inline">
-            <s-button icon="plus" onClick={addTier}>{view.tiers.length ? "Add higher tier" : "Add Tier 1"}</s-button>
-          </s-stack>}
-          <s-text color="subdued">
-            Example: Tier 1 from $120, one of Sling 2.0 or T-shirt. Tier 2 from $300, all gifts free, with Sling 2.0 replaced by Sling 3.0, so the shopper gets Sling 3.0 + T-shirt.
-          </s-text>
-          <s-text color="subdued">Storefront: keep the “Free Gift App (Master)” app embed on in the theme editor.</s-text>
+      {base && view.tiers.length < MAX_TIERS && <s-section>
+        <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+          <s-text color="subdued">Add a higher cart value with bigger gifts, e.g. from $300 Sling 3.0 + T-shirt.</s-text>
+          <s-button icon="plus" onClick={addTier}>Add higher tier</s-button>
         </s-stack>
-      </s-section>
+      </s-section>}
     </s-page>
   );
 }
