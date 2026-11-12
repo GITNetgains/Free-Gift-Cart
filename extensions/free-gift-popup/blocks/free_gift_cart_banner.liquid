@@ -1,6 +1,18 @@
 {% assign gift_settings = shop.metafields.free_gift_cart.settings.value %}
+{% assign tier_settings = shop.metafields.tiered_gift.settings.value %}
 
-{% if gift_settings != blank and gift_settings.enabled and request.page_type == 'cart' %}
+{% if tier_settings != blank and tier_settings.enabled and tier_settings.tiers.size > 0 and request.page_type == 'cart' %}
+  {% comment %}
+    Price gifts (spend tiers) are on: the same banner shows progress to the
+    next tier, run by tiered-gift-cart-banner.js. Stores without price gift
+    settings never reach this branch.
+  {% endcomment %}
+  <div class="fgcb-root" data-tiered data-shop-currency="{{ shop.currency }}" hidden>
+    <script type="application/json" data-fgcb-tiers>{{ tier_settings | json }}</script>
+  </div>
+  {{ 'free-gift-cart-banner.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'tiered-gift-cart-banner.js' | asset_url }}" defer></script>
+{% elsif gift_settings != blank and gift_settings.enabled and request.page_type == 'cart' %}
   <div class="fgcb-root" data-cart-add-url="{{ routes.cart_add_url }}" data-cart-update-url="{{ routes.cart_update_url }}" hidden>
     <script type="application/json" data-fgcb-settings>{{ gift_settings | json }}</script>
     <script type="application/json" data-fgcb-inventory>
