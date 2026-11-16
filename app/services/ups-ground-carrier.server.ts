@@ -14,7 +14,8 @@ type Zone = {
   locationGroupId: string;
   zoneId: string;
   zoneName: string;
-  hasCarrier: boolean;
+  akHiOnly: boolean;
+  carrierMethodIds: string[];
 };
 
 async function gql<T = any>(admin: Admin, query: string, variables?: Record<string, unknown>): Promise<T> {
@@ -31,10 +32,10 @@ async function findCarrier(admin: Admin) {
     .find((node) => node.name === CARRIER_NAME) ?? null;
 }
 
-/** Zones whose only country is the US and whose states are all AK/HI. */
-async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone[]> {
+/** Every shipping zone, flagged when its only country is the US and its states are all AK/HI. */
+async function shippingZones(admin: Admin, carrierId?: string): Promise<Zone[]> {
   const data = await gql(admin, `#graphql
-    query AlaskaHawaiiZones {
+    query ZionShippingZones {
       deliveryProfiles(first: 25) {
         nodes {
           id
@@ -45,7 +46,7 @@ async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone
               nodes {
                 zone { id name countries { code { countryCode restOfWorld } provinces { code } } }
                 methodDefinitions(first: 10) {
-                  nodes { rateProvider { ... on DeliveryParticipant { carrierService { id } } } }
+                  nodes { id rateProvider { ... on DeliveryParticipant { carrierService { id } } } }
                 }
               }
             }
@@ -62,15 +63,18 @@ async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone
         const onlyUs = countries.length === 1 && countries[0].code?.countryCode === "US" && !countries[0].code?.restOfWorld;
         const provinces: string[] = (countries[0]?.provinces ?? []).map((province: { code: string }) => province.code);
         const onlyAkHi = provinces.length > 0 && provinces.every((code) => UPS_GROUND_STATES.includes(code));
-        if (!onlyUs || !onlyAkHi) continue;
         zones.push({
           profileId: profile.id,
           profileName: profile.name,
           locationGroupId: group.locationGroup.id,
           zoneId: node.zone.id,
           zoneName: node.zone.name,
-          hasCarrier: Boolean(carrierId) && (node.methodDefinitions?.nodes ?? [])
-            .some((method: any) => method.rateProvider?.carrierService?.id === carrierId),
+          akHiOnly: onlyUs && onlyAkHi,
+          carrierMethodIds: carrierId
+            ? (node.methodDefinitions?.nodes ?? [])
+              .filter((method: any) => method.rateProvider?.carrierService?.id === carrierId)
+              .map((method: any) => method.id as string)
+            : [],
         });
       }
     }
@@ -80,10 +84,10 @@ async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone
 
 export async function upsGroundCarrierStatus(admin: Admin) {
   const carrier = await findCarrier(admin);
-  const zones = await alaskaHawaiiZones(admin, carrier?.id);
+  const zones = await shippingZones(admin, carrier?.id);
   return {
     active: Boolean(carrier?.active),
-    zones: zones.filter((zone) => zone.hasCarrier).map((zone) => `${zone.zoneName} (${zone.profileName})`),
+    zones: zones.filter((zone) => zone.carrierMethodIds.length).map((zone) => `${zone.zoneName} (${zone.profileName})`),
   };
 }
 
@@ -121,7 +125,28 @@ export async function setUpsGroundCarrier(admin: Admin, active: boolean): Promis
 
   if (!active) return null;
 
-  const missing = (await alaskaHawaiiZones(admin, carrier.id)).filter((zone) => !zone.hasCarrier);
+  const zones = await shippingZones(admin, carrier.id);
+
+  // Shopify adds a new carrier service to every zone of the General profile.
+  // Take it back out of every zone that isn't Alaska/Hawaii only.
+  const strays = zones.filter((zone) => !zone.akHiOnly && zone.carrierMethodIds.length);
+  for (const profileId of new Set(strays.map((zone) => zone.profileId))) {
+    const ids = strays.filter((zone) => zone.profileId === profileId).flatMap((zone) => zone.carrierMethodIds);
+    const data = await gql(admin, `#graphql
+      mutation RemoveZionCarrierFromZones($id: ID!, $profile: DeliveryProfileInput!) {
+        deliveryProfileUpdate(id: $id, profile: $profile) {
+          profile { id }
+          userErrors { message }
+        }
+      }
+    `, { id: profileId, profile: { methodDefinitionsToDelete: ids } });
+    const error = data?.deliveryProfileUpdate?.userErrors?.[0]?.message;
+    if (error || !data?.deliveryProfileUpdate?.profile) {
+      return `Could not remove the UPS Ground rate from other shipping zones: ${error || "unknown error"}`;
+    }
+  }
+
+  const missing = zones.filter((zone) => zone.akHiOnly && !zone.carrierMethodIds.length);
   for (const zone of missing) {
     const data = await gql(admin, `#graphql
       mutation AddZionCarrierToZone($id: ID!, $profile: DeliveryProfileInput!) {
