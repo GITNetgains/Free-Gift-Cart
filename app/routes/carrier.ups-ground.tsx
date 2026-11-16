@@ -53,7 +53,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     .filter((item) => item.requires_shipping !== false)
     .reduce((sum, item) => sum + (item.grams ?? 0) * (item.quantity ?? 1), 0);
 
-  const { cents, live } = await upsGroundPriceCents(destination, grams);
+  const { cents, live, source } = await upsGroundPriceCents(destination, grams);
   // One line per quote so checkout prices can be compared with ShipStation.
   console.log("[ups-ground] quote", JSON.stringify({
     shop: request.headers.get("x-shopify-shop-domain"),
@@ -63,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ounces: Math.round(grams / 28.349523125),
     price: (cents / 100).toFixed(2),
     live,
+    source,
   }));
   return Response.json({
     rates: [{

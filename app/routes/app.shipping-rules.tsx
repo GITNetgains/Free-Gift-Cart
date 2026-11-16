@@ -100,7 +100,7 @@ export default function ShippingRules() {
           <s-paragraph>When this is on, checkout follows these rules:</s-paragraph>
           <s-unordered-list>
             <s-list-item>Alaska and Hawaii addresses only see UPS Ground. Every other shipping option is hidden.</s-list-item>
-            <s-list-item>If ShipStation doesn't offer UPS Ground, the app adds its own UPS Ground rate. The price comes live from ShipStation, using your UPS account and the Gifford, IL warehouse. If ShipStation doesn't answer in time, it shows $75.00.</s-list-item>
+            <s-list-item>If ShipStation doesn't offer UPS Ground, the app adds its own UPS Ground rate. The price comes live from ShipStation, using your UPS account and the Gifford, IL warehouse. Each quote is reused for 6 hours. If ShipStation doesn't answer in time, the last live price for that ZIP and weight is shown, or $75.00 if there is none.</s-list-item>
             <s-list-item>If both UPS Ground rates show up, only the cheaper one is kept.</s-list-item>
             <s-list-item>Addresses in every other state never see UPS Ground. No other shipping zone changes.</s-list-item>
           </s-unordered-list>
