@@ -44,7 +44,9 @@ export async function upsGroundPriceCents(destination: Destination, grams: numbe
         toState: String(destination.province).toUpperCase(),
         toPostalCode: destination.postal_code ?? "",
         toCity: destination.city ?? "",
-        weight: { value: Math.max(1, Math.ceil(grams / 28.3495)), units: "ounces" },
+        // Shopify sends grams rounded from the product's pounds (13 lb = 5897 g
+        // = 208.01 oz). Rounding up made that 209 oz, which UPS bills as 14 lb.
+        weight: { value: Math.max(1, Math.round(grams / 28.349523125)), units: "ounces" },
         residential: true,
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
