@@ -35,7 +35,7 @@ async function findCarrier(admin: Admin) {
 async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone[]> {
   const data = await gql(admin, `#graphql
     query AlaskaHawaiiZones {
-      deliveryProfiles(first: 50) {
+      deliveryProfiles(first: 25) {
         nodes {
           id
           name
@@ -44,7 +44,7 @@ async function alaskaHawaiiZones(admin: Admin, carrierId?: string): Promise<Zone
             locationGroupZones(first: 50) {
               nodes {
                 zone { id name countries { code { countryCode restOfWorld } provinces { code } } }
-                methodDefinitions(first: 50) {
+                methodDefinitions(first: 10) {
                   nodes { rateProvider { ... on DeliveryParticipant { carrierService { id } } } }
                 }
               }
