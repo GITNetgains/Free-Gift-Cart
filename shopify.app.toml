@@ -7,7 +7,7 @@ embedded = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_discounts,write_validations,write_metaobjects,write_metaobject_definitions,read_inventory,write_inventory,read_locations,write_app_proxy,read_shipping,read_orders"
+scopes = "write_products,write_discounts,write_validations,write_metaobjects,write_metaobject_definitions,read_inventory,write_inventory,read_locations,write_app_proxy,read_shipping,read_orders,write_delivery_customizations"
 
 [app_proxy]
 url = "/help-desk"

@@ -1,0 +1,15 @@
+query CartDeliveryOptionsTransformRunInput {
+  cart {
+    deliveryGroups {
+      deliveryAddress {
+        countryCode
+        provinceCode
+      }
+      deliveryOptions {
+        handle
+        title
+        deliveryMethodType
+      }
+    }
+  }
+}

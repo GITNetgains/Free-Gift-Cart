@@ -26,6 +26,7 @@ export default function App() {
         <s-link href="/app/order-logs">Order logs</s-link>
         <s-link href="/app/checkout-notices">Checkout notices</s-link>
         <s-link href="/app/checkout-recommendations">Checkout recommendations</s-link>
+        <s-link href="/app/shipping-rules">Shipping rules</s-link>
         <s-link href="/app/inventory-sync">Inventory sync</s-link>
         <s-link href="/app/image-alt-text">Image alt text</s-link>
       </s-app-nav>
