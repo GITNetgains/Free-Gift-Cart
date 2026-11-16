@@ -14,7 +14,7 @@ import {
 type RateRequest = {
   rate?: {
     destination?: { country?: string; province?: string; postal_code?: string; city?: string };
-    items?: Array<{ grams?: number; quantity?: number; requires_shipping?: boolean }>;
+    items?: Array<{ name?: string; sku?: string; grams?: number; quantity?: number; requires_shipping?: boolean }>;
     currency?: string;
   };
 };
@@ -53,7 +53,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     .filter((item) => item.requires_shipping !== false)
     .reduce((sum, item) => sum + (item.grams ?? 0) * (item.quantity ?? 1), 0);
 
-  const { cents } = await upsGroundPriceCents(destination, grams);
+  const { cents, live } = await upsGroundPriceCents(destination, grams);
+  // One line per quote so checkout prices can be compared with ShipStation.
+  console.log("[ups-ground] quote", JSON.stringify({
+    shop: request.headers.get("x-shopify-shop-domain"),
+    to: `${destination.province} ${destination.postal_code}`,
+    items: (payload.rate?.items ?? []).map((item) => `${item.quantity}x ${item.name} (${item.grams}g${item.requires_shipping === false ? ", no shipping" : ""})`),
+    totalGrams: grams,
+    ounces: Math.round(grams / 28.349523125),
+    price: (cents / 100).toFixed(2),
+    live,
+  }));
   return Response.json({
     rates: [{
       service_name: UPS_GROUND_SERVICE_NAME,
