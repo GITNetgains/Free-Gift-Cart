@@ -9,6 +9,7 @@ query CartDeliveryOptionsTransformRunInput {
         handle
         title
         deliveryMethodType
+        cost { amount }
       }
     }
   }

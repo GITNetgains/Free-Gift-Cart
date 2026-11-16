@@ -6,7 +6,7 @@ import type {
 // Alaska and Hawaii only get UPS Ground; every other address never sees it.
 const UPS_GROUND_ONLY_STATES = ["AK", "HI"];
 
-const isUpsGround = (title?: string | null) => /ups\s*ground/i.test(title ?? "");
+const isUpsGround = (title?: string | null) => /ups\W*ground/i.test(title ?? "");
 
 export function cartDeliveryOptionsTransformRun(input: CartDeliveryOptionsTransformRunInput): CartDeliveryOptionsTransformRunResult {
   const hide: string[] = [];
@@ -18,10 +18,14 @@ export function cartDeliveryOptionsTransformRun(input: CartDeliveryOptionsTransf
       && UPS_GROUND_ONLY_STATES.includes((address.provinceCode ?? "").toUpperCase());
 
     if (groundOnly) {
-      // Never leave the customer with no way to ship: only hide the others
-      // when UPS Ground is actually offered for this address.
-      if (!shipping.some((option) => isUpsGround(option.title))) continue;
-      for (const option of shipping) if (!isUpsGround(option.title)) hide.push(option.handle);
+      // UPS Ground can come from ShipStation and from the app's own rate.
+      // Keep the cheapest one and hide everything else. Never leave the
+      // customer with no way to ship: if no UPS Ground is offered, hide nothing.
+      const grounds = shipping.filter((option) => isUpsGround(option.title));
+      if (!grounds.length) continue;
+      const keep = grounds.reduce((best, option) =>
+        Number(option.cost.amount) < Number(best.cost.amount) ? option : best);
+      for (const option of shipping) if (option !== keep) hide.push(option.handle);
     } else {
       for (const option of shipping) if (isUpsGround(option.title)) hide.push(option.handle);
     }

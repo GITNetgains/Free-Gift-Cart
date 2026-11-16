@@ -3,10 +3,14 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { setUpsGroundCarrier, upsGroundCarrierStatus } from "../services/ups-ground-carrier.server";
 
-// The checkout rule lives in extensions/ups-ground-shipping. Shopify only runs
-// it while a delivery customization for that function exists and is enabled,
-// so this page creates one on first use and flips `enabled` after that.
+// Two parts work together, and this switch turns both on or off:
+// 1. extensions/ups-ground-shipping: a delivery customization that hides
+//    options. Shopify only runs it while a delivery customization for that
+//    function exists and is enabled.
+// 2. The app's own UPS Ground carrier rate (live price from ShipStation), only
+//    in zones that cover nothing but Alaska and/or Hawaii.
 const FUNCTION_HANDLE = "ups-ground-shipping";
 const TITLE = "UPS Ground for Alaska and Hawaii";
 
@@ -27,8 +31,8 @@ async function findCustomization(admin: Admin) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
-  const customization = await findCustomization(admin);
-  return { enabled: Boolean(customization?.enabled) };
+  const [customization, carrier] = await Promise.all([findCustomization(admin), upsGroundCarrierStatus(admin)]);
+  return { enabled: Boolean(customization?.enabled), carrier };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -59,18 +63,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!payload?.deliveryCustomization) {
     return { error: payload?.userErrors?.[0]?.message || "The shipping rule could not be saved." };
   }
-  return { enabled: Boolean(payload.deliveryCustomization.enabled) };
+
+  const carrierError = await setUpsGroundCarrier(admin, enabled);
+  const carrier = await upsGroundCarrierStatus(admin);
+  if (carrierError) return { error: carrierError, enabled: Boolean(payload.deliveryCustomization.enabled), carrier };
+  return { enabled: Boolean(payload.deliveryCustomization.enabled), carrier };
 };
 
 export default function ShippingRules() {
-  const { enabled: savedEnabled } = useLoaderData<typeof loader>();
+  const loaded = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
   const pending = fetcher.formData?.get("enabled");
   const enabled = pending != null
     ? pending === "true"
-    : fetcher.data && "enabled" in fetcher.data ? Boolean(fetcher.data.enabled) : savedEnabled;
+    : fetcher.data && "enabled" in fetcher.data ? Boolean(fetcher.data.enabled) : loaded.enabled;
+  const carrier = fetcher.data && "carrier" in fetcher.data && fetcher.data.carrier ? fetcher.data.carrier : loaded.carrier;
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
@@ -91,10 +100,19 @@ export default function ShippingRules() {
           <s-paragraph>When this is on, checkout follows these rules:</s-paragraph>
           <s-unordered-list>
             <s-list-item>Alaska and Hawaii addresses only see UPS Ground. Every other shipping option is hidden.</s-list-item>
-            <s-list-item>Addresses in every other state never see UPS Ground.</s-list-item>
-            <s-list-item>If UPS Ground isn't offered for an Alaska or Hawaii address, the normal options stay, so the customer can always check out.</s-list-item>
+            <s-list-item>If ShipStation doesn't offer UPS Ground, the app adds its own UPS Ground rate. The price comes live from ShipStation, using your UPS account and the Gifford, IL warehouse. If ShipStation doesn't answer in time, it shows $75.00.</s-list-item>
+            <s-list-item>If both UPS Ground rates show up, only the cheaper one is kept.</s-list-item>
+            <s-list-item>Addresses in every other state never see UPS Ground. No other shipping zone changes.</s-list-item>
           </s-unordered-list>
           <s-badge tone={enabled ? "success" : "neutral"}>{enabled ? "On" : "Off"}</s-badge>
+        </s-stack>
+      </s-section>
+      <s-section heading="App UPS Ground rate">
+        <s-stack gap="small">
+          <s-paragraph>Status: {carrier.active ? "Active" : "Off"}</s-paragraph>
+          <s-paragraph>
+            Shipping zones it's added to: {carrier.zones.length ? carrier.zones.join(", ") : "none yet"}
+          </s-paragraph>
         </s-stack>
       </s-section>
     </s-page>
