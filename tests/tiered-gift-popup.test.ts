@@ -116,6 +116,9 @@ describe("price gifts popup", () => {
     expect(updates).toEqual([]);
     expect(html).toContain("YOU’VE UNLOCKED FREE GIFTS!");
     expect(content).toContain("fgc-products--all");
+    // Each gift is a column with its own options under its card.
+    expect(content).toContain(`<div class="fgc-gift-col">`);
+    expect(content).toContain(`data-col-for="gid://shopify/Product/2"`);
     expect(content).toContain("Zion Cases Sling 3.0");
     expect(content).toContain("FREE GIFT | T-Shirt");
   });

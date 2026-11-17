@@ -17,6 +17,14 @@
     if (!settings?.enabled || !Array.isArray(settings.tiers) || !settings.tiers.length) return;
 
     const basePath = window.Shopify?.routes?.root || "/";
+    // Styles for the next-tier hint. Kept here, not in the shared banner CSS,
+    // so the Free gift banner on other stores is untouched.
+    if (!document.getElementById("fgcb-tier-style")) {
+      const style = document.createElement("style");
+      style.id = "fgcb-tier-style";
+      style.textContent = ".fgcb-hint{align-items:center;color:#0f1b3d;display:flex;font-size:clamp(13px,.95cqi,15px);gap:6px;line-height:1.35;margin:8px 0 0}.fgcb-hint .fgcb-gift-icon{height:16px;width:16px}.fgcb-hint strong{font-weight:800}";
+      document.head?.appendChild(style);
+    }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
     // Tier minimums are US dollars; same rule as tiered-gift-popup.js and the
     // tiered-gift-discount function.
@@ -100,38 +108,75 @@
       const pct = unlocked ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
       const money = (cents) => formatMoney(cents, cart.currency);
       const upgrade = !unlocked && reached > 0 && !pastMax;
+      const has = (product) => [...product.variantIds].some((id) => giftVariants.has(id));
+      // In an all tier, gifts already in the cart (e.g. the T-shirt claimed
+      // at $150) stay free, so the banner shows only the ones still to come.
       const several = target.mode === "all" && target.products.length > 1;
-      const both = target.products.length === 2 ? "BOTH" : "ALL";
-      const pill = unlocked
-        ? (tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED")
-        : upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
-      const heading = several
-        ? (unlocked
-          ? `You've unlocked <strong>${both}</strong> gifts <strong>FREE</strong>!`
-          : `Add <strong>${money(remaining)}</strong> more to get <strong>${both}</strong> gifts <strong>FREE</strong>!`)
+      const kept = several ? target.products.filter(has) : [];
+      const missing = several ? target.products.filter((product) => !has(product)) : target.products;
+      const shown = missing.length ? missing : target.products;
+      const count = (n) => n === 1 ? "1 more gift" : `${n} more gifts`;
+      const all = target.products.length === 2 ? "BOTH" : "ALL";
+      // What the next tier adds, under the heading (e.g. "Spend $350.00 and
+      // get BOTH gifts FREE.").
+      const next = tiers[index + 1];
+      const nextRemaining = next ? Math.max(0, thresholds[index + 1] - paid) : 0;
+      const nextAll = next && next.mode === "all" && next.products.length > 1;
+      const hint = !next ? ""
         : unlocked
-          ? `You've unlocked your <strong>FREE</strong> gift!`
-          : upgrade
-            ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
-            : `Add <strong>${money(remaining)}</strong> more to unlock your <strong>FREE</strong> gift!`;
-      const label = several ? "You get" : upgrade ? "Upgrade to" : "Choose your gift";
+          ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
+            : `Add <strong>${money(nextRemaining)}</strong> more to upgrade your gift.`)
+          : !upgrade
+            ? (nextAll ? `Spend <strong>${money(thresholds[index + 1])}</strong> and get <strong>${next.products.length === 2 ? "BOTH" : "ALL"}</strong> gifts <strong>FREE</strong>.`
+              : `Spend <strong>${money(thresholds[index + 1])}</strong> to upgrade your gift.`)
+            : "";
+
+      let pill;
+      let heading;
+      let label;
+      if (several && unlocked) {
+        pill = tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFTS UNLOCKED";
+        heading = !kept.length
+          ? `You've unlocked <strong>${all}</strong> gifts <strong>FREE</strong>!`
+          : missing.length === 1
+            ? `Claim your <strong>${kept.length === 1 ? "2nd" : "last"}</strong> gift <strong>FREE</strong>!`
+            : `Claim your other <strong>${missing.length}</strong> gifts <strong>FREE</strong>!`;
+        label = kept.length ? "Also yours, free" : "You get";
+      } else if (several) {
+        pill = kept.length || upgrade ? `${count(missing.length).toUpperCase()} FREE` : "FREE GIFTS AWAIT";
+        heading = kept.length || upgrade
+          ? `Add <strong>${money(remaining)}</strong> more and get <strong>${count(missing.length)}</strong> <strong>FREE</strong>!`
+          : `Add <strong>${money(remaining)}</strong> more to get <strong>${all}</strong> gifts <strong>FREE</strong>!`;
+        label = kept.length ? `Add ${money(remaining)} more to also get` : "You'll get";
+      } else if (unlocked) {
+        pill = tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED";
+        heading = `You've unlocked a <strong>FREE</strong> gift! Choose 1 below.`;
+        label = "Choose your gift";
+      } else {
+        pill = upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
+        heading = upgrade
+          ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
+          : `Add <strong>${money(remaining)}</strong> more to unlock a <strong>FREE</strong> gift!`;
+        label = upgrade ? "Upgrade to" : "Choose 1 gift";
+      }
       const joiner = several ? "+" : "OR";
 
-      const cards = target.products.map((product, index) => `
+      const cards = shown.map((product, index) => `
         <div class="fgcb-product">
           ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}">` : ""}
           <div class="fgcb-product-info"><span class="fgcb-product-title">${escapeHtml(product.title)}</span><span class="fgcb-free">FREE</span></div>
-        </div>${index < target.products.length - 1 ? `<span class="fgcb-or"><span>${joiner}</span></span>` : ""}`).join("");
+        </div>${index < shown.length - 1 ? `<span class="fgcb-or"><span>${joiner}</span></span>` : ""}`).join("");
       // Unlocked: the link opens the gift popup (tiered-gift-popup.js),
       // even after the shopper closed it. Otherwise: keep shopping.
       const continueLink = (placement) => unlocked
-        ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>${several ? "Claim your free gifts" : "Choose your free gift"} <span aria-hidden="true">&rarr;</span></a>`
+        ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>${several ? (missing.length === 1 ? "Claim your free gift" : "Claim your free gifts") : "Choose your free gift"} <span aria-hidden="true">&rarr;</span></a>`
         : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
 
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
+          ${hint ? `<p class="fgcb-hint">${giftIcon} ${hint}</p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
             <p class="fgcb-amounts">${money(paid)}&nbsp;/&nbsp;${money(targetThreshold)}</p>

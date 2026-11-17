@@ -1,8 +1,8 @@
 // Price gifts (spend tiers) in the Free Gift App (Master) popup. The embed
 // loads this instead of free-gift-popup.js only while price gift settings are
 // on (app/routes/app.price-gifts.tsx). It draws the same popup with the same
-// classes and CSS (tiered-gift-popup.css only shows "+" instead of "OR"
-// between gifts in all-gift tiers). The
+// classes and CSS (tiered-gift-popup.css lays out all-gift tiers: "+" not "OR",
+// and each gift's options under its own card). The
 // tiered-gift-discount function makes claimed lines free; they carry
 // `_tier_gift: <tier id>`.
 //
@@ -192,13 +192,19 @@
     const imageFor = (product) => (isSelected(product) ? variantOf(product)?.imageUrl : "") || product.imageUrl;
     const content = root.querySelector(".fgc-content");
     content.innerHTML = `
-      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}">${offered.map((product) => `
+      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}">${offered.map((product) => {
+        const card = `
         <button class="fgc-product" type="button" data-product-id="${escapeHtml(product.id)}"${tier.mode === "all" ? ' tabindex="-1"' : ""}>
           <span class="fgc-check" aria-hidden="true"></span>
           <img class="fgc-product-image" src="${escapeHtml(imageFor(product))}" alt="${escapeHtml(product.title)}" loading="lazy"${imageFor(product) ? "" : " hidden"}>
           <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
           <span class="fgc-free">🎁 FREE</span>
-        </button>`).join("")}
+        </button>`;
+        // In "all" tiers each gift's options sit right under its own card.
+        return tier.mode === "all"
+          ? `<div class="fgc-gift-col">${card}<div class="fgc-col-options" data-col-for="${escapeHtml(product.id)}"></div></div>`
+          : card;
+      }).join("")}
       </div>
       <div class="fgc-variant-panel"></div>
       <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
@@ -218,8 +224,16 @@
         if (src && image.getAttribute("src") !== src) image.setAttribute("src", src);
         image.hidden = !src;
       });
-      const shown = tier.mode === "all" ? offered : [focused()];
-      panel.innerHTML = shown.map((product) => optionsHtml(product, tier.mode === "all" && offered.length > 1)).join("");
+      if (tier.mode === "all") {
+        offered.forEach((product) => {
+          const column = content.querySelector(`[data-col-for="${product.id}"]`);
+          if (column) column.innerHTML = optionsHtml(product, false);
+        });
+        panel.innerHTML = "";
+        panel.hidden = true;
+        return;
+      }
+      panel.innerHTML = optionsHtml(focused(), false);
       panel.hidden = !panel.innerHTML.trim();
     };
 

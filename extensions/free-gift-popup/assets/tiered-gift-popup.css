@@ -2,8 +2,17 @@
    these rules cover what the tiers add. */
 
 /* "All gifts free" tiers: the shopper gets every gift, so "+" not "OR". */
+/* Each gift is a column: its card, then its own options underneath. */
+.fgc-products--all { align-items: start; }
+.fgc-gift-col { display: flex; flex-direction: column; gap: 9px; min-width: 0; position: relative; }
+.fgc-gift-col .fgc-product:nth-child(n)::after { content: none; }
+.fgc-col-options:empty { display: none; }
+.fgc-col-options .fgc-options { display: flex; flex-wrap: wrap; }
+.fgc-col-options .fgc-option { flex: 1 0 auto; min-width: 48px; }
 @media (min-width: 761px) {
-  .fgc-products--all .fgc-product:nth-child(odd):not(:last-child)::after { content: "+"; font-size: 22px; right: -22px; top: 46%; }
+  .fgc-gift-col:nth-child(odd):not(:last-child)::after {
+    color: #111827; content: "+"; font-size: 22px; font-weight: 900; position: absolute; right: -24px; top: 100px;
+  }
 }
 /* In those tiers the cards are not choices. */
 .fgc-products--all .fgc-product { cursor: default; }

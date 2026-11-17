@@ -24,7 +24,7 @@ async function render(items: unknown[], shopCurrency = "INR") {
   };
   runInNewContext(source, {
     document: {
-      querySelectorAll: () => [root],
+      querySelectorAll: () => [root], getElementById: () => null, head: { appendChild() {} },
       createElement: () => { let text = ""; return { set textContent(value: string) { text = value; }, get innerHTML() { return text; } }; },
     },
     window: { Shopify: { currency: { rate: "0.012", active: "USD" }, routes: { root: "/" } }, setInterval() {} },
@@ -42,6 +42,7 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).toContain("FREE GIFT AWAITS");
     expect(root.innerHTML).toContain("$282.00");
     expect(root.innerHTML).toContain("Sling 2.0");
+    expect(root.innerHTML).toContain("Spend <strong>$399.00</strong> and get <strong>BOTH</strong> gifts");
   });
 
   test("Tier 1 reached but no gift yet: unlocked, Tier 1 gifts", async () => {
@@ -52,12 +53,15 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).not.toContain("Sling 3.0");
     expect(root.innerHTML).toContain("width:100%");
     expect(root.innerHTML).toContain("data-open-gift");
+    expect(root.innerHTML).toContain("Choose 1 below");
+    expect(root.innerHTML).toContain("Add <strong>$99.00</strong> more to get a 2nd gift <strong>FREE</strong>");
   });
 
   test("Tier 1 gift in the cart: everything switches to Tier 2", async () => {
     const root = await render([paid(30000), tierGift(11, "t1")]);
-    expect(root.innerHTML).toContain("UPGRADE TO TIER 2");
-    expect(root.innerHTML).toContain("more to get <strong>BOTH</strong> gifts");
+    expect(root.innerHTML).toContain("2 MORE GIFTS FREE");
+    // Sling 2.0 isn't a Tier 2 gift, so both Tier 2 gifts are still to come.
+    expect(root.innerHTML).toContain("more and get <strong>2 more gifts</strong>");
     expect(root.innerHTML).toContain("<span>+</span>");
     expect(root.innerHTML).toContain("$99.00");
     expect(root.innerHTML).toContain("$300.00&nbsp;/&nbsp;$399.00");
@@ -65,10 +69,22 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).not.toContain("Sling 2.0");
   });
 
+  test("Tier 1 T-shirt in the cart: add more and get 1 more gift, showing only the missing one", async () => {
+    const html = (await render([paid(30000), tierGift(21, "t1")])).innerHTML;
+    expect(html).toContain("1 MORE GIFT FREE");
+    expect(html).toContain("Add <strong>$99.00</strong> more and get <strong>1 more gift</strong> <strong>FREE</strong>!");
+    expect(html).toContain("Add $99.00 more to also get");
+    expect(html).toContain("Sling 3.0");
+    expect(html).not.toContain("T-Shirt");
+  });
+
   test("Tier 2 (all gifts) stays unlocked until every gift is claimed, then hides", async () => {
     expect((await render([paid(40000)])).innerHTML).toContain("TIER 2 UNLOCKED");
     expect((await render([paid(40000)])).innerHTML).toContain("unlocked <strong>BOTH</strong> gifts");
-    expect((await render([paid(40000), tierGift(31, "t2")])).innerHTML).toContain("TIER 2 UNLOCKED");
+    const one = (await render([paid(40000), tierGift(31, "t2")])).innerHTML;
+    expect(one).toContain("Claim your <strong>2nd</strong> gift <strong>FREE</strong>!");
+    expect(one).toContain("T-Shirt");
+    expect(one).not.toContain("Sling 3.0");
     expect((await render([paid(40000), tierGift(31, "t2"), tierGift(21, "t1")])).hidden).toBe(true);
   });
 
