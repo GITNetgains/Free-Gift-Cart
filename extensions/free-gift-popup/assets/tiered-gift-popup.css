@@ -59,3 +59,11 @@
 .fgc-option { transition: background-color .12s, border-color .12s, color .12s; }
 .fgc-product { transition: border-color .12s, box-shadow .12s; }
 .fgc-product-image[hidden] { display: none; }
+
+/* "Choose 1 gift to keep" popup. */
+.fgc-dialog--keep { scrollbar-width: none; }
+.fgc-dialog--keep::-webkit-scrollbar { display: none; }
+.fgc-dialog--keep .fgc-product-image { height: 120px; }
+.fgc-dialog--keep .fgc-product { min-height: 0; }
+.fgc-keep-variant { color: #667085; font-size: 13px; font-weight: 700; margin: -3px 0 7px; }
+.fgc-dialog--keep .fgc-claim { margin-top: 12px; }

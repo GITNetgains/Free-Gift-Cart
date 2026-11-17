@@ -143,15 +143,32 @@ describe("price gifts popup", () => {
     expect(html).toBe("");
   });
 
-  test("dropping back to a pick-one tier keeps only the newest gift", async () => {
-    const { updates } = await run([giftLine("newest", 21, "t2"), paid(30000), giftLine("earlier", 11, "t1")]);
-    expect(updates).toEqual([{ earlier: 0 }]);
+  test("dropping from Tier 2 into a pick-one tier with two gifts asks which one to keep", async () => {
+    const { updates, html } = await run([giftLine("newest", 21, "t2"), paid(30000), giftLine("earlier", 11, "t1")]);
+    // Nothing is removed until the shopper chooses.
+    expect(updates).toEqual([]);
+    expect(html).toContain("CHOOSE 1 GIFT TO KEEP");
+    expect(html).toContain('data-keep="newest"');
+    expect(html).toContain('data-keep="earlier"');
+    expect(html).toContain("KEEP THIS GIFT");
   });
 
-  test("in a pick-one tier the newest gift replaces the earlier one", async () => {
-    const { updates, html } = await run([giftLine("newest", 21, "t1"), paid(30000), giftLine("earlier", 11, "t1")]);
-    expect(updates).toEqual([{ earlier: 0 }]);
+  test("dropping below Tier 1 removes every gift without asking", async () => {
+    const { updates, html } = await run([giftLine("a", 21, "t2"), paid(10000), giftLine("b", 11, "t1")]);
+    expect(updates).toEqual([{ a: 0, b: 0 }]);
+    expect(html).not.toContain("CHOOSE 1 GIFT TO KEEP");
+  });
+
+  test("a single gift in a pick-one tier is left alone", async () => {
+    const { updates, html } = await run([paid(30000), giftLine("only", 21, "t2")]);
+    expect(updates).toEqual([]);
     expect(html).toBe("");
+  });
+
+  test("two gifts in a pick-one tier: the shopper is asked which to keep", async () => {
+    const { updates, html } = await run([giftLine("newest", 21, "t1"), paid(30000), giftLine("earlier", 11, "t1")]);
+    expect(updates).toEqual([]);
+    expect(html).toContain("CHOOSE 1 GIFT TO KEEP");
   });
 
   test("an INR store showing dollars opens Tier 1 at $299, not at $17", async () => {

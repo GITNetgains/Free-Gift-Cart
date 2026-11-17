@@ -380,6 +380,87 @@
     if (link && /\/products\//.test(link.getAttribute("href") || link.dataset.fgcHref || "")) event.preventDefault();
   }, true);
 
+  // "Which gift do you want to keep?" Shown when the cart drops into a
+  // pick-one tier holding more than one gift. Closing keeps the selected
+  // gift (the newest unless the shopper picked another): one must go, or it
+  // would be charged at checkout.
+  let keepKey = "";
+  const showKeep = (items) => {
+    const key = `keep:${items.map((item) => item.key).sort().join(",")}`;
+    if (openKey === key && root.querySelector(".fgc-overlay")) return;
+    hidePopup();
+    openKey = key;
+    keepKey = items.some((item) => item.key === keepKey) ? keepKey : items[0].key;
+    root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
+    root.style.setProperty("--fgc-text", look.textColor || "#111827");
+    root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
+    root.style.setProperty("--fgc-button-text", look.buttonTextColor || "#FFFFFF");
+    root.style.setProperty("--fgc-overlay", look.overlayColor || "#111827B3");
+    const variantLabel = (item) => item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : "";
+    root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
+      <section class="fgc-dialog fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
+        <button class="fgc-close" type="button" aria-label="Close">&times;</button>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">CHOOSE 1 GIFT TO KEEP</h2></div>
+        <p class="fgc-subheading">Your cart total changed, so your order now includes 1 free gift. Choose the gift you want to keep; the other one will be removed from your cart.</p>
+        <div class="fgc-content">
+          <div class="fgc-products">${items.map((item) => `
+            <button class="fgc-product" type="button" data-keep="${escapeHtml(item.key)}">
+              <span class="fgc-check" aria-hidden="true"></span>
+              ${item.image ? `<img class="fgc-product-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.product_title)}" loading="lazy">` : ""}
+              <strong class="fgc-product-title">${escapeHtml(item.product_title)}</strong>
+              ${variantLabel(item) ? `<span class="fgc-keep-variant">${escapeHtml(variantLabel(item))}</span>` : ""}
+              <span class="fgc-free">🎁 FREE</span>
+            </button>`).join("")}
+          </div>
+          <button class="fgc-claim" type="button">🎁 KEEP THIS GIFT</button>
+          <p class="fgc-status" aria-live="polite"></p>
+        </div>
+        <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
+      </section></div>`);
+    root.hidden = false;
+    document.documentElement.classList.add("fgc-lock");
+    const refresh = () => root.querySelectorAll("[data-keep]").forEach((card) => {
+      const selected = card.dataset.keep === keepKey;
+      card.classList.toggle("is-selected", selected);
+      card.setAttribute("aria-pressed", String(selected));
+      card.querySelector(".fgc-check").textContent = selected ? "✓" : "";
+    });
+    let saving = false;
+    const keep = async () => {
+      if (saving) return;
+      saving = true;
+      const button = root.querySelector(".fgc-claim");
+      if (button) button.disabled = true;
+      const updates = Object.fromEntries(items.filter((item) => item.key !== keepKey).map((item) => [item.key, 0]));
+      try {
+        const response = await nativeFetch(`${basePath}cart/update.js`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ updates }),
+        });
+        if (!response.ok) throw new Error("update failed");
+        // Reload so the theme's cart (page, drawer, count) shows the change.
+        window.location.reload();
+      } catch {
+        saving = false;
+        if (button) button.disabled = false;
+        const status = root.querySelector(".fgc-status");
+        if (status) status.textContent = "We could not update your cart. Please try again.";
+      }
+    };
+    root.querySelector(".fgc-products")?.addEventListener("click", (event) => {
+      const card = event.target instanceof Element ? event.target.closest("[data-keep]") : null;
+      if (!card) return;
+      keepKey = card.dataset.keep;
+      refresh();
+    });
+    root.querySelector(".fgc-claim")?.addEventListener("click", keep);
+    root.querySelector(".fgc-close")?.addEventListener("click", keep);
+    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) keep(); });
+    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) keep(); };
+    refresh();
+  };
+
   const checkCart = async () => {
     if (busy) { pending = true; return; }
     busy = true;
@@ -392,19 +473,21 @@
       const subtotal = paidSubtotal(cart);
       const tier = tierFor(subtotal, cart.currency);
 
-      // Keep only this tier's gifts: one unit per gift product, and a single
-      // gift in "one" tiers. A gift claimed in a lower tier stays when it is
-      // also one of this tier's gifts (the T-shirt from $150 is kept at $350,
-      // and only the Sling is offered). Other gifts and extra units go. The
-      // newest gift wins, so adding another gift replaces the earlier one.
-      // cart.js lists the most recently added line first.
+      // Keep only this tier's gifts: one unit per gift product. A gift
+      // claimed in a lower tier stays when it is also one of this tier's
+      // gifts (the T-shirt from $150 is kept at $350, and only the Sling is
+      // offered). Other gifts and extra units go.
       const updates = {};
       const kept = new Set();
+      // Gift lines this tier allows, newest first (cart.js lists the most
+      // recently added line first).
+      const valid = [];
       cart.items.filter(isGiftItem).forEach((item) => {
         const product = tier && (isTierGift(item) || isFreeTierVariant(item))
           ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
-        if (!product || kept.has(product.id) || (tier.mode === "one" && kept.size > 0)) { updates[item.key] = 0; return; }
+        if (!product || kept.has(product.id)) { updates[item.key] = 0; return; }
         kept.add(product.id);
+        valid.push(item);
         if (item.quantity > 1) updates[item.key] = 1;
       });
       if (Object.keys(updates).length) {
@@ -422,6 +505,10 @@
       }
 
       if (!tier) { hidePopup(); setDismissed(""); return; }
+      // A pick-one tier with more than one gift in the cart (e.g. the cart
+      // dropped from $350 to under $350 with both gifts): the shopper chooses
+      // which gift to keep; the other one is removed.
+      if (tier.mode === "one" && valid.length > 1) { showKeep(valid); return; }
       const offered = tier.mode === "all"
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
