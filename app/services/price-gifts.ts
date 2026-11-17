@@ -29,10 +29,6 @@ export type TierGiftProduct = {
   optionValues?: string[];
 };
 
-// In tiers above the first, a first-tier gift product can be swapped for
-// another product (e.g. Sling 2.0 -> Sling 3.0).
-export type TierReplacement = { fromProductId: string; products: TierGiftProduct[] };
-
 export type GiftTier = {
   id: string;
   // Paid cart subtotal range, in dollar cents, both ends included. With no
@@ -40,12 +36,11 @@ export type GiftTier = {
   // last tier).
   minimumSpend: number;
   maximumSpend?: number | null;
-  // "one": the shopper picks one of the gifts. "all": every gift is free.
+  // "one": the shopper picks one of the gifts. "all": every gift is free
+  // (e.g. from $350 both the T-shirt and the Sling).
   mode: "one" | "all";
-  // First tier: the chosen gifts. Higher tiers: computed from the first
-  // tier's gifts with `replacements` applied.
+  // This tier's own gift products (every chosen variant).
   products: TierGiftProduct[];
-  replacements: TierReplacement[];
 };
 
 export type PriceGiftSettings = {
@@ -99,19 +94,19 @@ function limitProducts(products: TierGiftProduct[]) {
 
 export const countProducts = (products: TierGiftProduct[]) => new Set(products.map((product) => product.productId)).size;
 
-// First-tier gift products in order, each with its variants.
-export function baseProductGroups(products: TierGiftProduct[]) {
+// A tier's gift products in order, each with its variants.
+export function productGroups(products: TierGiftProduct[]) {
   const groups = new Map<string, TierGiftProduct[]>();
   products.forEach((product) => groups.set(product.productId, [...(groups.get(product.productId) || []), product]));
   return [...groups.entries()].map(([productId, variants]) => ({ productId, title: variants[0].productTitle, variants }));
 }
 
-// Cleans saved or submitted settings: valid ids, whole-dollar minimums,
-// unique minimums, tiers sorted low to high, and higher tiers' gifts rebuilt
-// from the first tier plus replacements.
+// Cleans saved or submitted settings: valid ids, whole-dollar amounts and
+// tiers sorted low to high. Each tier keeps its own gifts and its own rule
+// (pick one, or all free). Older settings' per-tier "replacements" are dropped.
 export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | null): PriceGiftSettings {
   const settings = { ...DEFAULT_PRICE_GIFT_SETTINGS, ...(raw || {}) };
-  const tiers = (Array.isArray(raw?.tiers) ? raw!.tiers : [])
+  const tiers: GiftTier[] = (Array.isArray(raw?.tiers) ? raw!.tiers : [])
     .slice(0, MAX_TIERS)
     .map((tier) => ({
       id: typeof tier?.id === "string" && /^[a-z0-9]{1,24}$/i.test(tier.id) ? tier.id : newTierId(),
@@ -119,33 +114,11 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
       maximumSpend: tier?.maximumSpend === null || tier?.maximumSpend === undefined || String(tier.maximumSpend) === ""
         ? null
         : Math.max(0, Math.round((Number(tier.maximumSpend) || 0) / 100) * 100),
-      // One gift per order in every tier.
-      mode: "one" as const,
+      mode: tier?.mode === "all" ? "all" as const : "one" as const,
       products: limitProducts(Array.isArray(tier?.products) ? tier.products : []),
-      replacements: (Array.isArray(tier?.replacements) ? tier.replacements : [])
-        .filter((replacement) => typeof replacement?.fromProductId === "string")
-        .map((replacement) => ({
-          fromProductId: replacement.fromProductId,
-          products: limitProducts(Array.isArray(replacement.products) ? replacement.products : [])
-            .filter((product, _, all) => product.productId === all[0].productId),
-        }))
-        .filter((replacement) => replacement.products.length > 0),
     }))
     // Stable for equal minimums; the save action refuses those.
     .sort((a, b) => a.minimumSpend - b.minimumSpend);
-
-  const base = tiers[0];
-  if (base) {
-    base.replacements = [];
-    const groups = baseProductGroups(base.products);
-    tiers.slice(1).forEach((tier) => {
-      tier.replacements = tier.replacements.filter((replacement, index, all) =>
-        groups.some((group) => group.productId === replacement.fromProductId) &&
-        all.findIndex((item) => item.fromProductId === replacement.fromProductId) === index);
-      tier.products = limitProducts(groups.flatMap((group) =>
-        tier.replacements.find((replacement) => replacement.fromProductId === group.productId)?.products || group.variants));
-    });
-  }
   return { ...settings, enabled: Boolean(settings.enabled), tiers };
 }
 

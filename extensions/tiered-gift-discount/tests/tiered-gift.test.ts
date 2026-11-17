@@ -52,16 +52,26 @@ describe("tiered gift discount", () => {
     expect(targets(result)).toEqual(["g1"]);
   });
 
-  test("300+ makes only one gift free, even if the tier was saved as all", () => {
+  test("300+ in an all tier makes every gift free, one unit each", () => {
     const result = cartLinesDiscountsGenerateRun(input("300.00", [
       { id: "g1", tier: "t300", variantId: SLING3.variantId },
       { id: "g2", tier: "t300", variantId: SHIRT.variantId },
+      { id: "g3", tier: "t300", variantId: SHIRT.variantId },
     ]));
-    expect(targets(result)).toEqual(["g1"]);
+    expect(targets(result)).toEqual(["g1", "g2"]);
   });
 
-  test("a gift claimed for the lower tier is not free in the higher tier", () => {
+  test("a lower-tier gift that is also a higher-tier gift stays free", () => {
+    expect(targets(cartLinesDiscountsGenerateRun(input("300.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }])))).toEqual(["g1"]);
+  });
+
+  test("a lower-tier gift that isn't in the higher tier is not free there", () => {
     expect(targets(cartLinesDiscountsGenerateRun(input("300.00", [{ id: "g1", tier: "t120", variantId: SLING2.variantId }])))).toEqual([]);
+  });
+
+  test("a line without the gift marker is never free", () => {
+    const data = input("300.00", [{ id: "g1", tier: "", variantId: SHIRT.variantId }]);
+    expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual([]);
   });
 
   test("a variant from another tier is not free", () => {

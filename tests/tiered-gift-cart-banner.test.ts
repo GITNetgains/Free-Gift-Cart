@@ -10,12 +10,12 @@ const gift = (product: string, variant: string, title: string) => ({
 const settings = {
   enabled: true,
   tiers: [
-    { id: "t1", minimumSpend: 29900, products: [gift("1", "11", "Sling 2.0"), gift("2", "21", "T-Shirt")] },
-    { id: "t2", minimumSpend: 39900, products: [gift("3", "31", "Sling 3.0"), gift("2", "21", "T-Shirt")] },
+    { id: "t1", minimumSpend: 29900, mode: "one", products: [gift("1", "11", "Sling 2.0"), gift("2", "21", "T-Shirt")] },
+    { id: "t2", minimumSpend: 39900, mode: "all", products: [gift("3", "31", "Sling 3.0"), gift("2", "21", "T-Shirt")] },
   ],
 };
 const paid = (cents: number) => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
-const tierGift = (variant: number, tier: string) => ({ key: "g", variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
+const tierGift = (variant: number, tier: string) => ({ key: `g${variant}`, variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
 
 async function render(items: unknown[], shopCurrency = "INR") {
   const root = {
@@ -57,14 +57,22 @@ describe("price gifts cart banner", () => {
   test("Tier 1 gift in the cart: everything switches to Tier 2", async () => {
     const root = await render([paid(30000), tierGift(11, "t1")]);
     expect(root.innerHTML).toContain("UPGRADE TO TIER 2");
+    expect(root.innerHTML).toContain("more to get <strong>BOTH</strong> gifts");
+    expect(root.innerHTML).toContain("<span>+</span>");
     expect(root.innerHTML).toContain("$99.00");
     expect(root.innerHTML).toContain("$300.00&nbsp;/&nbsp;$399.00");
     expect(root.innerHTML).toContain("Sling 3.0");
     expect(root.innerHTML).not.toContain("Sling 2.0");
   });
 
-  test("Tier 2 reached: unlocked until its gift is claimed, then hidden", async () => {
+  test("Tier 2 (all gifts) stays unlocked until every gift is claimed, then hides", async () => {
     expect((await render([paid(40000)])).innerHTML).toContain("TIER 2 UNLOCKED");
-    expect((await render([paid(40000), tierGift(31, "t2")])).hidden).toBe(true);
+    expect((await render([paid(40000)])).innerHTML).toContain("unlocked <strong>BOTH</strong> gifts");
+    expect((await render([paid(40000), tierGift(31, "t2")])).innerHTML).toContain("TIER 2 UNLOCKED");
+    expect((await render([paid(40000), tierGift(31, "t2"), tierGift(21, "t1")])).hidden).toBe(true);
+  });
+
+  test("Tier 1 offers its gifts with OR", async () => {
+    expect((await render([paid(30000)])).innerHTML).toContain("<span>OR</span>");
   });
 });

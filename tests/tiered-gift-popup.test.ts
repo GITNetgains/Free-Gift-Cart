@@ -19,7 +19,7 @@ const settings = {
   enabled: true,
   tiers: [
     { id: "t1", minimumSpend: 29900, mode: "one", products: [sling2, shirt] },
-    // Saved as "all" by an older version: still one gift.
+    // Every gift is free.
     { id: "t2", minimumSpend: 39900, mode: "all", products: [...shirtVariants, sling3] },
   ],
 };
@@ -111,19 +111,38 @@ describe("price gifts popup", () => {
     expect(content).not.toContain("fgc-products--all");
   });
 
-  test("Tier 2 removes the Tier 1 gift and offers one gift, even if saved as all", async () => {
-    const { html, content, updates } = await run([paid(40000), giftLine("old", 11, "t1")]);
-    expect(updates).toEqual([{ old: 0 }]);
-    expect(html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
-    expect(html).not.toContain("FREE GIFTS");
+  test("an all tier offers every gift together", async () => {
+    const { html, content, updates } = await run([paid(40000)]);
+    expect(updates).toEqual([]);
+    expect(html).toContain("YOU’VE UNLOCKED FREE GIFTS!");
+    expect(content).toContain("fgc-products--all");
     expect(content).toContain("Zion Cases Sling 3.0");
-    expect(content).not.toContain("fgc-products--all");
+    expect(content).toContain("FREE GIFT | T-Shirt");
   });
 
-  test("Tier 2 keeps a single Tier 2 gift and removes any second one", async () => {
-    const { updates, html } = await run([giftLine("newest", 31, "t2"), paid(40000), giftLine("earlier", 21, "t2")]);
-    expect(updates).toEqual([{ earlier: 0 }]);
+  test("Tier 2 removes a Tier 1 gift that isn't a Tier 2 gift", async () => {
+    const { updates, html } = await run([paid(40000), giftLine("old", 11, "t1")]);
+    expect(updates).toEqual([{ old: 0 }]);
+    expect(html).toContain("YOU’VE UNLOCKED FREE GIFTS!");
+  });
+
+  test("Tier 2 keeps the Tier 1 T-shirt and offers only the gift still missing", async () => {
+    const { updates, html, content } = await run([paid(40000), giftLine("shirt", 21, "t1")]);
+    expect(updates).toEqual([]);
+    expect(html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
+    expect(content).toContain("Zion Cases Sling 3.0");
+    expect(content).not.toContain("FREE GIFT | T-Shirt");
+  });
+
+  test("an all tier keeps every gift and offers nothing more", async () => {
+    const { updates, html } = await run([giftLine("sling", 31, "t2"), paid(40000), giftLine("shirt", 21, "t2")]);
+    expect(updates).toEqual([]);
     expect(html).toBe("");
+  });
+
+  test("dropping back to a pick-one tier keeps only the newest gift", async () => {
+    const { updates } = await run([giftLine("newest", 21, "t2"), paid(30000), giftLine("earlier", 11, "t1")]);
+    expect(updates).toEqual([{ earlier: 0 }]);
   });
 
   test("in a pick-one tier the newest gift replaces the earlier one", async () => {

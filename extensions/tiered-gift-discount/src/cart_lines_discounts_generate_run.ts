@@ -61,11 +61,14 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
   const discountedProducts = new Set<string>();
   const targets: Array<{ cartLine: { id: string; quantity: number } }> = [];
   for (const line of input.cart.lines) {
-    if (line.tierMarker?.value !== tier.id || line.merchandise.__typename !== "ProductVariant") continue;
+    // Any claimed gift line counts, including one claimed in a lower tier,
+    // as long as its variant is one of this tier's gifts (e.g. the T-shirt
+    // claimed at $150 stays free at $350).
+    if (!line.tierMarker?.value || line.merchandise.__typename !== "ProductVariant") continue;
     const productId = productByVariant.get(line.merchandise.id);
     if (!productId || discountedProducts.has(productId)) continue;
-    // One free gift per order, whatever mode older settings were saved with.
-    if (targets.length >= 1) break;
+    // "one": a single free gift. "all": one unit of every gift product.
+    if (tier.mode !== "all" && targets.length >= 1) break;
     discountedProducts.add(productId);
     targets.push({ cartLine: { id: line.id, quantity: 1 } });
   }

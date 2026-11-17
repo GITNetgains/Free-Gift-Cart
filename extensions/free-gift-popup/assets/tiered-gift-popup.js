@@ -64,10 +64,9 @@
       if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
     });
     return {
-      // One gift per order in every tier: the shopper picks one, and reaching
-      // a higher tier swaps the lower tier's gift out. Older settings saved
-      // with mode "all" are treated the same.
-      id: tier.id, mode: "one",
+      // "one": the shopper picks one gift. "all": every gift is free
+      // (e.g. from $350 the T-shirt and the Sling).
+      id: tier.id, mode: tier.mode === "all" ? "all" : "one",
       minimum: Number(tier.minimumSpend || 0),
       // Optional upper end, included; empty runs until the next tier.
       maximum: tier.maximumSpend == null || tier.maximumSpend === "" ? null : Number(tier.maximumSpend),
@@ -380,13 +379,15 @@
       const tier = tierFor(subtotal, cart.currency);
 
       // Keep only this tier's gifts: one unit per gift product, and a single
-      // gift in "one" tiers. Lower-tier gifts, other gifts and extra units go.
-      // The newest gift wins, so adding another gift replaces the earlier
-      // one. cart.js lists the most recently added line first.
+      // gift in "one" tiers. A gift claimed in a lower tier stays when it is
+      // also one of this tier's gifts (the T-shirt from $150 is kept at $350,
+      // and only the Sling is offered). Other gifts and extra units go. The
+      // newest gift wins, so adding another gift replaces the earlier one.
+      // cart.js lists the most recently added line first.
       const updates = {};
       const kept = new Set();
       cart.items.filter(isGiftItem).forEach((item) => {
-        const product = tier && (item.properties?._tier_gift === tier.id || isFreeTierVariant(item))
+        const product = tier && (isTierGift(item) || isFreeTierVariant(item))
           ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
         if (!product || kept.has(product.id) || (tier.mode === "one" && kept.size > 0)) { updates[item.key] = 0; return; }
         kept.add(product.id);
