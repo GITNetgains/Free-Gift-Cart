@@ -22,7 +22,7 @@
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{background:#fff4f4;border:1px solid #ffd9db;border-radius:10px;color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;padding:8px 12px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
