@@ -131,6 +131,15 @@
   const dismissedSignature = () => { try { return sessionStorage.getItem(DISMISS_KEY) || ""; } catch { return ""; } };
   const setDismissed = (value) => { try { value ? sessionStorage.setItem(DISMISS_KEY, value) : sessionStorage.removeItem(DISMISS_KEY); } catch { /* blocked */ } };
   let currentSignature = "";
+  // The paid items and gift line count after the last check. When the paid
+  // items are the same but a gift line is gone, the shopper deleted the gift
+  // themselves: the popup then waits until they add a product or change a
+  // quantity (or click "Choose your free gift" on the cart banner).
+  const STATE_KEY = "fgc-tier-gifts";
+  const readState = () => { try { return JSON.parse(sessionStorage.getItem(STATE_KEY) || "null"); } catch { return null; } };
+  const writeState = (state) => { try { sessionStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch { /* blocked */ } };
+  const paidSignature = (cart) => cart.items.filter((item) => !isGiftItem(item))
+    .map((item) => `${item.variant_id}:${item.quantity}`).sort().join(",");
   const signatureOf = (cart, tier) => `${tier.id}|${cart.items.filter((item) => !isGiftItem(item))
     .map((item) => `${item.variant_id}:${item.quantity}`).sort().join(",")}`;
 
@@ -458,6 +467,7 @@
           body: JSON.stringify({ updates }),
         });
         if (!response.ok) throw new Error("update failed");
+        writeState({ paid: paidSignature({ items: lastCart?.items || [] }), gifts: 1 });
         // Reload so the theme's cart (page, drawer, count) shows the change.
         window.location.reload();
       } catch {
@@ -508,6 +518,13 @@
         valid.push(item);
         if (item.quantity > 1) updates[item.key] = 1;
       });
+      const paid = paidSignature(cart);
+      const previous = readState();
+      const giftLines = cart.items.filter(isGiftItem).length;
+      const removedByShopper = Boolean(previous) && previous.paid === paid && giftLines < previous.gifts;
+      // After this check the cart holds the allowed gifts only, so our own
+      // removals never look like the shopper's.
+      writeState({ paid, gifts: valid.length });
       if (Object.keys(updates).length) {
         hidePopup();
         const update = await nativeFetch(`${basePath}cart/update.js`, {
@@ -527,6 +544,7 @@
       // dropped from $350 to under $350 with both gifts): the shopper chooses
       // which gift to keep; the other one is removed.
       if (tier.mode === "one" && valid.length > 1) { showKeep(valid, tier, subtotal, cart.currency); return; }
+      if (removedByShopper) setDismissed(signatureOf(cart, tier));
       const offered = tier.mode === "all"
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
