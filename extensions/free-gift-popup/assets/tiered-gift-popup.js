@@ -305,7 +305,7 @@
     root.style.setProperty("--fgc-button-text", look.buttonTextColor || "#FFFFFF");
     root.style.setProperty("--fgc-overlay", look.overlayColor || "#111827B3");
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
-      <section class="fgc-dialog" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
+      <section class="fgc-dialog${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>

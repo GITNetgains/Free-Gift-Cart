@@ -3,19 +3,49 @@
 
 /* "All gifts free" tiers: the shopper gets every gift, so "+" not "OR". */
 /* Each gift is a column: its card, then its own options underneath. */
-.fgc-products--all { align-items: start; }
-.fgc-gift-col { display: flex; flex-direction: column; gap: 9px; min-width: 0; position: relative; }
+.fgc-products--all { align-items: start; position: relative; }
+.fgc-gift-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; }
 .fgc-gift-col .fgc-product:nth-child(n)::after { content: none; }
 .fgc-col-options:empty { display: none; }
+.fgc-col-options .fgc-option-group { margin-bottom: 6px; }
 .fgc-col-options .fgc-options { display: flex; flex-wrap: wrap; }
-.fgc-col-options .fgc-option { flex: 1 0 auto; min-width: 48px; }
+.fgc-col-options .fgc-option { flex: 1 0 auto; min-width: 46px; }
 @media (min-width: 761px) {
+  /* A thin line between the two gifts, with a round "+" on it. */
+  .fgc-gift-col:nth-child(odd):not(:last-child)::before {
+    background: linear-gradient(#e4e7ec00, #e4e7ec 12%, #e4e7ec 88%, #e4e7ec00);
+    bottom: 0; content: ""; position: absolute; right: -17px; top: 0; width: 1px;
+  }
   .fgc-gift-col:nth-child(odd):not(:last-child)::after {
-    color: #111827; content: "+"; font-size: 22px; font-weight: 900; position: absolute; right: -24px; top: 100px;
+    align-items: center; background: #fff; border: 1px solid #e4e7ec; border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(16, 24, 40, .08); color: #111827; content: "+"; display: flex;
+    font-size: 18px; font-weight: 900; height: 28px; justify-content: center; line-height: 1;
+    position: absolute; right: -31px; top: 84px; width: 28px; z-index: 1;
   }
 }
-/* In those tiers the cards are not choices. */
-.fgc-products--all .fgc-product { cursor: default; }
+
+/* All-gift popup: compact so both gifts and their options fit without a
+   scroll bar; if a short screen still needs to scroll, no bar shows. */
+.fgc-dialog--all { max-height: calc(100dvh - 32px); scrollbar-width: none; }
+.fgc-dialog--all::-webkit-scrollbar { display: none; }
+.fgc-dialog--all .fgc-subheading { margin-bottom: 6px; }
+.fgc-dialog--all .fgc-urgency { margin-bottom: 10px; padding: 5px 12px; }
+.fgc-dialog--all .fgc-products { gap: 34px; }
+.fgc-dialog--all .fgc-product { min-height: 0; padding: 8px 10px 10px; }
+.fgc-dialog--all .fgc-product-image { height: 112px; }
+.fgc-dialog--all .fgc-product-title { margin-bottom: 6px; }
+.fgc-dialog--all .fgc-free { font-size: 14px; padding: 4px 14px; }
+.fgc-dialog--all .fgc-check { height: 28px; right: 10px; top: 10px; width: 28px; font-size: 18px; }
+.fgc-dialog--all .fgc-option-group legend { font-size: 13px; margin-bottom: 4px; }
+.fgc-dialog--all .fgc-option { min-height: 32px; padding: 4px 8px; }
+.fgc-dialog--all .fgc-claim { margin-top: 4px; min-height: 44px; }
+.fgc-dialog--all .fgc-status { margin-top: 4px; min-height: 0; }
+.fgc-dialog--all .fgc-footer { margin-top: 6px; }
+@media (max-width: 760px) {
+  .fgc-dialog--all .fgc-products { gap: 12px; }
+  .fgc-dialog--all .fgc-product-image { height: 90px; }
+  .fgc-dialog--all .fgc-option { min-height: 38px; min-width: 44px; padding: 6px 8px; }
+}
 
 /* One options block per gift in "all" tiers, titled with the gift. */
 .fgc-variant-panel[hidden] { display: none; }
