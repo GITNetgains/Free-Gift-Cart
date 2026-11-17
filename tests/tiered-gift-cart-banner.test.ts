@@ -43,6 +43,7 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).toContain("$282.00");
     expect(root.innerHTML).toContain("Sling 2.0");
     expect(root.innerHTML).toContain("Spend <strong>$399.00</strong> and get <strong>BOTH</strong> gifts");
+    expect(root.innerHTML).toContain(`<div class="fgcb-alt" aria-hidden="true">OR</div>`);
   });
 
   test("Tier 1 reached but no gift yet: unlocked, Tier 1 gifts", async () => {
@@ -54,6 +55,7 @@ describe("price gifts cart banner", () => {
     expect(root.innerHTML).toContain("width:100%");
     expect(root.innerHTML).toContain("data-open-gift");
     expect(root.innerHTML).toContain("Choose 1 below");
+    expect(root.innerHTML).not.toContain("fgcb-alt");
     expect(root.innerHTML).toContain("Add <strong>$99.00</strong> more to get a 2nd gift <strong>FREE</strong>");
   });
 

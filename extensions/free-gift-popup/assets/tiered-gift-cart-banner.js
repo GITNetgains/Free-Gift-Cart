@@ -22,7 +22,7 @@
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-hint{align-items:center;color:#0f1b3d;display:flex;font-size:clamp(13px,.95cqi,15px);gap:6px;line-height:1.35;margin:8px 0 0}.fgcb-hint .fgcb-gift-icon{height:16px;width:16px}.fgcb-hint strong{font-weight:800}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{background:#fff4f4;border:1px solid #ffd9db;border-radius:10px;color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;padding:8px 12px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -122,6 +122,9 @@
       const next = tiers[index + 1];
       const nextRemaining = next ? Math.max(0, thresholds[index + 1] - paid) : 0;
       const nextAll = next && next.mode === "all" && next.products.length > 1;
+      // Below every tier the next-tier line is another choice ("OR" spend
+      // more for more gifts); once a gift is unlocked it's the next step.
+      const alternative = !unlocked && !upgrade;
       const hint = !next ? ""
         : unlocked
           ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
@@ -176,7 +179,7 @@
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
-          ${hint ? `<p class="fgcb-hint">${giftIcon} ${hint}</p>` : ""}
+          ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
             <p class="fgcb-amounts">${money(paid)}&nbsp;/&nbsp;${money(targetThreshold)}</p>
