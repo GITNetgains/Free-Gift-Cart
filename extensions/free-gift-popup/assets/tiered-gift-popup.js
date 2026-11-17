@@ -385,7 +385,25 @@
   // gift (the newest unless the shopper picked another): one must go, or it
   // would be charged at checkout.
   let keepKey = "";
-  const showKeep = (items) => {
+  const formatMoney = (cents, currency) => {
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "USD", currencyDisplay: "narrowSymbol" }).format(cents / 100);
+    } catch {
+      return "$" + (cents / 100).toFixed(2);
+    }
+  };
+  // Why a gift has to go, and what brings both back.
+  const keepMessage = (count, tier, subtotal, currency) => {
+    const next = tiers[tiers.findIndex((candidate) => candidate.id === tier.id) + 1];
+    if (!next) return { text: `Your order qualifies for 1 free gift, but your cart has ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`, more: "" };
+    const threshold = Math.round(next.minimum * thresholdRate(currency));
+    const words = count === 2 ? "both" : `all ${count}`;
+    return {
+      text: `Your cart total is now under ${formatMoney(threshold, currency)}, so your order qualifies for 1 free gift instead of ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`,
+      more: `Want to keep ${words}? Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more to your cart.`,
+    };
+  };
+  const showKeep = (items, tier, subtotal, currency) => {
     const key = `keep:${items.map((item) => item.key).sort().join(",")}`;
     if (openKey === key && root.querySelector(".fgc-overlay")) return;
     hidePopup();
@@ -396,12 +414,14 @@
     root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
     root.style.setProperty("--fgc-button-text", look.buttonTextColor || "#FFFFFF");
     root.style.setProperty("--fgc-overlay", look.overlayColor || "#111827B3");
+    const message = keepMessage(items.length, tier, subtotal, currency);
     const variantLabel = (item) => item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : "";
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">CHOOSE 1 GIFT TO KEEP</h2></div>
-        <p class="fgc-subheading">Your cart total changed, so your order now includes 1 free gift. Choose the gift you want to keep; the other one will be removed from your cart.</p>
+        <p class="fgc-subheading">${escapeHtml(message.text)}</p>
+        ${message.more ? `<p class="fgc-urgency">${escapeHtml(message.more)}</p>` : ""}
         <div class="fgc-content">
           <div class="fgc-products">${items.map((item) => `
             <button class="fgc-product" type="button" data-keep="${escapeHtml(item.key)}">
@@ -508,7 +528,7 @@
       // A pick-one tier with more than one gift in the cart (e.g. the cart
       // dropped from $350 to under $350 with both gifts): the shopper chooses
       // which gift to keep; the other one is removed.
-      if (tier.mode === "one" && valid.length > 1) { showKeep(valid); return; }
+      if (tier.mode === "one" && valid.length > 1) { showKeep(valid, tier, subtotal, cart.currency); return; }
       const offered = tier.mode === "all"
         ? tier.products.filter((product) => !kept.has(product.id))
         : (kept.size ? [] : tier.products);
