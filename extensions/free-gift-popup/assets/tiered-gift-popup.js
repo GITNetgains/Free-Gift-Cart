@@ -405,11 +405,11 @@
   // Why a gift has to go, and what brings both back.
   const keepMessage = (count, tier, subtotal, currency) => {
     const next = tiers[tiers.findIndex((candidate) => candidate.id === tier.id) + 1];
-    if (!next) return { text: `Your order qualifies for 1 free gift, but your cart has ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`, more: "" };
+    if (!next) return { text: `Only 1 gift is free with your order. Pick the one to keep.`, more: "" };
     const threshold = Math.round(next.minimum * thresholdRate(currency));
     return {
-      text: `Your cart total is now under ${formatMoney(threshold, currency)}, so your order qualifies for 1 free gift instead of ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`,
-      more: `Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more to your cart later and you can claim ${count === 2 ? "the other gift" : "the other gifts"} free again.`,
+      text: `Your cart is under ${formatMoney(threshold, currency)}, so only 1 gift is free. Pick the one to keep.`,
+      more: `Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more later to get ${count === 2 ? "the other gift" : "the other gifts"} free again.`,
     };
   };
   const showKeep = (items, tier, subtotal, currency) => {
