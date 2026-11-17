@@ -24,27 +24,27 @@
   }
 }
 
-/* All-gift popup: compact so both gifts and their options fit without a
+/* Every price-gift popup: compact so gifts and their options fit without a
    scroll bar; if a short screen still needs to scroll, no bar shows. */
-.fgc-dialog--all { max-height: calc(100dvh - 32px); scrollbar-width: none; }
-.fgc-dialog--all::-webkit-scrollbar { display: none; }
-.fgc-dialog--all .fgc-subheading { margin-bottom: 6px; }
-.fgc-dialog--all .fgc-urgency { margin-bottom: 10px; padding: 5px 12px; }
-.fgc-dialog--all .fgc-products { gap: 34px; }
-.fgc-dialog--all .fgc-product { min-height: 0; padding: 8px 10px 10px; }
-.fgc-dialog--all .fgc-product-image { height: 112px; }
-.fgc-dialog--all .fgc-product-title { margin-bottom: 6px; }
-.fgc-dialog--all .fgc-free { font-size: 14px; padding: 4px 14px; }
-.fgc-dialog--all .fgc-check { height: 28px; right: 10px; top: 10px; width: 28px; font-size: 18px; }
-.fgc-dialog--all .fgc-option-group legend { font-size: 13px; margin-bottom: 4px; }
-.fgc-dialog--all .fgc-option { min-height: 32px; padding: 4px 8px; }
-.fgc-dialog--all .fgc-claim { margin-top: 4px; min-height: 44px; }
-.fgc-dialog--all .fgc-status { margin-top: 4px; min-height: 0; }
-.fgc-dialog--all .fgc-footer { margin-top: 6px; }
+.fgc-dialog--compact { max-height: calc(100dvh - 32px); scrollbar-width: none; }
+.fgc-dialog--compact::-webkit-scrollbar { display: none; }
+.fgc-dialog--compact .fgc-subheading { margin-bottom: 6px; }
+.fgc-dialog--compact .fgc-urgency { margin-bottom: 10px; padding: 5px 12px; }
+.fgc-dialog--compact .fgc-products { gap: 34px; }
+.fgc-dialog--compact .fgc-product { min-height: 0; padding: 8px 10px 10px; }
+.fgc-dialog--compact .fgc-product-image { height: 112px; }
+.fgc-dialog--compact .fgc-product-title { margin-bottom: 6px; }
+.fgc-dialog--compact .fgc-free { font-size: 14px; padding: 4px 14px; }
+.fgc-dialog--compact .fgc-check { height: 28px; right: 10px; top: 10px; width: 28px; font-size: 18px; }
+.fgc-dialog--compact .fgc-option-group legend { font-size: 13px; margin-bottom: 4px; }
+.fgc-dialog--compact .fgc-option { min-height: 32px; padding: 4px 8px; }
+.fgc-dialog--compact .fgc-claim { margin-top: 4px; min-height: 44px; }
+.fgc-dialog--compact .fgc-status { margin-top: 4px; min-height: 0; }
+.fgc-dialog--compact .fgc-footer { margin-top: 6px; }
 @media (max-width: 760px) {
-  .fgc-dialog--all .fgc-products { gap: 12px; }
-  .fgc-dialog--all .fgc-product-image { height: 90px; }
-  .fgc-dialog--all .fgc-option { min-height: 38px; min-width: 44px; padding: 6px 8px; }
+  .fgc-dialog--compact .fgc-products { gap: 12px; }
+  .fgc-dialog--compact .fgc-product-image { height: 90px; }
+  .fgc-dialog--compact .fgc-option { min-height: 38px; min-width: 44px; padding: 6px 8px; }
 }
 
 /* One options block per gift in "all" tiers, titled with the gift. */

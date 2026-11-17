@@ -314,7 +314,7 @@
     root.style.setProperty("--fgc-button-text", look.buttonTextColor || "#FFFFFF");
     root.style.setProperty("--fgc-overlay", look.overlayColor || "#111827B3");
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
-      <section class="fgc-dialog${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
+      <section class="fgc-dialog fgc-dialog--compact${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
@@ -426,7 +426,7 @@
     const message = keepMessage(items.length, tier, subtotal, currency);
     const variantLabel = (item) => item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : "";
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
-      <section class="fgc-dialog fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
+      <section class="fgc-dialog fgc-dialog--compact fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">CHOOSE 1 GIFT TO KEEP</h2></div>
         <p class="fgc-subheading">${escapeHtml(message.text)}</p>
         ${message.more ? `<p class="fgc-urgency">${escapeHtml(message.more)}</p>` : ""}
