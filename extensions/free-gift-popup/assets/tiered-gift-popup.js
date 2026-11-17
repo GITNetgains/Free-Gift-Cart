@@ -381,9 +381,10 @@
   }, true);
 
   // "Which gift do you want to keep?" Shown when the cart drops into a
-  // pick-one tier holding more than one gift. Closing keeps the selected
-  // gift (the newest unless the shopper picked another): one must go, or it
-  // would be charged at checkout.
+  // pick-one tier holding more than one gift. It can't be closed: it stays
+  // until the shopper keeps one gift and the other is removed (otherwise the
+  // extra gift would be charged at checkout). It comes back on every page
+  // while the cart still holds too many gifts.
   let keepKey = "";
   const formatMoney = (cents, currency) => {
     try {
@@ -397,10 +398,9 @@
     const next = tiers[tiers.findIndex((candidate) => candidate.id === tier.id) + 1];
     if (!next) return { text: `Your order qualifies for 1 free gift, but your cart has ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`, more: "" };
     const threshold = Math.round(next.minimum * thresholdRate(currency));
-    const words = count === 2 ? "both" : `all ${count}`;
     return {
       text: `Your cart total is now under ${formatMoney(threshold, currency)}, so your order qualifies for 1 free gift instead of ${count}. Choose the gift you'd like to keep and we'll remove the other one from your cart.`,
-      more: `Want to keep ${words}? Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more to your cart.`,
+      more: `Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more to your cart later and you can claim ${count === 2 ? "the other gift" : "the other gifts"} free again.`,
     };
   };
   const showKeep = (items, tier, subtotal, currency) => {
@@ -418,7 +418,6 @@
     const variantLabel = (item) => item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : "";
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
-        <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">CHOOSE 1 GIFT TO KEEP</h2></div>
         <p class="fgc-subheading">${escapeHtml(message.text)}</p>
         ${message.more ? `<p class="fgc-urgency">${escapeHtml(message.more)}</p>` : ""}
@@ -475,9 +474,8 @@
       refresh();
     });
     root.querySelector(".fgc-claim")?.addEventListener("click", keep);
-    root.querySelector(".fgc-close")?.addEventListener("click", keep);
-    root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) keep(); });
-    root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) keep(); };
+    // No close button; clicking outside or Escape does nothing.
+    root.onkeydown = null;
     refresh();
   };
 
