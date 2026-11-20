@@ -37,6 +37,26 @@
     return 1;
   };
   const basePath = window.Shopify?.routes?.root || "/";
+
+  // The sale dates from the Price gifts page (UTC instants): nothing shows
+  // before the start or after the end.
+  const saleOpen = () => {
+    const now = Date.now();
+    if (tierSettings.saleStartsAt && Date.parse(tierSettings.saleStartsAt) > now) return false;
+    return !(tierSettings.saleEndsAt && Date.parse(tierSettings.saleEndsAt) < now);
+  };
+  const saleDate = (date, withYear = true) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric", ...(withYear ? { year: "numeric" } : {}),
+  });
+  const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  const saleStart = isDay(tierSettings.saleStartDate) ? tierSettings.saleStartDate : "";
+  const saleEnd = isDay(tierSettings.saleEndDate) ? tierSettings.saleEndDate : "";
+  const saleDates = saleStart && saleEnd ? `${saleDate(saleStart, saleStart.slice(0, 4) !== saleEnd.slice(0, 4))} – ${saleDate(saleEnd)}`
+    : saleStart ? `Starts ${saleDate(saleStart)}` : saleEnd ? `Ends ${saleDate(saleEnd)}` : "";
+  const saleName = String(tierSettings.saleName || "").trim();
+  const calendarIcon = `<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2a1 1 0 0 1 1 1v1h6V3a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1Zm10 7H4v7h12V9Z"/></svg>`;
+  // Outside the sale dates the popup doesn't run at all.
+  if (!saleOpen()) return;
   const numericId = (gid) => Number(String(gid || "").split("/").pop());
   const escapeHtml = (value) => {
     const element = document.createElement("div");
@@ -316,6 +336,7 @@
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog fgc-dialog--compact${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
+        ${(saleName || saleDates) ? `<div class="fgc-sale">${saleName ? `<span class="fgc-sale-name">${escapeHtml(saleName)}</span>` : ""}${saleDates ? `<span class="fgc-sale-dates">${calendarIcon}${escapeHtml(saleDates)}</span>` : ""}</div>` : ""}
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
         <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>

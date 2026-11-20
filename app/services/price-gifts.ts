@@ -55,6 +55,17 @@ export type PriceGiftSettings = {
   buttonTextColor: string;
   overlayColor: string;
   tiers: GiftTier[];
+  // The sale shoppers see in the banner and popup, e.g. "Black Friday Sale",
+  // with its dates (YYYY-MM-DD, store time zone, both days included; empty:
+  // no limit). Outside the dates the storefront shows nothing and the
+  // checkout discount is off.
+  saleName: string;
+  saleStartDate: string;
+  saleEndDate: string;
+  // The same dates as UTC instants (start of the first day, end of the last
+  // day in the store time zone), set on save for the storefront scripts.
+  saleStartsAt?: string | null;
+  saleEndsAt?: string | null;
   discountId?: string;
   // The store currency at the last save. Tier minimums are US dollars; only
   // a USD store converts them to the buyer's currency.
@@ -73,7 +84,51 @@ export const DEFAULT_PRICE_GIFT_SETTINGS: PriceGiftSettings = {
   buttonTextColor: "#FFFFFF",
   overlayColor: "#000000B3",
   tiers: [],
+  saleName: "",
+  saleStartDate: "",
+  saleEndDate: "",
 };
+
+const isDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+
+// A wall clock date in the store time zone (start or end of that day) as a
+// UTC ISO string.
+export function zonedToUtc(date: string, timeZone: string, endOfDay: boolean) {
+  const [year, month, day] = date.split("-").map(Number);
+  const wall = Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0);
+  const offsetAt = (instant: number) => {
+    try {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+        timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      }).formatToParts(instant).map((part) => [part.type, part.value]));
+      return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second) - instant;
+    } catch {
+      return 0;
+    }
+  };
+  // Twice, so a day next to a daylight saving change lands right.
+  let instant = wall - offsetAt(wall);
+  instant = wall - offsetAt(instant);
+  return new Date(instant).toISOString();
+}
+
+// "Nov 20 – Dec 31, 2026", "Starts Nov 20, 2026", "Ends Dec 31, 2026".
+export function saleDatesLabel(start: string, end: string) {
+  const format = (date: string, withYear = true) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric", ...(withYear ? { year: "numeric" as const } : {}),
+  });
+  if (start && end) return `${format(start, start.slice(0, 4) !== end.slice(0, 4))} – ${format(end)}`;
+  if (start) return `Starts ${format(start)}`;
+  if (end) return `Ends ${format(end)}`;
+  return "";
+}
+
+export function saleDateErrors(settings: Pick<PriceGiftSettings, "saleStartDate" | "saleEndDate">) {
+  return settings.saleStartDate && settings.saleEndDate && settings.saleEndDate < settings.saleStartDate
+    ? ["The sale end date is before its start date."] : [];
+}
 
 export const newTierId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -119,7 +174,14 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
     }))
     // Stable for equal minimums; the save action refuses those.
     .sort((a, b) => a.minimumSpend - b.minimumSpend);
-  return { ...settings, enabled: Boolean(settings.enabled), tiers };
+  return {
+    ...settings,
+    enabled: Boolean(settings.enabled),
+    tiers,
+    saleName: typeof settings.saleName === "string" ? settings.saleName.slice(0, 80) : "",
+    saleStartDate: isDate(settings.saleStartDate) ? settings.saleStartDate : "",
+    saleEndDate: isDate(settings.saleEndDate) ? settings.saleEndDate : "",
+  };
 }
 
 // The discount function only needs ids and rules (and a function metafield

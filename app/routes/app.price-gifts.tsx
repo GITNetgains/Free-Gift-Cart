@@ -7,7 +7,7 @@ import { authenticate } from "../shopify.server";
 import type { DiscountClass as AdminDiscountClass } from "../types/admin.types";
 import {
   MAX_TIER_PRODUCTS, MAX_TIERS, PRICE_GIFT_NAMESPACE, productGroups, countProducts, functionSettings,
-  newTierId, normalizeSettings, priceGiftsEnabledFor, tierRange, tierRangeErrors,
+  newTierId, normalizeSettings, priceGiftsEnabledFor, saleDateErrors, saleDatesLabel, tierRange, tierRangeErrors, zonedToUtc,
   type GiftTier, type PriceGiftSettings, type TierGiftProduct,
 } from "../services/price-gifts";
 
@@ -18,6 +18,7 @@ const SETTINGS_QUERY = `#graphql
     shop {
       id
       currencyCode
+      ianaTimezone
       metafield(namespace: "tiered_gift", key: "settings") { jsonValue }
     }
   }
@@ -81,6 +82,11 @@ async function ensureDiscount(admin: Admin, settings: PriceGiftSettings) {
     discountClasses: ["PRODUCT" as AdminDiscountClass],
     combinesWith: { orderDiscounts: true, productDiscounts: true, shippingDiscounts: true },
     metafields: [{ namespace: `$app:${PRICE_GIFT_NAMESPACE}`, key: "settings", type: "json", value: functionSettings(settings) }],
+    // The sale dates switch the checkout discount on and off. Without a start
+    // date it starts now (a day before an end date already past).
+    startsAt: settings.saleStartsAt || (settings.saleEndsAt && Date.parse(settings.saleEndsAt) <= Date.now()
+      ? new Date(Date.parse(settings.saleEndsAt) - 86400000).toISOString() : new Date().toISOString()),
+    endsAt: settings.saleEndsAt || null,
   };
   if (settings.discountId) {
     const response = await admin.graphql(
@@ -97,6 +103,8 @@ async function ensureDiscount(admin: Admin, settings: PriceGiftSettings) {
     const json = await response.json();
     const id = json.data?.discountAutomaticAppUpdate?.automaticAppDiscount?.discountId;
     if (id) return { discountId: id as string };
+    const updateError = json.data?.discountAutomaticAppUpdate?.userErrors?.[0]?.message;
+    if (updateError && !/not exist|not found/i.test(updateError)) return { warning: `Checkout discount not updated: ${updateError}` };
   }
   const response = await admin.graphql(
     `#graphql
@@ -107,7 +115,7 @@ async function ensureDiscount(admin: Admin, settings: PriceGiftSettings) {
         }
       }
     `,
-    { variables: { discount: { ...discountInput, startsAt: new Date().toISOString() } } },
+    { variables: { discount: discountInput } },
   );
   const json = await response.json();
   const payload = json.data?.discountAutomaticAppCreate;
@@ -126,7 +134,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false, error: "Your changes couldn't be saved. Reload the page and try again." };
   }
   let settings = normalizeSettings(incoming);
-  const rangeError = tierRangeErrors(settings.tiers)[0];
+  const rangeError = saleDateErrors(settings)[0] || tierRangeErrors(settings.tiers)[0];
   if (rangeError) {
     return { ok: false, error: rangeError };
   }
@@ -137,6 +145,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   settings = await enrichProducts(admin, settings);
   const shopJson = await (await admin.graphql(SETTINGS_QUERY)).json();
   settings.shopCurrency = shopJson.data?.shop?.currencyCode;
+  const timeZone = shopJson.data?.shop?.ianaTimezone || "UTC";
+  settings.saleStartsAt = settings.saleStartDate ? zonedToUtc(settings.saleStartDate, timeZone, false) : null;
+  settings.saleEndsAt = settings.saleEndDate ? zonedToUtc(settings.saleEndDate, timeZone, true) : null;
   const discount = await ensureDiscount(admin, settings);
   if (discount.discountId) settings.discountId = discount.discountId;
 
@@ -311,6 +322,13 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
   };
 
   const submit = () => fetcher.submit({ settings: JSON.stringify(view) }, { method: "POST", encType: "application/x-www-form-urlencoded" });
+  // Where today sits against the saved sale dates (UTC instants from save).
+  const now = Date.now();
+  const saleState = saved.saleStartsAt && Date.parse(saved.saleStartsAt) > now
+    ? { label: "Scheduled", tone: "info" as const }
+    : saved.saleEndsAt && Date.parse(saved.saleEndsAt) < now
+      ? { label: "Ended", tone: "critical" as const }
+      : saved.saleStartsAt || saved.saleEndsAt ? { label: "Running", tone: "success" as const } : null;
   const live = saved.enabled && saved.tiers.length > 0 && saved.tiers.every((tier) => tier.products.length > 0) && Boolean(saved.discountId);
 
   return (
@@ -336,6 +354,39 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
           <s-switch label="Enabled" labelAccessibilityVisibility="exclusive" checked={settings.enabled}
             onChange={(event) => setSettings((current) => ({ ...current, enabled: event.currentTarget.checked ?? false }))} />
         </s-grid>
+      </s-section>
+
+      {/* Sale name and dates, shown in the cart banner and the popup. */}
+      <s-section>
+        <s-stack gap="base">
+          <s-stack direction="inline" gap="small-200" alignItems="center">
+            <s-heading>Sale</s-heading>
+            {saleState && <s-badge tone={saleState.tone}>{saleState.label}</s-badge>}
+          </s-stack>
+          <s-text color="subdued">Shoppers see the sale name and dates in the gift banner and popup. Gifts are only offered between these dates (store time zone, both days included).</s-text>
+          <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base" alignItems="start">
+            <s-text-field label="Sale name" placeholder="e.g. Black Friday Sale" maxLength={80}
+              details="Leave empty to show only the dates."
+              value={settings.saleName}
+              onInput={(event) => { const saleName = event.currentTarget.value ?? ""; setSettings((current) => ({ ...current, saleName })); }} />
+            <s-date-field label="Start date" placeholder="No start date" details="Leave empty to start right away."
+              value={settings.saleStartDate}
+              onChange={(event) => { const saleStartDate = event.currentTarget.value ?? ""; setSettings((current) => ({ ...current, saleStartDate })); }} />
+            <s-date-field label="End date" placeholder="No end date" details="Leave empty to run with no end."
+              value={settings.saleEndDate}
+              onChange={(event) => { const saleEndDate = event.currentTarget.value ?? ""; setSettings((current) => ({ ...current, saleEndDate })); }} />
+          </s-grid>
+          {saleDateErrors(settings).map((error) => <s-text key={error} tone="critical">{error}</s-text>)}
+          {(view.saleName || saleDatesLabel(view.saleStartDate, view.saleEndDate)) && <s-box padding="base" borderRadius="base" background="subdued">
+            <s-stack gap="small-200">
+              <s-text color="subdued">Storefront preview</s-text>
+              <s-stack direction="inline" gap="small-200" alignItems="center">
+                {view.saleName && <s-text type="strong">{view.saleName}</s-text>}
+                {saleDatesLabel(view.saleStartDate, view.saleEndDate) && <s-badge icon="calendar">{saleDatesLabel(view.saleStartDate, view.saleEndDate)}</s-badge>}
+              </s-stack>
+            </s-stack>
+          </s-box>}
+        </s-stack>
       </s-section>
 
       {view.tiers.length === 0 && <s-section>

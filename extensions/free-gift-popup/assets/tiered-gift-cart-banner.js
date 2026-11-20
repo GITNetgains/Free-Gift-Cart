@@ -17,12 +17,30 @@
     if (!settings?.enabled || !Array.isArray(settings.tiers) || !settings.tiers.length) return;
 
     const basePath = window.Shopify?.routes?.root || "/";
+
+    // The sale dates from the Price gifts page (UTC instants): nothing shows
+    // before the start or after the end.
+    const saleOpen = () => {
+      const now = Date.now();
+      if (settings.saleStartsAt && Date.parse(settings.saleStartsAt) > now) return false;
+      return !(settings.saleEndsAt && Date.parse(settings.saleEndsAt) < now);
+    };
+    const saleDate = (date, withYear = true) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+      timeZone: "UTC", month: "short", day: "numeric", ...(withYear ? { year: "numeric" } : {}),
+    });
+    const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+    const saleStart = isDay(settings.saleStartDate) ? settings.saleStartDate : "";
+    const saleEnd = isDay(settings.saleEndDate) ? settings.saleEndDate : "";
+    const saleDates = saleStart && saleEnd ? `${saleDate(saleStart, saleStart.slice(0, 4) !== saleEnd.slice(0, 4))} – ${saleDate(saleEnd)}`
+      : saleStart ? `Starts ${saleDate(saleStart)}` : saleEnd ? `Ends ${saleDate(saleEnd)}` : "";
+    const saleName = String(settings.saleName || "").trim();
+    const calendarIcon = `<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2a1 1 0 0 1 1 1v1h6V3a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1Zm10 7H4v7h12V9Z"/></svg>`;
     // Styles for the next-tier hint. Kept here, not in the shared banner CSS,
     // so the Free gift banner on other stores is untouched.
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-sale{align-items:center;display:flex;flex-wrap:wrap;gap:6px 10px;margin:0 0 10px}.fgcb-sale-name{color:#0f1b3d;font-size:15px;font-weight:800;letter-spacing:.02em;line-height:1.3;text-transform:uppercase}.fgcb-sale-dates{align-items:center;background:#f2f4f7;border:1px solid #e4e7ec;border-radius:999px;color:#344054;display:inline-flex;font-size:12px;font-weight:600;gap:5px;line-height:1;padding:5px 10px;white-space:nowrap}.fgcb-sale-dates svg{color:#ef0b18;height:13px;width:13px}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -78,6 +96,7 @@
     const giftIcon = `<svg class="fgcb-gift-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20 7h-2.18A3 3 0 0 0 12 3.76 3 3 0 0 0 6.18 7H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7h2v5h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1ZM9 7a1 1 0 1 1 1-1v1H9Zm6 0h-1V6a1 1 0 1 1 1 1ZM4 13v7a1 1 0 0 0 1 1h6v-8H4Zm9 8h6a1 1 0 0 0 1-1v-7h-7v8Z"/></svg>`;
 
     const render = (cart) => {
+      if (!saleOpen()) { root.hidden = true; return; }
       const rate = thresholdRate(cart.currency);
       const paid = paidSubtotal(cart);
       const thresholds = tiers.map((tier) => Math.round(tier.minimum * rate));
@@ -177,6 +196,7 @@
 
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
+          ${(saleName || saleDates) ? `<div class="fgcb-sale">${saleName ? `<span class="fgcb-sale-name">${escapeHtml(saleName)}</span>` : ""}${saleDates ? `<span class="fgcb-sale-dates">${calendarIcon}${escapeHtml(saleDates)}</span>` : ""}</div>` : ""}
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
           ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>` : ""}
