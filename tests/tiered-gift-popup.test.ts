@@ -109,6 +109,7 @@ describe("price gifts popup", () => {
     expect(html).toContain("Your cart qualifies! Choose ONE free gift to add to your order.");
     expect(html).toContain("Limited quantities available. Claim your free gift while supplies last!");
     expect(html).toContain("Choose Your FREE Gift");
+    expect(content).toContain("CLAIM YOUR GIFT<");
     expect(content).toContain("Zion Cases Sling 2.0");
     expect(content).toContain("FREE GIFT | T-Shirt");
     expect(content).not.toContain("fgc-products--all");
@@ -121,6 +122,7 @@ describe("price gifts popup", () => {
     expect(html).toContain("Congratulations! Your cart qualifies for BOTH gifts. Add them to your order!");
     expect(html).toContain("Limited quantities available. Claim your gifts while supplies last!");
     expect(html).toContain("Your FREE Gifts");
+    expect(content).toContain("CLAIM YOUR GIFTS<");
     expect(content).toContain("fgc-products--all");
     // Each gift is a column with its own options under its card.
     expect(content).toContain(`<div class="fgc-gift-col">`);

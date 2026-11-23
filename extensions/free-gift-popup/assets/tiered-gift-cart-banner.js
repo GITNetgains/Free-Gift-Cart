@@ -183,8 +183,8 @@
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
-          <h2 class="fgcb-heading">${alternative && hint ? giftIcon : ""}${heading}</h2>
-          ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>` : ""}
+          <h2 class="fgcb-heading">${heading}</h2>
+          ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${alternative ? "" : giftIcon}<span>${hint}</span></p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
             <p class="fgcb-amounts">${money(paid)}&nbsp;/&nbsp;${money(targetThreshold)}</p>

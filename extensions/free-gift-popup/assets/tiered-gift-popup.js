@@ -216,7 +216,7 @@
       }).join("")}
       </div>
       <div class="fgc-variant-panel"></div>
-      <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
+      <button class="fgc-claim" type="button">🎁 ${tier.mode === "all" && offered.length > 1 ? "CLAIM YOUR GIFTS" : "CLAIM YOUR GIFT"}</button>
       <p class="fgc-status" aria-live="polite"></p>
       <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
     const panel = content.querySelector(".fgc-variant-panel");
