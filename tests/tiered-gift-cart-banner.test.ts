@@ -40,7 +40,9 @@ describe("price gifts cart banner", () => {
     const root = await render([paid(1700)]);
     expect(root.hidden).toBe(false);
     expect(root.innerHTML).toContain("FREE GIFT AWAITS");
-    expect(root.innerHTML).toContain("$282.00");
+    expect(root.innerHTML).toContain("Spend <strong>$299</strong> or more get 1 <strong>FREE</strong> gift!");
+    expect(root.innerHTML).toContain("SPEND $399+");
+    expect(root.innerHTML).toContain("Unlock BOTH gifts for FREE!");
     expect(root.innerHTML).toContain("Sling 2.0");
     expect(root.innerHTML).toContain("Spend <strong>$399.00</strong> and get <strong>BOTH</strong> gifts");
     expect(root.innerHTML).toContain(`<div class="fgcb-alt" aria-hidden="true">OR</div>`);

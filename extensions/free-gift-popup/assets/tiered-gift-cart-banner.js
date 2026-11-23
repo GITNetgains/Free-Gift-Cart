@@ -22,7 +22,7 @@
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:16px;padding-top:14px}.fgcb-next-text{color:#0f1b3d;font-size:clamp(15px,1.1cqi,18px);font-weight:700;margin:10px 0 0}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -159,10 +159,15 @@
         pill = upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
         heading = upgrade
           ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
-          : `Add <strong>${money(remaining)}</strong> more to unlock a <strong>FREE</strong> gift!`;
+          : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}</strong> or more get 1 <strong>FREE</strong> gift!`;
         label = upgrade ? "Upgrade to" : "Choose 1 gift";
       }
       const joiner = several ? "+" : "OR";
+      // Below every tier: what the next tier unlocks, under the gift cards
+      // (e.g. "SPEND $350+ / Unlock BOTH gifts for FREE!").
+      const teaser = alternative && next
+        ? `<div class="fgcb-next"><span class="fgcb-pill">SPEND ${escapeHtml(money(thresholds[index + 1]).replace(/[.,]00(?=\D*$)/, ""))}+</span><p class="fgcb-next-text">${nextAll ? `Unlock ${next.products.length === 2 ? "BOTH" : "ALL"} gifts for FREE!` : "Upgrade your FREE gift!"}</p></div>`
+        : "";
 
       const cards = shown.map((product, index) => `
         <div class="fgcb-product">
@@ -189,6 +194,7 @@
         <div class="fgcb-middle">
           <p class="fgcb-label">${label}</p>
           <div class="fgcb-products">${cards}</div>
+          ${teaser}
         </div>
         ${continueLink("mobile")}
         <p class="fgcb-footer">*Free gift items are not eligible for exchange or replacement.*</p>
