@@ -49,11 +49,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const destination = payload.rate?.destination;
   if (!destination || !isUpsGroundDestination(destination)) return Response.json(NO_RATES);
 
-  const grams = (payload.rate?.items ?? [])
+  const shipped = (payload.rate?.items ?? [])
     .filter((item) => item.requires_shipping !== false)
-    .reduce((sum, item) => sum + (item.grams ?? 0) * (item.quantity ?? 1), 0);
+    .map((item) => ({ grams: item.grams ?? 0, quantity: item.quantity ?? 1 }));
+  const grams = shipped.reduce((sum, item) => sum + item.grams * item.quantity, 0);
 
-  const { cents, live, source } = await upsGroundPriceCents(destination, grams);
+  const { cents, live, source, packages } = await upsGroundPriceCents(destination, shipped);
   // One line per quote so checkout prices can be compared with ShipStation.
   console.log("[ups-ground] quote", JSON.stringify({
     shop: request.headers.get("x-shopify-shop-domain"),
@@ -61,10 +62,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     items: (payload.rate?.items ?? []).map((item) => `${item.quantity}x ${item.name} (${item.grams}g${item.requires_shipping === false ? ", no shipping" : ""})`),
     totalGrams: grams,
     ounces: Math.round(grams / 28.349523125),
-    price: (cents / 100).toFixed(2),
+    packages: packages.map((ounces) => `${(ounces / 16).toFixed(1)} lb`),
+    price: cents === null ? null : (cents / 100).toFixed(2),
     live,
     source,
   }));
+  // No trustworthy price: offer nothing, and checkout keeps ShipStation's rates.
+  if (cents === null) return Response.json(NO_RATES);
   return Response.json({
     rates: [{
       service_name: UPS_GROUND_SERVICE_NAME,
