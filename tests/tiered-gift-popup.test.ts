@@ -106,6 +106,10 @@ describe("price gifts popup", () => {
     const { html, content } = await run([paid(29900)]);
     expect(html).toContain("YOU’VE UNLOCKED A FREE GIFT!");
     expect(html).toContain("fgc-urgency");
+    expect(html).toContain("Your cart qualifies! Choose ONE free gift to add to your order.");
+    expect(html).toContain("Claim your free gift while supplies last!");
+    expect(html).toContain("Choose Your FREE Gift");
+    expect(content).toContain("ADD MY FREE GIFT");
     expect(content).toContain("Zion Cases Sling 2.0");
     expect(content).toContain("FREE GIFT | T-Shirt");
     expect(content).not.toContain("fgc-products--all");
@@ -114,7 +118,9 @@ describe("price gifts popup", () => {
   test("an all tier offers every gift together", async () => {
     const { html, content, updates } = await run([paid(40000)]);
     expect(updates).toEqual([]);
-    expect(html).toContain("YOU’VE UNLOCKED FREE GIFTS!");
+    expect(html).toContain("YOU’VE UNLOCKED BOTH FREE GIFTS!");
+    expect(html).toContain("Your FREE Gifts");
+    expect(content).toContain("ADD BOTH FREE GIFTS");
     expect(content).toContain("fgc-products--all");
     // Each gift is a column with its own options under its card.
     expect(content).toContain(`<div class="fgc-gift-col">`);
@@ -126,7 +132,7 @@ describe("price gifts popup", () => {
   test("Tier 2 removes a Tier 1 gift that isn't a Tier 2 gift", async () => {
     const { updates, html } = await run([paid(40000), giftLine("old", 11, "t1")]);
     expect(updates).toEqual([{ old: 0 }]);
-    expect(html).toContain("YOU’VE UNLOCKED FREE GIFTS!");
+    expect(html).toContain("YOU’VE UNLOCKED BOTH FREE GIFTS!");
   });
 
   test("Tier 2 keeps the Tier 1 T-shirt and offers only the gift still missing", async () => {
