@@ -22,7 +22,7 @@
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-heading--next{margin-top:0}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:14px;padding-top:12px}.fgcb-next-text{color:#0f1b3d;font-size:16px;font-weight:700;margin:8px 0 0}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(14px,1cqi,16px);font-weight:600;letter-spacing:normal;line-height:1.4;margin:8px 0 0;max-width:420px;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:16px;margin:0 6px -2px 0;vertical-align:baseline;width:16px}.fgcb-hint strong{color:#ef0b18;font-weight:800}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -107,9 +107,6 @@
       const remaining = Math.max(0, targetThreshold - paid);
       const pct = unlocked ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
       const money = (cents) => formatMoney(cents, cart.currency);
-      // "$150" rather than "$150.00" for the spend targets in the copy.
-      const whole = (cents) => Math.round(cents) % 100 === 0
-        ? money(cents).replace(/[.,]00(?=D*$)/, "") : money(cents);
       const upgrade = !unlocked && reached > 0 && !pastMax;
       const has = (product) => [...product.variantIds].some((id) => giftVariants.has(id));
       // In an all tier, gifts already in the cart (e.g. the T-shirt claimed
@@ -133,8 +130,8 @@
           ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
             : `Add <strong>${money(nextRemaining)}</strong> more to upgrade your gift.`)
           : !upgrade
-            ? (nextAll ? `Spend ${whole(thresholds[index + 1])} or more and get ${next.products.length === 2 ? "BOTH" : "ALL"} gifts FREE!`
-              : `Spend ${whole(thresholds[index + 1])} or more to upgrade your gift!`)
+            ? (nextAll ? `Spend <strong>${money(thresholds[index + 1])}</strong> and get <strong>${next.products.length === 2 ? "BOTH" : "ALL"}</strong> gifts <strong>FREE</strong>.`
+              : `Spend <strong>${money(thresholds[index + 1])}</strong> to upgrade your gift.`)
             : "";
 
       let pill;
@@ -158,11 +155,6 @@
         pill = tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED";
         heading = `You've unlocked a <strong>FREE</strong> gift! Choose 1 below.`;
         label = "Choose your gift";
-      } else if (alternative) {
-        // Nothing reached yet: both offers, one under the other.
-        pill = "FREE GIFT AWAITS";
-        heading = `Spend ${whole(targetThreshold)} or more and get 1 FREE gift!`;
-        label = "Choose 1 FREE gift";
       } else {
         pill = upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
         heading = upgrade
@@ -171,10 +163,6 @@
         label = upgrade ? "Upgrade to" : "Choose 1 gift";
       }
       const joiner = several ? "+" : "OR";
-      // Under the Tier 1 gifts: what the next tier unlocks.
-      const teaser = alternative && next
-        ? `<div class="fgcb-next"><span class="fgcb-pill">SPEND ${escapeHtml(whole(thresholds[index + 1]))}+</span><p class="fgcb-next-text">${nextAll ? `Unlock ${next.products.length === 2 ? "BOTH" : "ALL"} gifts for FREE!` : "Upgrade your FREE gift!"}</p></div>`
-        : "";
 
       const cards = shown.map((product, index) => `
         <div class="fgcb-product">
@@ -185,13 +173,13 @@
       // even after the shopper closed it. Otherwise: keep shopping.
       const continueLink = (placement) => unlocked
         ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>${several ? (missing.length === 1 ? "Claim your free gift" : "Claim your free gifts") : "Choose your free gift"} <span aria-hidden="true">&rarr;</span></a>`
-        : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue Shopping <span aria-hidden="true">&rarr;</span></a>`;
+        : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
 
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
-          ${hint ? (alternative ? `<h2 class="fgcb-heading fgcb-heading--next">${hint}</h2>` : `<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>`) : ""}
+          ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
             <p class="fgcb-amounts">${money(paid)}&nbsp;/&nbsp;${money(targetThreshold)}</p>
@@ -201,10 +189,9 @@
         <div class="fgcb-middle">
           <p class="fgcb-label">${label}</p>
           <div class="fgcb-products">${cards}</div>
-          ${teaser}
         </div>
         ${continueLink("mobile")}
-        <p class="fgcb-footer">*Free gifts are not eligible for exchange or replacement.*</p>
+        <p class="fgcb-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </div>`;
       root.hidden = false;
     };

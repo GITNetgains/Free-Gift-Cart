@@ -216,7 +216,7 @@
       }).join("")}
       </div>
       <div class="fgc-variant-panel"></div>
-      <button class="fgc-claim" type="button">🎁 ${escapeHtml(popupCopy.button)}</button>
+      <button class="fgc-claim" type="button">🎁 ${escapeHtml(look.buttonLabel || "CLAIM MY FREE GIFT")}</button>
       <p class="fgc-status" aria-live="polite"></p>
       <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
     const panel = content.querySelector(".fgc-variant-panel");
@@ -294,7 +294,6 @@
 
   // What the open popup offers, so a cart change that alters it redraws it.
   let openKey = "";
-  let popupCopy = { button: "ADD MY FREE GIFT" };
   const offerKey = (tier, offered) => `${tier.id}:${offered.map((product) => product.id).join(",")}`;
 
   const show = (tier, offered) => {
@@ -306,34 +305,9 @@
     openKey = key;
     if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
     const several = tier.mode === "all" && offered.length > 1;
-    // Popup copy for price gifts (netgains10 only; the Free gift popup on
-    // other stores is a different file). "one" tiers: pick 1 gift; "all"
-    // tiers: every gift free ("BOTH" when there are two).
-    const both = offered.length === 2 ? "BOTH" : "ALL";
-    const copy = several
-      ? {
-        heading: `YOU’VE UNLOCKED ${both} FREE GIFTS!`,
-        subheading: `Congratulations! Your cart qualifies for ${both} gifts. Add them to your order!`,
-        urgency: "Limited quantities available. Claim your gifts while supplies last!",
-        title: "Your FREE Gifts",
-        button: `ADD ${both} FREE GIFTS`,
-      }
-      : tier.mode === "all"
-        ? {
-          heading: "YOU’VE UNLOCKED A FREE GIFT!",
-          subheading: "Your cart qualifies! Add your free gift to your order.",
-          urgency: "Limited quantities available. Claim your free gift while supplies last!",
-          title: "Your FREE Gift",
-          button: "ADD MY FREE GIFT",
-        }
-        : {
-          heading: "YOU’VE UNLOCKED A FREE GIFT!",
-          subheading: "Your cart qualifies! Choose ONE free gift to add to your order.",
-          urgency: "Limited quantities available. Claim your free gift while supplies last!",
-          title: "Choose Your FREE Gift",
-          button: "ADD MY FREE GIFT",
-        };
-    popupCopy = copy;
+    const subheading = tier.mode === "all"
+      ? `${several ? "All gifts below are" : "The gift below is"} free with your order. Choose your options and add ${several ? "them" : "it"} to your cart.`
+      : look.subheading || "Choose 1 gift below and add it to your cart.";
     root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", look.textColor || "#111827");
     root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
@@ -342,10 +316,9 @@
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog fgc-dialog--compact${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
-        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${copy.heading}</h2></div>
-        <p class="fgc-subheading">${escapeHtml(copy.subheading)}</p>
-        <p class="fgc-urgency">◷ &nbsp; ${escapeHtml(copy.urgency)}</p>
-        <p class="fgc-gift-title">${escapeHtml(copy.title)}</p>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
+        <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
         <div class="fgc-content"></div>
         <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </section></div>`);

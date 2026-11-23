@@ -40,16 +40,10 @@ describe("price gifts cart banner", () => {
     const root = await render([paid(1700)]);
     expect(root.hidden).toBe(false);
     expect(root.innerHTML).toContain("FREE GIFT AWAITS");
-    expect(root.innerHTML).toContain("Spend $299 or more and get 1 FREE gift!");
-    expect(root.innerHTML).toContain("Spend $399 or more and get BOTH gifts FREE!");
-    expect(root.innerHTML).toContain("$17.00&nbsp;/&nbsp;$299.00");
-    expect(root.innerHTML).toContain("Choose 1 FREE gift");
+    expect(root.innerHTML).toContain("$282.00");
     expect(root.innerHTML).toContain("Sling 2.0");
-    expect(root.innerHTML).toContain("SPEND $399+");
-    expect(root.innerHTML).toContain("Unlock BOTH gifts for FREE!");
-    expect(root.innerHTML).toContain("Continue Shopping");
-    expect(root.innerHTML).toContain("*Free gifts are not eligible for exchange or replacement.*");
-    expect(root.innerHTML).not.toContain("fgcb-alt");
+    expect(root.innerHTML).toContain("Spend <strong>$399.00</strong> and get <strong>BOTH</strong> gifts");
+    expect(root.innerHTML).toContain(`<div class="fgcb-alt" aria-hidden="true">OR</div>`);
   });
 
   test("Tier 1 reached but no gift yet: unlocked, Tier 1 gifts", async () => {
