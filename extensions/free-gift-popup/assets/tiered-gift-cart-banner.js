@@ -22,7 +22,7 @@
     if (!document.getElementById("fgcb-tier-style")) {
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
-      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(17px,1.36cqi,22px);font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:8px 0 0;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:16px;padding-top:14px}.fgcb-next-text{color:#0f1b3d;font-size:clamp(15px,1.1cqi,18px);font-weight:700;margin:10px 0 0}";
+      style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(17px,1.36cqi,22px);font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:8px 0 0;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-heading .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:16px;padding-top:14px}.fgcb-next-text{color:#0f1b3d;font-size:clamp(15px,1.1cqi,18px);font-weight:700;margin:10px 0 0}";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -183,7 +183,7 @@
       root.innerHTML = `<div class="fgcb-card">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
-          <h2 class="fgcb-heading">${heading}</h2>
+          <h2 class="fgcb-heading">${alternative && hint ? giftIcon : ""}${heading}</h2>
           ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${giftIcon}<span>${hint}</span></p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>

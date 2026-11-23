@@ -305,9 +305,23 @@
     openKey = key;
     if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
     const several = tier.mode === "all" && offered.length > 1;
-    const subheading = tier.mode === "all"
-      ? `${several ? "All gifts below are" : "The gift below is"} free with your order. Choose your options and add ${several ? "them" : "it"} to your cart.`
-      : look.subheading || "Choose 1 gift below and add it to your cart.";
+    // Popup copy (netgains10): pick-one tier ($150+) "Choose ONE free gift";
+    // all tier with every gift still to add ($350+) "BOTH FREE GIFTS". An
+    // all tier with one gift left keeps its own text.
+    const pickOne = tier.mode === "one";
+    const both = offered.length === 2 ? "BOTH" : "ALL";
+    const heading = several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
+    const subheading = several
+      ? `Congratulations! Your cart qualifies for ${both} gifts. Add them to your order!`
+      : pickOne
+        ? "Your cart qualifies! Choose ONE free gift to add to your order."
+        : "The gift below is free with your order. Choose your options and add it to your cart.";
+    const urgency = several
+      ? "Limited quantities available. Claim your gifts while supplies last!"
+      : pickOne
+        ? "Limited quantities available. Claim your free gift while supplies last!"
+        : "Limited quantities available. Claim yours while supplies last.";
+    const giftTitle = several ? "Your FREE Gifts" : pickOne ? "Choose Your FREE Gift" : "";
     root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", look.textColor || "#111827");
     root.style.setProperty("--fgc-button", look.buttonColor || "#EF0B18");
@@ -316,9 +330,10 @@
     root.insertAdjacentHTML("beforeend", `<div class="fgc-overlay" role="presentation">
       <section class="fgc-dialog fgc-dialog--compact${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
-        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${several ? "YOU’VE UNLOCKED FREE GIFTS!" : "YOU’VE UNLOCKED A FREE GIFT!"}</h2></div>
+        <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${heading}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
-        <p class="fgc-urgency">◷ &nbsp; Limited quantities available. Claim yours while supplies last.</p>
+        <p class="fgc-urgency">◷ &nbsp; ${escapeHtml(urgency)}</p>
+        ${giftTitle ? `<p class="fgc-gift-title">${giftTitle}</p>` : ""}
         <div class="fgc-content"></div>
         <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </section></div>`);
