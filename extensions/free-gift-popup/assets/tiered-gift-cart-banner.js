@@ -84,6 +84,7 @@
 
     const giftIcon = `<svg class="fgcb-gift-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20 7h-2.18A3 3 0 0 0 12 3.76 3 3 0 0 0 6.18 7H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7h2v5h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1ZM9 7a1 1 0 1 1 1-1v1H9Zm6 0h-1V6a1 1 0 1 1 1 1ZM4 13v7a1 1 0 0 0 1 1h6v-8H4Zm9 8h6a1 1 0 0 0 1-1v-7h-7v8Z"/></svg>`;
 
+    let lastHtml = "";
     const render = (cart) => {
       const rate = thresholdRate(cart.currency);
       const paid = paidSubtotal(cart);
@@ -100,7 +101,14 @@
       const current = reached > 0 ? tiers[reached - 1] : null;
       // The reached tier's gifts are all claimed: one gift in a pick-one
       // tier, every gift in an all tier.
-      const claimed = current ? current.products.filter((product) => giftProducts.has(numericId(product.id)) || [...product.variantIds].some((id) => giftVariants.has(id))).length : 0;
+      const owns = (product) => giftProducts.has(numericId(product.id)) || [...product.variantIds].some((id) => giftVariants.has(id));
+      // Pick-two tier: a Tier 1 gift counts as one of the two (same as the
+      // popup and the discount function), even if Tier 2 lists other products.
+      const claimedIn = (tierIndex) => {
+        const pool = tiers[tierIndex].mode === "two" ? tiers.slice(0, tierIndex + 1) : [tiers[tierIndex]];
+        return new Set(pool.flatMap((tier) => tier.products).filter(owns).map((product) => product.id)).size;
+      };
+      const claimed = current ? (current.mode === "two" ? claimedIn(reached - 1) : current.products.filter(owns).length) : 0;
       const hasGift = Boolean(current) && (current.mode === "all" ? claimed >= current.products.length : claimed >= (current.mode === "two" ? 2 : 1));
       const pastMax = Boolean(current && current.maximum != null && paid > Math.round(current.maximum * rate));
 
@@ -181,7 +189,7 @@
         label = upgrade ? "Upgrade to" : "Choose 1 gift";
       }
       if (target.mode === "two") {
-        const keptCount = target.products.filter(has).length;
+        const keptCount = claimedIn(index);
         const needed = Math.max(0, 2 - keptCount);
         pill = unlocked ? "FREE GIFTS UNLOCKED" : "UNLOCK 2 FREE GIFTS";
         heading = unlocked
@@ -223,7 +231,7 @@
         ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>${several ? (missing.length === 1 ? "Claim your free gift" : "Claim your free gifts") : "Choose your free gift"} <span aria-hidden="true">&rarr;</span></a>`
         : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
 
-      root.innerHTML = `<div class="fgcb-card${shown.length > 2 ? " fgcb-card--three" : ""}">
+      const html = `<div class="fgcb-card${shown.length > 2 ? " fgcb-card--three" : ""}">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
@@ -242,6 +250,9 @@
         ${continueLink("mobile")}
         <p class="fgcb-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </div>`;
+      // Redraw only when something changed: rewriting the same HTML every
+      // poll reloads the images and makes the banner blink.
+      if (html !== lastHtml) { root.innerHTML = html; lastHtml = html; }
       root.hidden = false;
     };
 

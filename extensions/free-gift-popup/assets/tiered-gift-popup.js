@@ -71,7 +71,7 @@
   await Promise.all([...productsToRefresh].map(async ([handle, variants]) => {
     try {
       const response = await nativeFetch(`${basePath}products/${encodeURIComponent(handle)}.js`, {
-        cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000),
+        cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(2500),
       });
       if (!response.ok) return;
       const product = await response.json();
@@ -613,9 +613,15 @@
       // Gift lines this tier allows, newest first (cart.js lists the most
       // recently added line first).
       const valid = [];
+      // A gift matches by product (any variant). In the pick-two tier a gift
+      // claimed in Tier 1 counts as one of the two even when Tier 2 lists
+      // other products, so the shopper picks only 1 more and nothing is
+      // removed (no hide / update / reload flash).
+      const tierIndex = tier ? tiers.indexOf(tier) : -1;
+      const eligible = tier ? (tier.mode === "two" ? tiers.slice(0, tierIndex + 1) : [tier]).flatMap((candidate) => candidate.allProducts) : [];
+      const productFor = (item) => eligible.find((candidate) => numericId(candidate.id) === Number(item.product_id) || candidate.variantIds.has(item.variant_id));
       cart.items.filter(isGiftItem).forEach((item) => {
-        const product = tier && (isTierGift(item) || isFreeTierVariant(item))
-          ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
+        const product = tier && (isTierGift(item) || isFreeTierVariant(item)) ? productFor(item) : null;
         if (!product || kept.has(product.id) || (tier.mode === "two" && kept.size >= 2)) { updates[item.key] = 0; return; }
         kept.add(product.id);
         valid.push(item);
@@ -666,7 +672,10 @@
   // Re-check right after the theme changes the cart (fetch or XHR to
   // /cart/add, /cart/change, /cart/update, /cart/clear).
   const CART_CHANGE = /\/cart\/(add|change|update|clear)(\.js)?(\?|$)/;
-  const afterCartChange = () => window.setTimeout(checkCart, 350);
+  // Short delay: themes often fire several cart calls in a row; one check
+  // after them is enough (busy/pending collapse the rest).
+  let changeTimer = 0;
+  const afterCartChange = () => { window.clearTimeout(changeTimer); changeTimer = window.setTimeout(checkCart, 150); };
   window.fetch = function (input, init) {
     const url = typeof input === "string" ? input : input?.url || "";
     const result = nativeFetch(input, init);

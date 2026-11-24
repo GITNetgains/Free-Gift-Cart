@@ -148,6 +148,24 @@ describe("Netgains10 tier gift selection",()=>{
   popup.clickCard(shirt.productId);popup.clickClaim();
   expect(popup.additions.map(i=>i.id)).toEqual([21]);
  });
+ test("a Tier 1 gift not listed in Tier 2 still counts: pick only 1 more, nothing removed",async()=>{
+  const other1=gift("4","41","Sticker"),other2=gift("5","51","Hat"),other3=gift("6","61","Mug");
+  const offer={enabled:true,tiers:[
+   {id:"low",minimumSpend:15000,mode:"one",products:[sling2,shirt,sling3]},
+   {id:"high",minimumSpend:35000,mode:"two",products:[other1,other2,other3]},
+  ]};
+  const popup=await runCampaign([paid(35000),giftLine("kept",11,"low")],offer);
+  expect(popup.updates).toEqual([]);
+  expect(popup.html).toContain("CHOOSE 1 FREE GIFT");
+  popup.clickCard(other1.productId);popup.clickCard(other2.productId);popup.clickClaim();
+  expect(popup.additions.map(i=>i.id)).toEqual([41]);
+ });
+ test("a Tier 1 gift of another variant of a Tier 2 product counts as one of the two",async()=>{
+  const line={...giftLine("kept",77,"low"),product_id:2};
+  const popup=await runCampaign([paid(35000),line]);
+  expect(popup.updates).toEqual([]);
+  expect(popup.html).toContain("CHOOSE 1 FREE GIFT");
+ });
  test("two existing gifts prompt shopper to keep one below Tier 2",async()=>{
   const amount=29997;
   const popup=await runCampaign([paid(amount),giftLine("a",11,"low"),giftLine("b",21,"high")]);

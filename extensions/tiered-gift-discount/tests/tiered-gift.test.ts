@@ -58,6 +58,14 @@ describe("Netgains10 gift limits by spend tier",()=>{
  test.each([SLING2.variantId,SHIRT.variantId,SLING3.variantId])("each gift can be chosen independently: %s",variant=>{
   expect(targets(run("350.00",[variant]))).toEqual(["g0"]);
  });
+ test("Tier 2 keeps a Tier 1 gift free even when Tier 2 lists other products",()=>{
+  const data=input("350.00",[{id:"g0",tier:"low",variantId:SLING2.variantId},{id:"g1",tier:"high",variantId:SLING3.variantId},{id:"g2",tier:"high",variantId:SHIRT.variantId}]);
+  data.discount.tierSettings!.jsonValue={enabled:true,shopCurrency:"USD",tiers:[
+   {id:"low",minimumSpend:15000,mode:"one",products:[SLING2]},
+   {id:"high",minimumSpend:35000,mode:"two",products:[SLING3,SHIRT]},
+  ]};
+  expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual(["g0","g1"]);
+ });
  test.each(["one","two","all"])("Tier 2 stays pick-two with saved legacy mode %s",mode=>{
   expect(targets(run("350.00",undefined,mode))).toEqual(["g0","g1"]);
  });

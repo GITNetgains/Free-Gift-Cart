@@ -61,7 +61,10 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
 
   // A selected gift product allows all its variants, including variants added
   // after settings were saved. Shopify supplies the trusted parent product ID.
-  const allowedProducts = new Set(tier.products.map((product) => product.productId));
+  // Tier 2 (pick two): a gift claimed in Tier 1 counts as one of the two and
+  // stays free, even when Tier 2 lists other products.
+  const pool = tierIndex === 1 ? orderedTiers.slice(0, 2) : [tier];
+  const allowedProducts = new Set(pool.flatMap((candidate) => candidate.products.map((product) => product.productId)));
   const discountedProducts = new Set<string>();
   const targets: Array<{ cartLine: { id: string; quantity: number } }> = [];
   for (const line of input.cart.lines) {
