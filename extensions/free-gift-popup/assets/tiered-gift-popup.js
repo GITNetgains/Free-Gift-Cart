@@ -9,7 +9,7 @@
 // It runs on every page: the popup opens as soon as the cart crosses a tier's
 // minimum, whether the item was added from a product page, a cart drawer or
 // the cart page.
-(() => {
+(async () => {
   const root = document.getElementById("free-gift-cart-root");
   if (!root || root.dataset.initialized === "true") return;
   root.dataset.initialized = "true";
@@ -32,8 +32,15 @@
   // compare as they are. Same rule as the tiered-gift-discount function.
   const shopCurrency = root.dataset.shopCurrency || "";
   const thresholdRate = (cartCurrency) => {
+    // Shopify's cart API returns amounts in the buyer's presentment currency.
+    // `currency.rate` is not guaranteed to describe that currency on every
+    // theme, so only apply it when Shopify confirms the active currency matches
+    // the cart. This mirrors the discount function's presentment conversion.
     if (cartCurrency === "USD") return 1;
-    if (shopCurrency === "USD") return Number(window.Shopify?.currency?.rate) || 1;
+    const currency = window.Shopify?.currency;
+    if (shopCurrency === "USD" && currency?.active === cartCurrency) {
+      return Number(currency.rate) || 1;
+    }
     return 1;
   };
   const basePath = window.Shopify?.routes?.root || "/";
@@ -45,35 +52,87 @@
   };
   const inStock = (variant) => {
     const state = live[variant.variantId];
-    if (state) return state.available === true;
-    if (variant.inventoryTracked && Number(variant.inventoryQuantity) <= 0) return false;
+    if (typeof state?.available === "boolean") return state.available;
+    // Saved inventory counts are a snapshot, not current storefront availability.
     return variant.availableForSale !== false;
   };
+
+  // Refresh once per product, shared across tiers. Shopify's live availability
+  // respects the current market, inventory policy and the selected variant.
+  const productsToRefresh = new Map();
+  const currentProducts = new Map();
+  tierSettings.tiers.forEach((tier) => (tier.products || []).forEach((variant) => {
+    if (variant.productHandle) {
+      const variants = productsToRefresh.get(variant.productHandle) || [];
+      variants.push(variant);
+      productsToRefresh.set(variant.productHandle, variants);
+    }
+  }));
+  await Promise.all([...productsToRefresh].map(async ([handle, variants]) => {
+    try {
+      const response = await nativeFetch(`${basePath}products/${encodeURIComponent(handle)}.js`, {
+        cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return;
+      const product = await response.json();
+      if (!Array.isArray(product.variants)) return;
+      if (product.id && !variants.some((variant) => numericId(variant.productId) === Number(product.id))) return;
+      currentProducts.set(handle, product);
+      const current = new Map(product.variants.map((variant) => [Number(variant.id), variant]));
+      variants.forEach((variant) => {
+        const state = current.get(numericId(variant.variantId));
+        if (typeof state?.available === "boolean") {
+          live[variant.variantId] = { ...live[variant.variantId], available: state.available };
+        }
+      });
+    } catch {
+      // A failed refresh keeps the server-rendered availability.
+    }
+  }));
 
   // Tiers low to high, each with its gift products grouped from variants.
   const tiers = tierSettings.tiers.map((tier) => {
     const products = new Map();
-    (tier.products || []).forEach((variant) => {
+    const expanded = new Set();
+    const variants = (tier.products || []).flatMap((saved) => {
+      const current = currentProducts.get(saved.productHandle);
+      if (!current) return [saved];
+      if (expanded.has(saved.productId)) return [];
+      expanded.add(saved.productId);
+      return current.variants.map((variant) => ({
+        ...saved,
+        variantId: `gid://shopify/ProductVariant/${variant.id}`,
+        variantTitle: variant.public_title || variant.title || "Default Title",
+        optionNames: (current.options || []).map((option) => typeof option === "string" ? option : option.name),
+        optionValues: variant.options || [variant.option1, variant.option2, variant.option3].filter(Boolean),
+        imageUrl: variant.featured_image?.src || saved.imageUrl,
+        availableForSale: variant.available,
+      }));
+    });
+    variants.forEach((variant) => {
       if (!products.has(variant.productId)) products.set(variant.productId, {
         id: variant.productId, title: variant.productTitle,
         imageUrl: live[variant.variantId]?.productImage || variant.imageUrl,
-        variants: [], variantIds: new Set(),
+        variants: [], allVariants: [], variantIds: new Set(),
       });
       const product = products.get(variant.productId);
       product.variantIds.add(numericId(variant.variantId));
+      product.allVariants.push(variant);
       if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
     });
     return {
-      // "one": the shopper picks one gift. "all": every gift is free
-      // (e.g. from $350 the T-shirt and the Sling).
-      id: tier.id, mode: tier.mode === "all" ? "all" : "one",
+      // Netgains10: Tier 1 is pick one; Tier 2 is pick two from its choices.
+      id: tier.id,
+      mode: tier.mode,
       minimum: Number(tier.minimumSpend || 0),
       // Optional upper end, included; empty runs until the next tier.
       maximum: tier.maximumSpend == null || tier.maximumSpend === "" ? null : Number(tier.maximumSpend),
       allProducts: [...products.values()],
       products: [...products.values()].filter((product) => product.variants.length),
     };
-  }).sort((a, b) => a.minimum - b.minimum);
+  }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({
+    ...tier, mode: index === 1 ? "two" : "one",
+  }));
 
   // Always-gift products (their variants are $0), as in free-gift-popup.js.
   const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
@@ -107,10 +166,11 @@
     return `Option ${index + 1}`;
   };
   const optionGroups = (product) => {
-    const count = Math.max(0, ...product.variants.map((variant) => variantValues(variant).length));
+    const variants = product.allVariants || product.variants;
+    const count = Math.max(0, ...variants.map((variant) => variantValues(variant).length));
     return Array.from({ length: count }, (_, index) => {
-      const values = [...new Set(product.variants.map((variant) => variantValues(variant)[index]).filter(Boolean))];
-      const name = product.variants.find((variant) => variant.optionNames?.[index])?.optionNames[index];
+      const values = [...new Set(variants.map((variant) => variantValues(variant)[index]).filter(Boolean))];
+      const name = variants.find((variant) => variant.optionNames?.[index])?.optionNames[index];
       return { name: name || inferredOptionName(values, index), values };
     });
   };
@@ -168,7 +228,7 @@
   // choices above it, so a shopper never sees a combination that isn't there.
   const valuesFor = (product, index, values) => {
     const current = variantValues(variantOf(product));
-    return values.filter((value) => product.variants.some((variant) => {
+    return values.filter((value) => (product.allVariants || product.variants).some((variant) => {
       const options = variantValues(variant);
       return options[index] === value && current.slice(0, index).every((item, optionIndex) => options[optionIndex] === item);
     }));
@@ -187,7 +247,11 @@
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
         <div class="fgc-options">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
-          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
+          const available = product.variants.some((variant) => {
+            const values = variantValues(variant);
+            return values[groupIndex] === value && selected.slice(0, groupIndex).every((item, index) => values[index] === item);
+          });
+          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}"${available ? "" : ' disabled aria-disabled="true"'} data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}${available ? "" : " (Unavailable)"}</button>`;
         }).join("")}</div>
       </fieldset>`).join("")}
     </div>`;
@@ -196,18 +260,21 @@
   // Draws the gift cards once, then updates them in place on every choice,
   // so images don't reload and the popup doesn't jump.
   const renderSelector = (tier, offered) => {
-    const focused = () => offered.find((product) => product.id === focusedId) || offered[0];
-    const isSelected = (product) => tier.mode === "all" || product.id === focused().id;
+    const selectedIds = new Set();
+    const available = offered.filter((product) => product.variants.length);
+    const needed = Math.min(tier.remaining || 2, available.length);
+    const focused = () => available.find((product) => product.id === focusedId) || available[0];
+    const isSelected = (product) => product.variants.length > 0 && (tier.mode === "all" || (tier.mode === "two" ? selectedIds.has(product.id) : product.id === focused()?.id));
     const imageFor = (product) => (isSelected(product) ? variantOf(product)?.imageUrl : "") || product.imageUrl;
     const content = root.querySelector(".fgc-content");
     content.innerHTML = `
-      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}">${offered.map((product) => {
+      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}${offered.length > 2 ? " fgc-products--choice" : ""}">${offered.map((product) => {
         const card = `
         <button class="fgc-product" type="button" data-product-id="${escapeHtml(product.id)}"${tier.mode === "all" ? ' tabindex="-1"' : ""}>
           <span class="fgc-check" aria-hidden="true"></span>
           <img class="fgc-product-image" src="${escapeHtml(imageFor(product))}" alt="${escapeHtml(product.title)}" loading="lazy"${imageFor(product) ? "" : " hidden"}>
           <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
-          <span class="fgc-free">🎁 FREE</span>
+          <span class="fgc-free">${product.variants.length ? "🎁 FREE" : "OUT OF STOCK"}</span>
         </button>`;
         // In "all" tiers each gift's options sit right under its own card.
         return tier.mode === "all"
@@ -227,12 +294,21 @@
         const selected = isSelected(product);
         card.classList.toggle("is-selected", selected);
         card.setAttribute("aria-pressed", String(selected));
+        card.disabled = !product.variants.length || (tier.mode === "two" && !selected && selectedIds.size >= needed);
         card.querySelector(".fgc-check").textContent = selected ? "✓" : "";
         const image = card.querySelector("img");
         const src = imageFor(product);
         if (src && image.getAttribute("src") !== src) image.setAttribute("src", src);
         image.hidden = !src;
       });
+      if (tier.mode === "two") {
+        panel.innerHTML = offered.filter(isSelected).map((product) => optionsHtml(product, true)).join("");
+        panel.hidden = !panel.innerHTML.trim();
+        const button = content.querySelector(".fgc-claim");
+        button.disabled = selectedIds.size !== needed;
+        button.textContent = `CLAIM ${needed} FREE GIFT${needed === 1 ? "" : "S"} (${selectedIds.size}/${needed} selected)`;
+        return;
+      }
       if (tier.mode === "all") {
         offered.forEach((product) => {
           const column = content.querySelector(`[data-col-for="${product.id}"]`);
@@ -257,12 +333,20 @@
         return;
       }
       const card = target?.closest("[data-product-id]");
+      if (card && !offered.find((product) => product.id === card.dataset.productId)?.variants.length) return;
+      if (card && tier.mode === "two") {
+        const id = card.dataset.productId;
+        if (selectedIds.has(id)) selectedIds.delete(id);
+        else if (selectedIds.size < needed) selectedIds.add(id);
+        refresh();
+        return;
+      }
       if (card && tier.mode === "one" && card.dataset.productId !== focusedId) {
         focusedId = card.dataset.productId;
         refresh();
         return;
       }
-      if (target?.closest(".fgc-claim")) claim(tier, tier.mode === "all" ? offered : [focused()]);
+      if (target?.closest(".fgc-claim")) claim(tier, tier.mode === "all" ? offered : tier.mode === "two" ? offered.filter(isSelected) : [focused()]);
     });
     refresh();
   };
@@ -294,7 +378,7 @@
 
   // What the open popup offers, so a cart change that alters it redraws it.
   let openKey = "";
-  const offerKey = (tier, offered) => `${tier.id}:${offered.map((product) => product.id).join(",")}`;
+  const offerKey = (tier, offered) => `${tier.id}:${tier.mode}:${tier.remaining || ""}:${offered.map((product) => product.id).join(",")}`;
 
   const show = (tier, offered) => {
     const key = offerKey(tier, offered);
@@ -303,18 +387,21 @@
       hidePopup();
     }
     openKey = key;
-    if (!offered.some((product) => product.id === focusedId)) focusedId = offered[0].id;
+    const available = offered.filter((product) => product.variants.length);
+    if (!available.some((product) => product.id === focusedId)) focusedId = available[0]?.id || "";
     const several = tier.mode === "all" && offered.length > 1;
     // Popup copy (netgains10): pick-one tier ($150+) "Choose ONE free gift";
     // all tier with every gift still to add ($350+) "BOTH FREE GIFTS". An
     // all tier with one gift left keeps its own text.
     const pickOne = tier.mode === "one";
     const both = offered.length === 2 ? "BOTH" : "ALL";
-    const heading = several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
-    const subheading = several
+    const heading = tier.mode === "two" ? `CHOOSE ${Math.min(tier.remaining || 2, available.length)} FREE GIFT${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "S"}` : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
+    const subheading = tier.mode === "two"
+      ? `Choose ${Math.min(tier.remaining || 2, available.length)} different gift${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "s"} from the available options below. Each selected gift is free with your order.`
+      : several
       ? `Congratulations! Your cart qualifies for ${both} gifts. Add them to your order!`
       : pickOne
-        ? "Your cart qualifies! Choose ONE free gift to add to your order."
+        ? "Choose 1 free gift below. Select your preferred options, then claim your gift."
         : "The gift below is free with your order. Choose your options and add it to your cart.";
     const urgency = several
       ? "Limited quantities available. Claim your gifts while supplies last!"
@@ -332,6 +419,7 @@
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${heading}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        <p class="fgc-policy">${tier.mode === "two" ? "Two different free gifts per order." : "One free gift per order."}</p>
         <p class="fgc-urgency">◷ &nbsp; ${escapeHtml(urgency)}</p>
         ${giftTitle ? `<p class="fgc-gift-title">${giftTitle}</p>` : ""}
         <div class="fgc-content"></div>
@@ -528,7 +616,7 @@
       cart.items.filter(isGiftItem).forEach((item) => {
         const product = tier && (isTierGift(item) || isFreeTierVariant(item))
           ? tier.allProducts.find((candidate) => candidate.variantIds.has(item.variant_id)) : null;
-        if (!product || kept.has(product.id)) { updates[item.key] = 0; return; }
+        if (!product || kept.has(product.id) || (tier.mode === "two" && kept.size >= 2)) { updates[item.key] = 0; return; }
         kept.add(product.id);
         valid.push(item);
         if (item.quantity > 1) updates[item.key] = 1;
@@ -560,10 +648,11 @@
       // which gift to keep; the other one is removed.
       if (tier.mode === "one" && valid.length > 1) { showKeep(valid, tier, subtotal, cart.currency); return; }
       if (removedByShopper) setDismissed(signatureOf(cart, tier));
-      const offered = tier.mode === "all"
-        ? tier.products.filter((product) => !kept.has(product.id))
-        : (kept.size ? [] : tier.products);
-      if (!offered.length) { hidePopup(); return; }
+      const limit = tier.mode === "all" ? tier.allProducts.length : tier.mode === "two" ? 2 : 1;
+      tier.remaining = Math.max(0, limit - kept.size);
+      const choices = tier.mode === "all" ? tier.products : tier.allProducts;
+      const offered = kept.size >= limit ? [] : choices.filter((product) => !kept.has(product.id));
+      if (!offered.some((product) => product.variants.length)) { hidePopup(); return; }
       currentSignature = signatureOf(cart, tier);
       if (dismissedSignature() !== currentSignature) show(tier, offered);
     } catch {

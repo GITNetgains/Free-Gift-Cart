@@ -25,7 +25,7 @@
                 {% if inventory_variant.id == inventory_variant_id %}
                   {% unless inventory_first %},{% endunless %}
                   {{ gift.variantId | json }}: {
-                    "available": {% if inventory_variant.inventory_management != blank and inventory_variant.inventory_quantity <= 0 %}false{% else %}{{ inventory_variant.available | json }}{% endif %},
+                    "available": {{ inventory_variant.available | json }},
                     "image": {% if inventory_variant.featured_image != blank %}{{ inventory_variant.featured_image | image_url: width: 600 | json }}{% elsif inventory_product.featured_image != blank %}{{ inventory_product.featured_image | image_url: width: 600 | json }}{% else %}null{% endif %},
                     "productImage": {% if inventory_product.featured_image != blank %}{{ inventory_product.featured_image | image_url: width: 600 | json }}{% else %}null{% endif %}
                   }

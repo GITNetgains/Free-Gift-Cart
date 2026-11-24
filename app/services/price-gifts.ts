@@ -36,9 +36,8 @@ export type GiftTier = {
   // last tier).
   minimumSpend: number;
   maximumSpend?: number | null;
-  // "one": the shopper picks one of the gifts. "all": every gift is free
-  // (e.g. from $350 both the T-shirt and the Sling).
-  mode: "one" | "all";
+  // "one" / "two": choose that many different products. "all": every gift.
+  mode: "one" | "two" | "all";
   // This tier's own gift products (every chosen variant).
   products: TierGiftProduct[];
 };
@@ -102,8 +101,8 @@ export function productGroups(products: TierGiftProduct[]) {
 }
 
 // Cleans saved or submitted settings: valid ids, whole-dollar amounts and
-// tiers sorted low to high. Each tier keeps its own gifts and its own rule
-// (pick one, or all free). Older settings' per-tier "replacements" are dropped.
+// tiers sorted low to high. Netgains10's second tier is always pick two from
+// its gift choices; the other tiers remain pick one. Older replacements drop.
 export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | null): PriceGiftSettings {
   const settings = { ...DEFAULT_PRICE_GIFT_SETTINGS, ...(raw || {}) };
   const tiers: GiftTier[] = (Array.isArray(raw?.tiers) ? raw!.tiers : [])
@@ -114,11 +113,12 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
       maximumSpend: tier?.maximumSpend === null || tier?.maximumSpend === undefined || String(tier.maximumSpend) === ""
         ? null
         : Math.max(0, Math.round((Number(tier.maximumSpend) || 0) / 100) * 100),
-      mode: tier?.mode === "all" ? "all" as const : "one" as const,
+      mode: "one" as const,
       products: limitProducts(Array.isArray(tier?.products) ? tier.products : []),
     }))
     // Stable for equal minimums; the save action refuses those.
-    .sort((a, b) => a.minimumSpend - b.minimumSpend);
+    .sort((a, b) => a.minimumSpend - b.minimumSpend)
+    .map((tier, index) => ({ ...tier, mode: index === 1 ? "two" as const : "one" as const }));
   return { ...settings, enabled: Boolean(settings.enabled), tiers };
 }
 

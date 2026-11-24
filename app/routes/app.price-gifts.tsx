@@ -130,6 +130,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (rangeError) {
     return { ok: false, error: rangeError };
   }
+  const tooFew = settings.tiers.findIndex((tier) => tier.mode === "two" && countProducts(tier.products) < 2);
+  if (settings.enabled && tooFew >= 0) return { ok: false, error: `Tier ${tooFew + 1}: choose at least two different gift products.` };
+  const tierTwoProducts = settings.tiers[1] ? countProducts(settings.tiers[1].products) : 0;
+  if (settings.enabled && settings.tiers.length > 1 && tierTwoProducts < 3) {
+    return { ok: false, error: "Tier 2: choose three different gift products so shoppers can pick two." };
+  }
   const emptyTier = settings.tiers.findIndex((tier) => tier.products.length === 0);
   if (settings.enabled && (settings.tiers.length === 0 || emptyTier >= 0)) {
     return { ok: false, error: `Choose the Tier ${Math.max(emptyTier, 0) + 1} gift products before turning price gifts on.` };
@@ -191,9 +197,8 @@ function GiftThumb({ product, size = "small" }: { product: TierGiftProduct; size
   </s-stack>;
 }
 
-// Tier title with its Remove button, then the cart value range and the gift
-// rule: the shopper picks one gift, or gets every gift free. A higher tier
-// replaces the lower tier's offer.
+// Tier title with its Remove button, then the cart value range and gift rule.
+// Tier 2 lets shoppers choose two gifts from three options.
 function TierFields({ tier, index, tiers, onChange, onRemove }: {
   tier: GiftTier; index: number; tiers: GiftTier[]; onChange: (tier: GiftTier) => void; onRemove?: () => void;
 }) {
@@ -205,7 +210,7 @@ function TierFields({ tier, index, tiers, onChange, onRemove }: {
       <s-stack direction="inline" gap="small-200" alignItems="center">
         <s-heading>Tier {index + 1}</s-heading>
         <s-badge>{tierRange(tiers, index)}</s-badge>
-        <s-badge tone="info">{tier.mode === "all" ? "All gifts free" : "Pick 1 gift"}</s-badge>
+        <s-badge tone="info">{tier.mode === "all" ? "All gifts free" : tier.mode === "two" ? "Pick 2 gifts" : "Pick 1 gift"}</s-badge>
       </s-stack>
       {onRemove ? <s-button icon="delete" tone="critical" variant="tertiary" onClick={onRemove}>Remove tier</s-button> : <span />}
     </s-grid>
@@ -222,11 +227,13 @@ function TierFields({ tier, index, tiers, onChange, onRemove }: {
           const raw = String(event.currentTarget.value ?? "").trim();
           onChange({ ...tier, maximumSpend: raw === "" ? null : Math.max(0, Math.trunc(Number(raw) || 0)) * 100 });
         }} />
-      <s-select label="Gift rule" value={tier.mode}
-        details={tier.mode === "all" ? "The shopper gets every gift below." : "The shopper chooses one gift below."}
-        onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : "one" })}>
+      <s-select label="Gift rule" value={tier.mode} disabled
+        details={tier.mode === "all" ? "The shopper gets every gift below." : tier.mode === "two" ? "The shopper chooses two different gifts below." : "The shopper chooses one gift below."}
+        onChange={(event) => onChange({ ...tier, mode: event.currentTarget.value === "all" ? "all" : event.currentTarget.value === "two" ? "two" : "one" })}>
         <s-option value="one">Pick 1 gift</s-option>
-        <s-option value="all">All gifts free</s-option>
+        <s-option value="two">Pick 2 gifts</s-option>
+
+
       </s-select>
     </s-grid>
     {errors.map((error) => <s-text key={error} tone="critical">{error}</s-text>)}
@@ -262,7 +269,18 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
   // Always shown normalized: tiers sorted low to high.
   const view = useMemo(() => normalizeSettings(settings), [settings]);
   const setTiers = (tiers: GiftTier[]) => setSettings((current) => ({ ...current, tiers }));
-  const updateTier = (next: GiftTier) => setTiers(view.tiers.map((tier) => tier.id === next.id ? next : tier));
+  const updateTier = (next: GiftTier) => setSettings((current) => ({
+    ...current,
+    tiers: normalizeSettings(current).tiers.map((tier) => tier.id === next.id
+      ? { ...tier, ...next, products: next.products.map((product) => ({ ...product })) }
+      : tier),
+  }));
+  const updateTierProducts = (tierId: string, products: TierGiftProduct[]) => setSettings((current) => ({
+    ...current,
+    tiers: normalizeSettings(current).tiers.map((tier) => tier.id === tierId
+      ? { ...tier, products: products.map((product) => ({ ...product })) }
+      : tier),
+  }));
 
   const pick = async (multiple: number | false, current: TierGiftProduct[]) => {
     const selection = await shopify.resourcePicker({
@@ -295,19 +313,23 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
 
   const pickProducts = async (tier: GiftTier) => {
     const products = await pick(MAX_TIER_PRODUCTS, tier.products);
-    if (products) updateTier({ ...tier, products });
+    if (products) updateTierProducts(tier.id, products);
   };
 
-  // A new higher tier starts with the previous tier's gifts, all free
-  // (e.g. $150 pick 1 of T-shirt / Sling, $350 both).
+  // Start the next tier with a copy of the previous tier's choices, so
+  // changing the higher-tier products never edits the lower tier's list.
   const addTier = () => {
-    const previous = view.tiers.at(-1);
-    setTiers([...view.tiers, {
-      id: newTierId(),
-      minimumSpend: previous ? previous.minimumSpend + 20000 : 15000,
-      mode: previous ? "all" : "one",
-      products: previous ? previous.products : [],
-    }]);
+    const id = newTierId();
+    setSettings((current) => {
+      const tiers = normalizeSettings(current).tiers;
+      const previous = tiers.at(-1);
+      return { ...current, tiers: [...tiers, {
+        id,
+        minimumSpend: previous ? previous.minimumSpend + 20000 : 15000,
+        mode: "one",
+        products: previous ? previous.products.map((product) => ({ ...product })) : [],
+      }] };
+    });
   };
 
   const submit = () => fetcher.submit({ settings: JSON.stringify(view) }, { method: "POST", encType: "application/x-www-form-urlencoded" });
@@ -342,7 +364,7 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
         <s-stack gap="base" alignItems="center">
           <s-icon type="gift-card" />
           <s-heading>Set up your first tier</s-heading>
-          <s-text color="subdued">Example: from $150 the shopper picks Sling 2.0 or a T-shirt; from $350 they get both.</s-text>
+          <s-text color="subdued">Example: from $150 the shopper picks 1 gift; from $350 they pick 2 of 3 gifts.</s-text>
           <s-button variant="primary" icon="plus" onClick={addTier}>Add Tier 1</s-button>
         </s-stack>
       </s-section>}
@@ -389,7 +411,7 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
 
       {view.tiers.length > 0 && view.tiers.length < MAX_TIERS && <s-section>
         <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-          <s-text color="subdued">Add a higher cart value with more gifts, e.g. from $350 both gifts free.</s-text>
+          <s-text color="subdued">Tier 2 unlocks 2 gifts from 3 options. A previously claimed Tier 1 gift counts as one of the two when it is also offered in Tier 2.</s-text>
           <s-button icon="plus" onClick={addTier}>Add higher tier</s-button>
         </s-stack>
       </s-section>}

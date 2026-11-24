@@ -61,6 +61,23 @@
 .fgc-product { transition: border-color .12s, box-shadow .12s; }
 .fgc-product-image[hidden] { display: none; }
 
+.fgc-products--choice { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fgc-products--choice .fgc-product::after { content: none; }
+.fgc-products.fgc-products--choice > .fgc-product:not(:last-child)::after {
+  color: #697586; content: "OR"; font-size: 13px; font-weight: 800;
+  pointer-events: none; position: absolute; right: -29px; text-align: center;
+  top: 48%; width: 22px;
+}
+.fgc-product:disabled { cursor: default; opacity: .6; }
+@media (max-width: 540px) {
+  .fgc-dialog--compact .fgc-products--choice {
+    gap: 30px; grid-template-columns: minmax(0, 1fr);
+  }
+  .fgc-products.fgc-products--choice > .fgc-product:not(:last-child)::after {
+    bottom: -24px; left: 50%; right: auto; top: auto; transform: translateX(-50%);
+  }
+}
+
 /* "Choose 1 gift to keep" popup. */
 .fgc-dialog--keep { scrollbar-width: none; }
 .fgc-dialog--keep::-webkit-scrollbar { display: none; }
@@ -68,3 +85,13 @@
 .fgc-dialog--keep .fgc-product { min-height: 0; }
 .fgc-keep-variant { color: #667085; font-size: 13px; font-weight: 700; margin: -3px 0 7px; }
 .fgc-dialog--keep .fgc-claim { margin-top: 12px; }
+
+/* Clear gift instructions without theme letter spacing or oversized type. */
+.fgc-dialog--compact .fgc-subheading { font-size: 14px; line-height: 1.5; letter-spacing: normal; margin: 4px auto 4px; max-width: 580px; }
+.fgc-dialog--compact .fgc-policy { color: #667085; font-size: 12px; font-weight: 600; line-height: 1.5; margin: 0 0 10px; text-align: center; letter-spacing: normal; }
+.fgc-dialog--compact .fgc-product-title { font-size: 13px; font-weight: 700; line-height: 1.4; letter-spacing: normal; }
+.fgc-dialog--compact .fgc-option-group legend { font-size: 13px; line-height: 1.4; font-weight: 700; letter-spacing: normal; margin-bottom: 8px; }
+.fgc-dialog--compact .fgc-option { font-size: 12px; line-height: 1.4; letter-spacing: normal; }
+.fgc-dialog--compact .fgc-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.fgc-dialog--compact .fgc-option { flex: 1 0 auto; }
+.fgc-dialog--compact .fgc-option:disabled { cursor: default; opacity: .5; text-decoration: line-through; }

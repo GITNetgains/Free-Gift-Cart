@@ -16,8 +16,8 @@ type Tier = {
   minimumSpend: number;
   // Optional upper end, included. Empty: until the next tier's minimum.
   maximumSpend?: number | null;
-  // "one": the shopper picks one gift. "all": every gift product is free.
-  mode: "one" | "all";
+  // "one" / "two": choose distinct products. "all": every gift is free.
+  mode: "one" | "two" | "all";
   products: Array<{ productId: string; variantId: string }>;
 };
 // shopCurrency: the store's currency when the settings were saved.
@@ -54,10 +54,14 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
   const paidSubtotalCents = input.cart.lines.reduce((total, line) =>
     isGift(line) ? total : total + Math.round(Number(line.cost.subtotalAmount.amount) * 100), 0);
   const rate = thresholdRate(input.cart.cost.subtotalAmount.currencyCode, settings.shopCurrency, Number(input.presentmentCurrencyRate) || 1);
-  const tier = activeTier(settings.tiers, paidSubtotalCents, rate);
+  const orderedTiers = [...settings.tiers].sort((a, b) => a.minimumSpend - b.minimumSpend);
+  const tier = activeTier(orderedTiers, paidSubtotalCents, rate);
   if (!tier) return { operations: [] };
+  const tierIndex = orderedTiers.findIndex((candidate) => candidate.id === tier.id);
 
-  const productByVariant = new Map(tier.products.map((product) => [product.variantId, product.productId]));
+  // A selected gift product allows all its variants, including variants added
+  // after settings were saved. Shopify supplies the trusted parent product ID.
+  const allowedProducts = new Set(tier.products.map((product) => product.productId));
   const discountedProducts = new Set<string>();
   const targets: Array<{ cartLine: { id: string; quantity: number } }> = [];
   for (const line of input.cart.lines) {
@@ -65,10 +69,12 @@ export function cartLinesDiscountsGenerateRun(input: CartInput): CartLinesDiscou
     // as long as its variant is one of this tier's gifts (e.g. the T-shirt
     // claimed at $150 stays free at $350).
     if (!line.tierMarker?.value || line.merchandise.__typename !== "ProductVariant") continue;
-    const productId = productByVariant.get(line.merchandise.id);
-    if (!productId || discountedProducts.has(productId)) continue;
-    // "one": a single free gift. "all": one unit of every gift product.
-    if (tier.mode !== "all" && targets.length >= 1) break;
+    const productId = line.merchandise.product.id;
+    if (!allowedProducts.has(productId) || discountedProducts.has(productId)) continue;
+    // One unit per different product. Tier 2 allows two gifts; Tier 1 and
+    // later tiers allow one gift per order.
+    const limit = tierIndex === 1 ? 2 : 1;
+    if (targets.length >= limit) break;
     discountedProducts.add(productId);
     targets.push({ cartLine: { id: line.id, quantity: 1 } });
   }

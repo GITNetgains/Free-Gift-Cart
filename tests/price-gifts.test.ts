@@ -24,10 +24,10 @@ describe("price gift settings", () => {
     expect(settings.tiers.map((tier) => tier.id)).toEqual(["low", "high"]);
   });
 
-  test("each tier keeps its own gifts and rule; replacements are dropped", () => {
+  test("Tier 2 is pick two; each tier keeps its own gifts and replacements drop", () => {
     expect(settings.tiers[0].products.map((product) => product.variantId)).toEqual([sling2.variantId, shirtS.variantId, shirtM.variantId]);
     expect(settings.tiers[1].products.map((product) => product.variantId)).toEqual([sling3.variantId, shirtS.variantId, shirtM.variantId]);
-    expect(settings.tiers.map((tier) => tier.mode)).toEqual(["one", "all"]);
+    expect(settings.tiers.map((tier) => tier.mode)).toEqual(["one", "two"]);
     expect("replacements" in settings.tiers[1]).toBe(false);
   });
 
@@ -41,13 +41,26 @@ describe("price gift settings", () => {
     expect(next.tiers[1].products).toHaveLength(3);
   });
 
+  test("Tier 2 product edits do not mutate Tier 1's product list", () => {
+    const before = normalizeSettings({tiers:[
+      {id:"low",minimumSpend:15000,mode:"one",products:[sling2,shirtS]},
+      {id:"high",minimumSpend:35000,mode:"one",products:[sling2,shirtS,sling3]},
+    ]});
+    const next = normalizeSettings({...before,tiers:[
+      before.tiers[0],
+      {...before.tiers[1],products:[sling3]},
+    ]});
+    expect(next.tiers[0].products.map(product=>product.productId)).toEqual([sling2.productId,shirtS.productId]);
+    expect(next.tiers[1].products.map(product=>product.productId)).toEqual([sling3.productId]);
+  });
+
   test("an unknown rule is read as pick one", () => {
     expect(normalizeSettings({ tiers: [{ ...settings.tiers[0], mode: "both" as never }] }).tiers[0].mode).toBe("one");
   });
 
   test("the function copy keeps only ids and rules", () => {
     expect(JSON.parse(functionSettings(settings)).tiers[1]).toEqual({
-      id: "high", minimumSpend: 30000, maximumSpend: null, mode: "all",
+      id: "high", minimumSpend: 30000, maximumSpend: null, mode: "two",
       products: [sling3, shirtS, shirtM].map(({ productId, variantId }) => ({ productId, variantId })),
     });
   });
@@ -71,4 +84,19 @@ describe("price gift settings", () => {
     expect(priceGiftsEnabledFor("netgains10.myshopify.com")).toBe(true);
     expect(priceGiftsEnabledFor("custom-collection-cases.myshopify.com")).toBe(false);
   });
+});
+
+test("Tier 2 pick-two rule is applied even to legacy settings", () => {
+  const normalized = normalizeSettings({tiers: [{id: "two", minimumSpend: 35000, mode: "two", products: [sling2, shirtS, shirtM, sling3]}]});
+  expect(normalized.tiers[0].mode).toBe("one");
+  expect(JSON.parse(functionSettings(normalized)).tiers[0].mode).toBe("one");
+});
+
+test("the second tier always offers two gifts", () => {
+ const normalized = normalizeSettings({tiers:[
+  {id:"low",minimumSpend:15000,mode:"all",products:[sling2,shirtS,sling3]},
+  {id:"high",minimumSpend:35000,mode:"one",products:[sling2,shirtS,sling3]},
+ ]});
+ expect(normalized.tiers.map(tier=>tier.mode)).toEqual(["one","two"]);
+ expect(JSON.parse(functionSettings(normalized)).tiers[1].mode).toBe("two");
 });

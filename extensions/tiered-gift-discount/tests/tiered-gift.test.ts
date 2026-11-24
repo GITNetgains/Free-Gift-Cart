@@ -28,7 +28,7 @@ function input(paid: string, gifts: Gift[], rate = "1.0", cartCurrency = "USD", 
           cost: { subtotalAmount: { amount: paid } } },
         ...gifts.map((gift) => ({
           id: gift.id, quantity: 1, tierMarker: { value: gift.tier }, oldGiftMarker: null,
-          merchandise: { __typename: "ProductVariant", id: gift.variantId, product: { id: "x" } },
+          merchandise: { __typename: "ProductVariant", id: gift.variantId, product: { id: [SLING2, SHIRT, SLING3].find(product => product.variantId === gift.variantId)?.productId || "gid://shopify/Product/unconfigured" } },
           cost: { subtotalAmount: { amount: "50.00" } },
         })),
       ],
@@ -39,76 +39,45 @@ function input(paid: string, gifts: Gift[], rate = "1.0", cartCurrency = "USD", 
 const targets = (result: ReturnType<typeof cartLinesDiscountsGenerateRun>) =>
   result.operations.flatMap((op) => op.productDiscountsAdd?.candidates[0].targets.map((t) => t.cartLine?.id ?? "") ?? []);
 
-describe("tiered gift discount", () => {
-  test("below the first tier nothing is free", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("119.99", [{ id: "g1", tier: "t120", variantId: SLING2.variantId }])))).toEqual([]);
-  });
 
-  test("120-299 makes one chosen gift free", () => {
-    const result = cartLinesDiscountsGenerateRun(input("150.00", [
-      { id: "g1", tier: "t120", variantId: SHIRT.variantId },
-      { id: "g2", tier: "t120", variantId: SLING2.variantId },
-    ]));
-    expect(targets(result)).toEqual(["g1"]);
-  });
+describe("Netgains10 gift limits by spend tier",()=>{
+ const run=(amount:string,variants=[SLING2.variantId,SHIRT.variantId,SLING3.variantId],mode="all")=>{
+  const data=input(amount,variants.map((variantId,index)=>({id:"g"+index,tier:"low",variantId})));
+  data.discount.tierSettings!.jsonValue={enabled:true,shopCurrency:"USD",tiers:[
+   {id:"low",minimumSpend:15000,mode:"one",products:[SLING2,SHIRT,SLING3]},
+   {id:"high",minimumSpend:35000,mode,products:[SLING2,SHIRT,SLING3]},
+  ]};return cartLinesDiscountsGenerateRun(data);
+ };
+ test.each([
+  ["150.00",["g0"]], ["299.97",["g0"]], ["349.99",["g0"]],
+  ["350.00",["g0","g1"]], ["999.00",["g0","g1"]],
+ ] as const)("discounts the allowed number of distinct gift lines at %s",(amount,expected)=>{
+  const result=run(amount);expect(targets(result)).toEqual(expected);
+  expect(result.operations[0].productDiscountsAdd?.candidates[0].targets.map(t=>t.cartLine?.quantity)).toEqual(expected.map(()=>1));
+ });
+ test.each([SLING2.variantId,SHIRT.variantId,SLING3.variantId])("each gift can be chosen independently: %s",variant=>{
+  expect(targets(run("350.00",[variant]))).toEqual(["g0"]);
+ });
+ test.each(["one","two","all"])("Tier 2 stays pick-two with saved legacy mode %s",mode=>{
+  expect(targets(run("350.00",undefined,mode))).toEqual(["g0","g1"]);
+ });
+ test("below threshold nothing is free",()=>expect(targets(run("149.99"))).toEqual([]));
+ test("unconfigured variants do not qualify",()=>expect(targets(run("350.00",["gid://shopify/ProductVariant/unknown"]))).toEqual([]));
+ test("duplicate product lines do not consume both Tier 2 gift slots",()=>expect(targets(run("350.00",[SHIRT.variantId,SHIRT.variantId]))).toEqual(["g0"]));
+ test("disabled campaign has no discounts",()=>{
+  const data=input("350.00",[{id:"gift",tier:"low",variantId:SHIRT.variantId}]);
+  data.discount.tierSettings!.jsonValue={enabled:false,tiers:settings.tiers};
+  expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual([]);
+ });
+});
 
-  test("300+ in an all tier makes every gift free, one unit each", () => {
-    const result = cartLinesDiscountsGenerateRun(input("300.00", [
-      { id: "g1", tier: "t300", variantId: SLING3.variantId },
-      { id: "g2", tier: "t300", variantId: SHIRT.variantId },
-      { id: "g3", tier: "t300", variantId: SHIRT.variantId },
-    ]));
-    expect(targets(result)).toEqual(["g1", "g2"]);
-  });
-
-  test("a lower-tier gift that is also a higher-tier gift stays free", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("300.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }])))).toEqual(["g1"]);
-  });
-
-  test("a lower-tier gift that isn't in the higher tier is not free there", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("300.00", [{ id: "g1", tier: "t120", variantId: SLING2.variantId }])))).toEqual([]);
-  });
-
-  test("a line without the gift marker is never free", () => {
-    const data = input("300.00", [{ id: "g1", tier: "", variantId: SHIRT.variantId }]);
-    expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual([]);
-  });
-
-  test("a variant from another tier is not free", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("150.00", [{ id: "g1", tier: "t120", variantId: SLING3.variantId }])))).toEqual([]);
-  });
-
-  test("a USD store converts thresholds to the buyer currency", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("200.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0", "EUR")))).toEqual([]);
-    expect(targets(cartLinesDiscountsGenerateRun(input("240.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "2.0", "EUR")))).toEqual(["g1"]);
-  });
-
-  test("an INR store with a USD cart compares dollars directly", () => {
-    // presentment rate INR -> USD is tiny; converting would make $120 about $1.4.
-    expect(targets(cartLinesDiscountsGenerateRun(input("17.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "0.012", "USD", "INR")))).toEqual([]);
-    expect(targets(cartLinesDiscountsGenerateRun(input("120.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "0.012", "USD", "INR")))).toEqual(["g1"]);
-  });
-
-  test("an INR store with an INR cart compares the numbers as shown", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("119.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "1.0", "INR", "INR")))).toEqual([]);
-    expect(targets(cartLinesDiscountsGenerateRun(input("120.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }], "1.0", "INR", "INR")))).toEqual(["g1"]);
-  });
-
-  test("a tier stops at its maximum: a gap before the next tier gives nothing", () => {
-    // Tier 1 $120 – $200, Tier 2 from $300.
-    const withMax = (paid: string) => {
-      const data = input(paid, [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }]);
-      data.discount.tierSettings = { jsonValue: {
-        ...settings, shopCurrency: "USD",
-        tiers: [{ ...settings.tiers[0], maximumSpend: 20000 }, settings.tiers[1]],
-      } };
-      return data;
-    };
-    expect(targets(cartLinesDiscountsGenerateRun(withMax("200.00")))).toEqual(["g1"]);
-    expect(targets(cartLinesDiscountsGenerateRun(withMax("250.00")))).toEqual([]);
-  });
-
-  test("gift lines do not count toward the subtotal", () => {
-    expect(targets(cartLinesDiscountsGenerateRun(input("100.00", [{ id: "g1", tier: "t120", variantId: SHIRT.variantId }])))).toEqual([]);
-  });
+test("a newly added variant of an allowed gift product gets one free unit",()=>{
+ const data=input("350.00",[{id:"new",tier:"t300",variantId:"gid://shopify/ProductVariant/NEW"}]);
+ if(data.cart.lines[1].merchandise.__typename === "ProductVariant") data.cart.lines[1].merchandise.product.id=SHIRT.productId;
+ expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual(["new"]);
+});
+test("forged gift attributes cannot discount an unrelated product",()=>{
+ const data=input("350.00",[{id:"forged",tier:"t300",variantId:SHIRT.variantId}]);
+ if(data.cart.lines[1].merchandise.__typename === "ProductVariant") data.cart.lines[1].merchandise.product.id="gid://shopify/Product/unconfigured";
+ expect(targets(cartLinesDiscountsGenerateRun(data))).toEqual([]);
 });

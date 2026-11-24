@@ -10,7 +10,7 @@
 //   top tier's gift in the cart   -> hidden
 //   past a tier's maximum (gap)   -> progress to the next tier ("unlock")
 (() => {
-  document.querySelectorAll(".fgcb-root[data-tiered]:not([data-initialized])").forEach((root) => {
+  const initialize = () => document.querySelectorAll(".fgcb-root[data-tiered]:not([data-initialized])").forEach((root) => {
     root.dataset.initialized = "true";
     let settings;
     try { settings = JSON.parse(root.querySelector("[data-fgcb-tiers]")?.textContent || "{}"); } catch { return; }
@@ -23,6 +23,9 @@
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
       style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(17px,1.36cqi,22px);font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:8px 0 0;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-heading .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:16px;padding-top:14px}.fgcb-next-text{color:#0f1b3d;font-size:clamp(15px,1.1cqi,18px);font-weight:700;margin:10px 0 0}";
+      style.textContent += ".fgcb-root[data-tiered] .fgcb-heading{font-size:clamp(20px,1.7cqi,26px);font-weight:750;line-height:1.3;letter-spacing:-.02em;margin:12px 0 8px}.fgcb-root[data-tiered] .fgcb-hint{font-size:14px;font-weight:500;line-height:1.55;letter-spacing:normal;color:#475467;margin:0 0 14px}.fgcb-root[data-tiered] .fgcb-hint .fgcb-gift-icon{display:none}.fgcb-root[data-tiered] .fgcb-pill{font-size:11px;letter-spacing:.07em}.fgcb-root[data-tiered] .fgcb-amounts{font-size:12px;color:#667085}.fgcb-root[data-tiered] .fgcb-label{font-size:15px;font-weight:700;margin-bottom:12px}";
+      style.textContent += ".fgcb-root[data-tiered] .fgcb-amounts{display:flex;flex-wrap:wrap;gap:6px 16px;white-space:normal;line-height:1.5}.fgcb-root[data-tiered] .fgcb-amounts strong{font-weight:700}";
+      style.textContent += "\n.fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, .85fr) minmax(0, 1.35fr); gap: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { min-width: 0; padding-left: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: column; justify-content: flex-start; padding: 12px 8px; text-align: center; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: center; width: 100%; gap: 10px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 80px; height: 80px; max-width: 100%; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-title { font-size: 13px; line-height: 1.4; overflow-wrap: break-word; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-free { margin-top: auto; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-or { display: none; }\n@container (max-width: 900px) {\n .fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, 1fr); }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { border-left: 0; border-top: 1px solid #dfe2e8; padding: 16px 0 0; }\n}\n@container (max-width: 440px) {\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { grid-template-columns: minmax(0, 1fr); gap: 8px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: row; text-align: left; gap: 12px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: flex-start; width: auto; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 64px; height: 64px; }\n}\n";
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -31,7 +34,8 @@
     const shopCurrency = root.dataset.shopCurrency || "";
     const thresholdRate = (cartCurrency) => {
       if (cartCurrency === "USD") return 1;
-      if (shopCurrency === "USD") return Number(window.Shopify?.currency?.rate) || 1;
+      const currency = window.Shopify?.currency;
+      if (shopCurrency === "USD" && currency?.active === cartCurrency) return Number(currency.rate) || 1;
       return 1;
     };
     const escapeHtml = (value) => {
@@ -55,18 +59,21 @@
     const tiers = settings.tiers.map((tier) => {
       const products = new Map();
       (tier.products || []).forEach((variant) => {
-        if (variant.availableForSale === false) return;
+
         if (!products.has(variant.productId)) products.set(variant.productId, {
           id: variant.productId, title: variant.productTitle, imageUrl: variant.imageUrl, variantIds: new Set(),
         });
         products.get(variant.productId).variantIds.add(numericId(variant.variantId));
       });
       return {
-        id: tier.id, mode: tier.mode === "all" ? "all" : "one",
+        id: tier.id,
+        mode: tier.mode,
         minimum: Number(tier.minimumSpend || 0), products: [...products.values()],
         maximum: tier.maximumSpend == null || tier.maximumSpend === "" ? null : Number(tier.maximumSpend),
       };
-    }).sort((a, b) => a.minimum - b.minimum);
+    }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({
+      ...tier, mode: index === 1 ? "two" : "one",
+    }));
 
     // Gift lines don't count toward the total, as in the popup.
     const tierVariantIds = new Set(tiers.flatMap((tier) => tier.products.flatMap((product) => [...product.variantIds])));
@@ -86,51 +93,59 @@
         .filter((item) => Boolean(item.properties?._tier_gift) || (tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0))
         .map((item) => item.variant_id));
 
+      const giftProducts = new Set(cart.items.filter((item) => Boolean(item.properties?._tier_gift)).map((item) => Number(item.product_id)));
+
       // Past the reached tier's maximum (a gap before the next tier) no tier
       // applies, so the banner counts toward the next one.
       const current = reached > 0 ? tiers[reached - 1] : null;
       // The reached tier's gifts are all claimed: one gift in a pick-one
       // tier, every gift in an all tier.
-      const claimed = current ? current.products.filter((product) => [...product.variantIds].some((id) => giftVariants.has(id))).length : 0;
-      const hasGift = Boolean(current) && (current.mode === "all" ? claimed >= current.products.length : claimed > 0);
+      const claimed = current ? current.products.filter((product) => giftProducts.has(numericId(product.id)) || [...product.variantIds].some((id) => giftVariants.has(id))).length : 0;
+      const hasGift = Boolean(current) && (current.mode === "all" ? claimed >= current.products.length : claimed >= (current.mode === "two" ? 2 : 1));
       const pastMax = Boolean(current && current.maximum != null && paid > Math.round(current.maximum * rate));
+
+      const giftClaimed = hasGift && !pastMax;
 
       // Which tier the banner is about: the reached tier while its gift is
       // still to be chosen, otherwise the next tier to unlock.
       const unlocked = reached > 0 && !pastMax && !hasGift;
-      if (!unlocked && reached === tiers.length) { root.hidden = true; return; }
-      const index = unlocked ? reached - 1 : reached;
+      if (!unlocked && !giftClaimed && reached === tiers.length) { root.hidden = true; return; }
+      const completed = giftClaimed && reached === tiers.length;
+      const index = unlocked || completed ? reached - 1 : reached;
       const target = tiers[index];
       const targetThreshold = thresholds[index];
       if (!target.products.length) { root.hidden = true; return; }
 
       const remaining = Math.max(0, targetThreshold - paid);
-      const pct = unlocked ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
+      const pct = unlocked || completed ? 100 : targetThreshold > 0 ? Math.min(100, Math.max(0, (paid / targetThreshold) * 100)) : 100;
       const money = (cents) => formatMoney(cents, cart.currency);
       const upgrade = !unlocked && reached > 0 && !pastMax;
-      const has = (product) => [...product.variantIds].some((id) => giftVariants.has(id));
+      const has = (product) => giftProducts.has(numericId(product.id)) || [...product.variantIds].some((id) => giftVariants.has(id));
       // In an all tier, gifts already in the cart (e.g. the T-shirt claimed
       // at $150) stay free, so the banner shows only the ones still to come.
       const several = target.mode === "all" && target.products.length > 1;
       const kept = several ? target.products.filter(has) : [];
       const missing = several ? target.products.filter((product) => !has(product)) : target.products;
-      const shown = missing.length ? missing : target.products;
+      const shown = target.mode === "two" ? target.products.filter((product) => !has(product)) : missing.length ? missing : target.products;
       const count = (n) => n === 1 ? "1 more gift" : `${n} more gifts`;
       const all = target.products.length === 2 ? "BOTH" : "ALL";
       // What the next tier adds, under the heading (e.g. "Spend $350.00 and
       // get BOTH gifts FREE.").
       const next = tiers[index + 1];
       const nextRemaining = next ? Math.max(0, thresholds[index + 1] - paid) : 0;
-      const nextAll = next && next.mode === "all" && next.products.length > 1;
+      const nextAll = next && next.mode !== "one" && next.products.length > 1;
+      const nextGifts = next?.products.length === 2 ? "BOTH" : "ALL";
       // Below every tier the next-tier line is another choice ("OR" spend
       // more for more gifts); once a gift is unlocked it's the next step.
-      const alternative = !unlocked && !upgrade;
-      const hint = !next ? ""
+      const alternative = !unlocked && !upgrade && next?.mode !== "one";
+      let hint = target.mode === "one" ? (unlocked && next?.mode === "two"
+        ? `Choose your favourite. Add <strong>${money(nextRemaining)}</strong> to choose 2 gifts at Tier ${index + 2}.`
+        : "Choose your favourite. One free gift per order.") : !next ? ""
         : unlocked
           ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
             : `Add <strong>${money(nextRemaining)}</strong> more to upgrade your gift.`)
           : !upgrade
-            ? (nextAll ? `Spend <strong>${money(thresholds[index + 1])}</strong> and get <strong>${next.products.length === 2 ? "BOTH" : "ALL"}</strong> gifts <strong>FREE</strong>.`
+            ? (nextAll ? `Spend <strong>${money(thresholds[index + 1])}</strong> and get <strong>${next.mode === "two" ? `2 of ${next.products.length}` : nextGifts}</strong> gifts <strong>FREE</strong>.`
               : `Spend <strong>${money(thresholds[index + 1])}</strong> to upgrade your gift.`)
             : "";
 
@@ -153,20 +168,45 @@
         label = kept.length ? `Add ${money(remaining)} more to also get` : "You'll get";
       } else if (unlocked) {
         pill = tiers.length > 1 ? `TIER ${index + 1} UNLOCKED` : "FREE GIFT UNLOCKED";
-        heading = `You've unlocked a <strong>FREE</strong> gift! Choose 1 below.`;
-        label = "Choose your gift";
+        heading = `Choose <strong>1 of ${target.products.length}</strong> gifts <strong>FREE</strong>!`;
+        label = "Select your gift in the popup";
       } else {
         pill = upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
         heading = upgrade
           ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
-          : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}</strong> or more get 1 <strong>FREE</strong> gift!`;
+          : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}</strong> to choose <strong>1 free gift</strong>.`;
         label = upgrade ? "Upgrade to" : "Choose 1 gift";
+      }
+      if (target.mode === "two") {
+        const keptCount = target.products.filter(has).length;
+        const needed = Math.max(0, 2 - keptCount);
+        pill = unlocked ? "FREE GIFTS UNLOCKED" : "UNLOCK 2 FREE GIFTS";
+        heading = unlocked
+          ? `Choose <strong>${needed}</strong> more free gift${needed === 1 ? "" : "s"}!`
+          : `Add <strong>${money(remaining)}</strong> more to choose <strong>2 of ${target.products.length}</strong> gifts FREE!`;
+        label = unlocked ? `Choose ${needed} from the remaining gifts` : `Choose any 2 of ${target.products.length} gifts`;
+      }
+      if (giftClaimed) {
+        pill = completed ? `TIER ${index + 1} REACHED` : "FREE GIFT ADDED";
+        heading = "Your <strong>free gift</strong> is in your cart.";
+        hint = target?.mode === "two"
+          ? completed
+            ? `You have reached the highest tier. Your 2 gifts stay free.`
+            : `Add <strong>${money(remaining)}</strong> to reach <strong>Tier ${index + 1}</strong> and choose 2 free gifts from ${target.products.length} options.`
+          : current?.mode === "two"
+          ? completed
+            ? "You have reached the highest tier. Both gifts stay free."
+            : `Add <strong>${money(remaining)}</strong> to reach <strong>Tier ${index + 1}</strong>. Your claimed gifts stay free.`
+          : completed
+            ? "You have reached the highest tier. Your gift stays free. One free gift per order."
+            : `Add <strong>${money(remaining)}</strong> to reach <strong>Tier ${index + 1}</strong>. Your claimed gift stays free; one free gift per order.`;
+        label = completed ? "Gift options for this tier" : `Tier ${index + 1} gift options`;
       }
       const joiner = several ? "+" : "OR";
       // Below every tier: what the next tier unlocks, under the gift cards
       // (e.g. "SPEND $350+ / Unlock BOTH gifts for FREE!").
-      const teaser = alternative && next
-        ? `<div class="fgcb-next"><span class="fgcb-pill">SPEND ${escapeHtml(money(thresholds[index + 1]).replace(/[.,]00(?=\D*$)/, ""))}+</span><p class="fgcb-next-text">${nextAll ? `Unlock ${next.products.length === 2 ? "BOTH" : "ALL"} gifts for FREE!` : "Upgrade your FREE gift!"}</p></div>`
+      const teaser = alternative && next && next.mode !== "one"
+        ? `<div class="fgcb-next"><span class="fgcb-pill">SPEND ${escapeHtml(money(thresholds[index + 1]).replace(/[.,]00(?=\D*$)/, ""))}+</span><p class="fgcb-next-text">${nextAll ? `Unlock ${next.mode === "two" ? `2 of ${next.products.length}` : nextGifts} gifts for FREE!` : "Choose 1 gift at this tier too. One free gift per order."}</p></div>`
         : "";
 
       const cards = shown.map((product, index) => `
@@ -180,14 +220,14 @@
         ? `<a class="fgcb-continue fgcb-continue--${placement}" href="#" data-open-gift>${several ? (missing.length === 1 ? "Claim your free gift" : "Claim your free gifts") : "Choose your free gift"} <span aria-hidden="true">&rarr;</span></a>`
         : `<a class="fgcb-continue fgcb-continue--${placement}" href="${escapeHtml(basePath)}collections/all">Continue shopping <span aria-hidden="true">&rarr;</span></a>`;
 
-      root.innerHTML = `<div class="fgcb-card">
+      root.innerHTML = `<div class="fgcb-card${shown.length > 2 ? " fgcb-card--three" : ""}">
         <div class="fgcb-left">
           <span class="fgcb-pill">${giftIcon} ${pill}</span>
           <h2 class="fgcb-heading">${heading}</h2>
           ${hint ? `${alternative ? `<div class="fgcb-alt" aria-hidden="true">OR</div>` : ""}<p class="fgcb-hint">${alternative ? "" : giftIcon}<span>${hint}</span></p>` : ""}
           <div class="fgcb-progress">
             <div class="fgcb-track"><div class="fgcb-fill" style="width:${pct}%;"></div></div>
-            <p class="fgcb-amounts">${money(paid)}&nbsp;/&nbsp;${money(targetThreshold)}</p>
+            <p class="fgcb-amounts"><span>Cart subtotal: <strong>${money(paid)}</strong></span><span>${giftClaimed ? (completed ? "Tier reached at" : "Next tier at") : unlocked ? "Gift unlocked at" : "Gift unlocks at"}: <strong>${money(targetThreshold)}</strong></span></p>
           </div>
           ${continueLink("desktop")}
         </div>
@@ -209,7 +249,12 @@
       document.dispatchEvent(new CustomEvent("fgc:open-gift"));
     });
 
+    let timer;
     const checkCart = async () => {
+      if (root.isConnected === false) {
+        window.clearInterval(timer);
+        return;
+      }
       try {
         const response = await fetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
         if (!response.ok) return;
@@ -220,6 +265,10 @@
     };
 
     checkCart();
-    window.setInterval(checkCart, 2000);
+    timer = window.setInterval(checkCart, 2000);
   });
+  initialize();
+  // Themes can replace the whole cart section after add/change/remove. Start
+  // the replacement banner too, without waiting for a full page reload.
+  new MutationObserver(initialize).observe(document.body, { childList: true, subtree: true });
 })();
