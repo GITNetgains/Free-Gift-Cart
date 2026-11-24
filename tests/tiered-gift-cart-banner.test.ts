@@ -76,6 +76,11 @@ describe("Netgains10 tier banner",()=>{
   const root=await render([paid(10000)],"USD",campaign);
   expect(root.innerHTML).toContain("Gift unlocks at:");expect(root.innerHTML).not.toContain("2nd");
  });
+ test("below Tier 1 the OR line names the Tier 2 offer",async()=>{
+  const root=await render([paid(10000)],"USD",campaign);
+  expect(root.innerHTML).toContain("Spend <strong>$350.00</strong> and choose <strong>2 of 3</strong> gifts <strong>FREE</strong>.");
+  expect(root.innerHTML).not.toContain("Choose your favourite. One free gift per order.");
+ });
  test.each([15000,29997])("one claimed Tier 1 gift keeps the banner visible at %i cents",async amount=>{
   const root = await render([paid(amount),tierGift(11,"low")],"USD",campaign);
   expect(root.hidden).toBe(false);

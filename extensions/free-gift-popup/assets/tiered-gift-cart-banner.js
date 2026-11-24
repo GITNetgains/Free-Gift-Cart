@@ -140,7 +140,10 @@
       const alternative = !unlocked && !upgrade && next?.mode !== "one";
       let hint = target.mode === "one" ? (unlocked && next?.mode === "two"
         ? `Choose your favourite. Add <strong>${money(nextRemaining)}</strong> to choose 2 gifts at Tier ${index + 2}.`
-        : "Choose your favourite. One free gift per order.") : !next ? ""
+        // Below Tier 1 the "OR" line is the Tier 2 offer.
+        : alternative && next?.mode === "two"
+          ? `Spend <strong>${money(thresholds[index + 1])}</strong> and choose <strong>2 of ${next.products.length}</strong> gifts <strong>FREE</strong>.`
+          : "Choose your favourite. One free gift per order.") : !next ? ""
         : unlocked
           ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
             : `Add <strong>${money(nextRemaining)}</strong> more to upgrade your gift.`)
