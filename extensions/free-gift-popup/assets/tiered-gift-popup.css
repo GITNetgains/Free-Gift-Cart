@@ -95,3 +95,30 @@
 .fgc-dialog--compact .fgc-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .fgc-dialog--compact .fgc-option { flex: 1 0 auto; }
 .fgc-dialog--compact .fgc-option:disabled { cursor: default; opacity: .5; text-decoration: line-through; }
+
+/* Pick-two tier: every gift is a column with its own options underneath.
+   "OR" between two gifts when 1 is left to pick, "+" when both are picked,
+   and three side-by-side columns without a separator. Options of a gift that
+   isn't picked are dimmed (choosing one picks that gift). */
+.fgc-products--or .fgc-gift-col:nth-child(odd):not(:last-child)::after { content: "OR"; font-size: 10px; letter-spacing: .02em; }
+.fgc-products--cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.fgc-products--cols3 .fgc-gift-col::before, .fgc-products--cols3 .fgc-gift-col::after { content: none !important; }
+.fgc-products--two .fgc-gift-col:not(.is-selected) .fgc-col-options { opacity: .6; transition: opacity .12s; }
+.fgc-products--two .fgc-gift-col:not(.is-selected) .fgc-col-options:hover { opacity: 1; }
+@media (max-width: 760px) {
+  .fgc-products--two .fgc-gift-col { border-bottom: 1px solid #eaecf0; padding-bottom: 10px; }
+  .fgc-products--two .fgc-gift-col:last-child { border-bottom: 0; padding-bottom: 0; }
+}
+@media (max-width: 540px) {
+  .fgc-dialog--compact .fgc-products--two { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
+/* A fieldset is min-content wide by default; on phones that pushed the
+   dialog past the screen edge. Let option groups shrink and wrap. */
+.fgc-col-options, .fgc-col-options .fgc-option-group { min-width: 0; max-width: 100%; }
+.fgc-dialog--compact { box-sizing: border-box; }
+@media (max-width: 760px) {
+  /* Stacked gifts: the "OR" sits centred between them. */
+  .fgc-products--or .fgc-gift-col:nth-child(odd):not(:last-child)::after {
+    color: #697586; display: block; font-size: 12px; font-weight: 800; margin-top: 6px; text-align: center;
+  }
+}

@@ -267,8 +267,15 @@
     const isSelected = (product) => product.variants.length > 0 && (tier.mode === "all" || (tier.mode === "two" ? selectedIds.has(product.id) : product.id === focused()?.id));
     const imageFor = (product) => (isSelected(product) ? variantOf(product)?.imageUrl : "") || product.imageUrl;
     const content = root.querySelector(".fgc-content");
+    // "all" and "two" tiers: each gift is a column with its own options right
+    // under its card. In "two" every gift's options always show, so the
+    // shopper sees all sizes/colours before deciding.
+    const columns = tier.mode === "all" || tier.mode === "two";
+    const layout = tier.mode === "all" ? " fgc-products--all"
+      : tier.mode === "two" ? ` fgc-products--all fgc-products--two${needed === 1 ? " fgc-products--or" : ""}${offered.length > 2 ? " fgc-products--cols3" : ""}`
+        : offered.length > 2 ? " fgc-products--choice" : "";
     content.innerHTML = `
-      <div class="fgc-products${tier.mode === "all" ? " fgc-products--all" : ""}${offered.length > 2 ? " fgc-products--choice" : ""}">${offered.map((product) => {
+      <div class="fgc-products${layout}">${offered.map((product) => {
         const card = `
         <button class="fgc-product" type="button" data-product-id="${escapeHtml(product.id)}"${tier.mode === "all" ? ' tabindex="-1"' : ""}>
           <span class="fgc-check" aria-hidden="true"></span>
@@ -276,9 +283,8 @@
           <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
           <span class="fgc-free">${product.variants.length ? "🎁 FREE" : "OUT OF STOCK"}</span>
         </button>`;
-        // In "all" tiers each gift's options sit right under its own card.
-        return tier.mode === "all"
-          ? `<div class="fgc-gift-col">${card}<div class="fgc-col-options" data-col-for="${escapeHtml(product.id)}"></div></div>`
+        return columns
+          ? `<div class="fgc-gift-col" data-col="${escapeHtml(product.id)}">${card}<div class="fgc-col-options" data-col-for="${escapeHtml(product.id)}"></div></div>`
           : card;
       }).join("")}
       </div>
@@ -287,6 +293,12 @@
       <p class="fgc-status" aria-live="polite"></p>
       <div class="fgc-benefits"><span>◆&nbsp; Secure Checkout</span><span>▰&nbsp; Fast Shipping</span><span>★&nbsp; Loved by Collectors</span></div>`;
     const panel = content.querySelector(".fgc-variant-panel");
+    // Pick a gift; when the limit is already reached the earliest choice
+    // makes room (with 1 to pick, the other gift simply swaps in).
+    const select = (id) => {
+      if (selectedIds.size >= needed) selectedIds.delete(selectedIds.values().next().value);
+      selectedIds.add(id);
+    };
 
     const refresh = () => {
       content.querySelectorAll("[data-product-id]").forEach((card) => {
@@ -294,7 +306,8 @@
         const selected = isSelected(product);
         card.classList.toggle("is-selected", selected);
         card.setAttribute("aria-pressed", String(selected));
-        card.disabled = !product.variants.length || (tier.mode === "two" && !selected && selectedIds.size >= needed);
+        // Never locked once the limit is reached: a click swaps the choice.
+        card.disabled = !product.variants.length;
         card.querySelector(".fgc-check").textContent = selected ? "✓" : "";
         const image = card.querySelector("img");
         const src = imageFor(product);
@@ -302,8 +315,13 @@
         image.hidden = !src;
       });
       if (tier.mode === "two") {
-        panel.innerHTML = offered.filter(isSelected).map((product) => optionsHtml(product, true)).join("");
-        panel.hidden = !panel.innerHTML.trim();
+        offered.forEach((product) => {
+          const column = content.querySelector(`[data-col-for="${product.id}"]`);
+          if (column) column.innerHTML = product.variants.length ? optionsHtml(product, false) : "";
+          content.querySelector(`[data-col="${product.id}"]`)?.classList.toggle("is-selected", isSelected(product));
+        });
+        panel.innerHTML = "";
+        panel.hidden = true;
         const button = content.querySelector(".fgc-claim");
         button.disabled = selectedIds.size !== needed;
         button.textContent = `CLAIM ${needed} FREE GIFT${needed === 1 ? "" : "S"} (${selectedIds.size}/${needed} selected)`;
@@ -329,6 +347,8 @@
         const product = offered.find((item) => item.id === option.dataset.product);
         if (!product) return;
         chosen[product.id] = pickVariant(product, Number(option.dataset.optionIndex), option.dataset.optionValue).variantId;
+        // Choosing a size/colour of a gift also picks that gift.
+        if (tier.mode === "two" && !selectedIds.has(product.id)) select(product.id);
         refresh();
         return;
       }
@@ -337,7 +357,7 @@
       if (card && tier.mode === "two") {
         const id = card.dataset.productId;
         if (selectedIds.has(id)) selectedIds.delete(id);
-        else if (selectedIds.size < needed) selectedIds.add(id);
+        else select(id);
         refresh();
         return;
       }
@@ -397,7 +417,9 @@
     const both = offered.length === 2 ? "BOTH" : "ALL";
     const heading = tier.mode === "two" ? `CHOOSE ${Math.min(tier.remaining || 2, available.length)} FREE GIFT${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "S"}` : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
     const subheading = tier.mode === "two"
-      ? `Choose ${Math.min(tier.remaining || 2, available.length)} different gift${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "s"} from the available options below. Each selected gift is free with your order.`
+      ? tier.remaining === 1
+        ? "Your first free gift is already in your cart. Pick 1 more gift below and choose its options."
+        : `Pick ${Math.min(tier.remaining || 2, available.length)} different gift${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "s"} below and choose the options under each gift. Each gift is free with your order.`
       : several
       ? `Congratulations! Your cart qualifies for ${both} gifts. Add them to your order!`
       : pickOne

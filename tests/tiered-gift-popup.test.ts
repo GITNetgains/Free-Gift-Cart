@@ -157,8 +157,29 @@ describe("Netgains10 tier gift selection",()=>{
   const popup=await runCampaign([paid(35000),giftLine("kept",11,"low")],offer);
   expect(popup.updates).toEqual([]);
   expect(popup.html).toContain("CHOOSE 1 FREE GIFT");
+  // With 1 left to pick, a second click swaps the choice instead of locking.
   popup.clickCard(other1.productId);popup.clickCard(other2.productId);popup.clickClaim();
-  expect(popup.additions.map(i=>i.id)).toEqual([41]);
+  expect(popup.additions.map(i=>i.id)).toEqual([51]);
+ });
+ test("Tier 2 with 1 left: no card is locked, every gift shows its own options",async()=>{
+  const offer={enabled:true,tiers:[campaign.tiers[0],{id:"high",minimumSpend:35000,mode:"two",products:[sling2,...shirtVariants]}]};
+  const popup=await runCampaign([paid(35000),giftLine("kept",31,"low")],offer);
+  expect(popup.html).toContain("CHOOSE 1 FREE GIFT");
+  expect(popup.html).toContain("Your first free gift is already in your cart");
+  expect(popup.content).toContain("fgc-products--two fgc-products--or");
+  // The T-shirt's size options show before it is picked.
+  expect(popup.content).toContain('data-option-value="M"');
+  expect(popup.content).not.toMatch(/data-product-id="[^"]+"[^>]*disabled/);
+  popup.clickCard(sling2.productId);popup.clickCard(shirt.productId);
+  expect(popup.claimDisabled()).toBe(false);
+  popup.clickClaim();
+  expect(popup.additions.map(i=>i.id)).toEqual([21]);
+ });
+ test("Tier 2: picking a size of a gift picks that gift",async()=>{
+  const offer={enabled:true,tiers:[campaign.tiers[0],{id:"high",minimumSpend:35000,mode:"two",products:[sling2,...shirtVariants]}]};
+  const popup=await runCampaign([paid(35000),giftLine("kept",31,"low")],offer);
+  popup.clickCard(sling2.productId);popup.clickOption(shirt.productId,"M");popup.clickClaim();
+  expect(popup.additions.map(i=>i.id)).toEqual([22]);
  });
  test("a Tier 1 gift of another variant of a Tier 2 product counts as one of the two",async()=>{
   const line={...giftLine("kept",77,"low"),product_id:2};
