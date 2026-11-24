@@ -83,8 +83,17 @@ describe("Netgains10 tier banner",()=>{
  });
  test("below Tier 1 the OR line names the Tier 2 offer",async()=>{
   const root=await render([paid(10000)],"USD",campaign);
-  expect(root.innerHTML).toContain("Spend <strong>$350.00</strong> and choose <strong>2 of 3</strong> gifts <strong>FREE</strong>.");
+  // Same wording and style as the heading ("Spend $150 to choose 1 free gift.").
+  expect(root.innerHTML).toContain("Spend <strong>$150</strong> to choose <strong>1 free gift</strong>.");
+  expect(root.innerHTML).toContain('class="fgcb-hint fgcb-hint--alt"><span>Spend <strong>$350</strong> to choose <strong>2 of 3 free gifts</strong>.');
   expect(root.innerHTML).not.toContain("Choose your favourite. One free gift per order.");
+ });
+ test("a two-gift Tier 2 reads BOTH, never 2 of 2",async()=>{
+  const offer={enabled:true,tiers:[campaign.tiers[0],{...campaign.tiers[1],products:campaign.tiers[1].products.slice(0,2)}]};
+  const root=await render([paid(10000)],"USD",offer);
+  expect(root.innerHTML).toContain("Spend <strong>$350</strong> to get <strong>BOTH free gifts</strong>.");
+  expect(root.innerHTML).toContain("Unlock BOTH gifts for FREE!");
+  expect(root.innerHTML).not.toContain("2 of 2");
  });
  test.each([15000,29997])("one claimed Tier 1 gift keeps the banner visible at %i cents",async amount=>{
   const root = await render([paid(amount),tierGift(11,"low")],"USD",campaign);
@@ -119,7 +128,7 @@ describe("tier progression after adding products and gifts",()=>{
   expect(root.innerHTML).toContain("Tier 2");
   expect(Number(root.innerHTML.match(/style="width:([\d.]+)%/)?.[1])).toBeCloseTo(57.14, 2);
   expect(root.innerHTML).toContain("Next tier at: <strong>$350.00</strong>");
-  expect(root.innerHTML).toContain("choose 2 free gifts from 3 options");
+  expect(root.innerHTML).toContain("choose <strong>2 of 3 free gifts</strong>");
  });
  test("exactly 350 after one retained gift unlocks one more Tier 2 gift",async()=>{
   const root=await render([paid(35000),tierGift(11,"low")],"USD",campaign);

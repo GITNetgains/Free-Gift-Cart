@@ -83,3 +83,28 @@
     .fgpw-claim { font-size: 14px; }
   }
 }
+
+/* Price gifts (spend tiers, netgains10 only): tiered-gift-product-widget.js
+   marks its root data-tiered. Three gifts sit side by side as vertical cards;
+   the offer line uses the title's red for amounts. */
+.fgpw-root[data-tiered] .fgpw-subtitle strong { color: #ef101d; font-weight: 800; }
+.fgpw-root[data-tiered] .fgpw-product { cursor: default; }
+.fgpw-root[data-tiered] .fgpw-product:hover { border-color: #e4e7ec; box-shadow: none; }
+.fgpw-root[data-tiered] .fgpw-products--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { align-items: stretch; flex-direction: column; gap: 8px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { flex-basis: auto; height: 96px; width: 100%; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { align-items: center; flex: 0 0 auto; text-align: center; }
+@container (max-width: 420px) {
+  .fgpw-root[data-tiered] .fgpw-products--three { grid-template-columns: minmax(0, 1fr); }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { align-items: center; flex-direction: row; gap: 10px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { flex: 0 0 64px; height: 64px; width: 64px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { align-items: flex-start; flex: 1 1 0%; min-width: 0; text-align: left; }
+}
+@supports not (container-type: inline-size) {
+  @media (max-width: 460px) {
+    .fgpw-root[data-tiered] .fgpw-products--three { grid-template-columns: minmax(0, 1fr); }
+    .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { align-items: center; flex-direction: row; gap: 10px; }
+    .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { flex: 0 0 64px; height: 64px; width: 64px; }
+    .fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { align-items: flex-start; flex: 1 1 0%; min-width: 0; text-align: left; }
+  }
+}

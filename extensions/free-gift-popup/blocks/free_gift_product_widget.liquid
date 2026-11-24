@@ -1,6 +1,18 @@
 {% assign gift_settings = shop.metafields.free_gift_cart.settings.value %}
+{% assign tier_settings = shop.metafields.tiered_gift.settings.value %}
 
-{% if gift_settings != blank and gift_settings.enabled and request.page_type == 'product' %}
+{% if tier_settings != blank and tier_settings.enabled and tier_settings.tiers.size > 0 and request.page_type == 'product' %}
+  {% comment %}
+    Price gifts (spend tiers) are on: the widget shows the tier gifts and
+    opens the tier popup, run by tiered-gift-product-widget.js. Stores
+    without price gift settings never reach this branch.
+  {% endcomment %}
+  <div class="fgpw-root" data-tiered data-shop-currency="{{ shop.currency }}" hidden>
+    <script type="application/json" data-fgpw-tiers>{{ tier_settings | json }}</script>
+  </div>
+  {{ 'free-gift-product-widget.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'tiered-gift-product-widget.js' | asset_url }}" defer></script>
+{% elsif gift_settings != blank and gift_settings.enabled and request.page_type == 'product' %}
   <div class="fgpw-root" data-cart-path="{{ routes.cart_url }}" data-cart-add-url="{{ routes.cart_add_url }}" hidden>
     <script type="application/json" data-fgpw-settings>{{ gift_settings | json }}</script>
     <script type="application/json" data-fgpw-inventory>
