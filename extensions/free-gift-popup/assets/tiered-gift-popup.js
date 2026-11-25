@@ -257,8 +257,11 @@
   // Option buttons sit in equal-width columns, so no button stretches across
   // a row on its own: 4 for short labels (S, M, XL), 3 for words (Gray,
   // White), 2 for long names (Magnetic Card Holder).
+  // Labels too long for half a box (Magpro Lite/Magnetic Card Holder) take
+  // a full row of their own and do not count towards the column choice.
+  const isWideValue = (value) => String(value).length > 20;
   const gridColumns = (values) => {
-    const longest = Math.max(0, ...values.map((value) => String(value).length));
+    const longest = Math.max(0, ...values.filter((value) => !isWideValue(value)).map((value) => String(value).length));
     return longest <= 3 ? 4 : longest <= 8 ? 3 : 2;
   };
   // Options for one product. In "all" tiers every gift gets its own block,
@@ -274,7 +277,7 @@
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
         <div class="fgc-options fgc-grid-${gridColumns(valuesFor(product, groupIndex, group.values))}">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
-          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(displayValue(value))}</button>`;
+          return `<button class="fgc-option${isSelected ? " is-selected" : ""}${isWideValue(value) ? " fgc-option--wide" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(displayValue(value))}</button>`;
         }).join("")}</div>
       </fieldset>`).join("")}
     </div>`;

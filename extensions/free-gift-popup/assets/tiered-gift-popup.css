@@ -223,3 +223,5 @@
 @media (min-width: 761px) {
   .fgc-dialog--compact .fgc-heading { flex: 0 1 auto; font-size: 22px; min-width: 0; overflow: hidden; }
 }
+/* Long option labels (Magpro Lite/Magnetic Card Holder) span the whole box. */
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option.fgc-option--wide { grid-column: 1 / -1; }
