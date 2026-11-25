@@ -157,8 +157,12 @@
   const isTierGift = (item) => Boolean(item.properties?._tier_gift);
   const isFreeTierVariant = (item) => !isTierGift(item) && tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0;
   const isGiftItem = (item) => isTierGift(item) || isFreeTierVariant(item) || item.properties?._free_gift === "true" || alwaysGiftProductIds.has(item.product_id);
-  // Before discounts, like the discount function.
-  const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
+  // After discounts: paid lines at their discounted price (final_line_price,
+  // e.g. a Black Friday sale price), less order discounts (discount codes,
+  // automatic order discounts). Gift lines don't count. Same rule as the
+  // banner, widget, checkout block and checkout validation.
+  const paidSubtotal = (cart) => Math.max(0, cart.items.reduce((total, item) => isGiftItem(item) ? total : total + Number(item.final_line_price ?? item.original_line_price ?? 0), 0)
+    - (cart.cart_level_discount_applications || []).reduce((total, discount) => total + Number(discount.total_allocated_amount || 0), 0));
   // The highest tier whose minimum the cart reaches, unless the cart is past
   // its maximum (a gap before the next tier: no gift). Same as the function.
   const tierFor = (subtotal, cartCurrency) => {

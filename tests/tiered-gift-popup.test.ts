@@ -24,7 +24,9 @@ const settings = {
   ],
 };
 
-type Item = { key: string; variant_id: number; product_id: number; quantity: number; original_line_price: number; original_price: number; properties?: Record<string, string> };
+type Item = { key: string; variant_id: number; product_id: number; quantity: number; original_line_price: number; original_price: number; final_line_price?: number; properties?: Record<string, string> };
+// Order discounts (discount codes) on the next cart.js reply.
+let cartDiscounts: Array<{ total_allocated_amount: number }> = [];
 const paid = (cents: number): Item => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
 const giftLine = (key: string, variant: number, tier: string): Item => ({ key, variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
 
@@ -89,7 +91,7 @@ async function run(items: Item[], pathname = "/cart", shop = { currency: "USD", 
       const handle = decodeURIComponent(url.split("/products/")[1].replace(/\.js$/, ""));
       return { ok: Boolean(stock.products?.[handle]), json: async () => stock.products?.[handle] };
     }
-    if (url.endsWith("cart.js")) return { ok: true, json: async () => ({ currency: "USD", items }) };
+    if (url.endsWith("cart.js")) return { ok: true, json: async () => ({ currency: "USD", items, cart_level_discount_applications: cartDiscounts }) };
     if (url.endsWith("cart/add.js")) { additions.push(...JSON.parse(init!.body!).items); return { ok: true, json: async () => ({}) }; }
     if (url.endsWith("cart/update.js")) { updates.push(JSON.parse(init!.body!).updates); return { ok: true, json: async () => ({ items: [] }) }; }
     return { ok: true, json: async () => ({}) };
@@ -205,6 +207,17 @@ describe("Netgains10 tier gift selection",()=>{
  });
  test("below the minimum removes every gift",async()=>{
   expect((await runCampaign([paid(14999),giftLine("a",11,"low"),giftLine("b",21,"high")])).updates).toEqual([{a:0,b:0}]);
+ });
+ test("the tier follows the total after discounts: $169.98 on sale for $127.50 is below $150",async()=>{
+  const sale={...paid(16998),final_line_price:12750};
+  expect((await runCampaign([sale,giftLine("a",11,"low")])).updates).toEqual([{a:0}]);
+  const kept=await runCampaign([{...paid(20000),final_line_price:16000},giftLine("a",11,"low")]);
+  expect(kept.updates).toEqual([]);
+ });
+ test("an order discount counts too: $360 less a $20 code is Tier 1",async()=>{
+  cartDiscounts=[{total_allocated_amount:2000}];
+  try{expect((await runCampaign([paid(36000),giftLine("a",11,"low"),giftLine("b",21,"high")])).html).toContain("CHOOSE 1 GIFT TO KEEP");}
+  finally{cartDiscounts=[];}
  });
  test("extra quantity and duplicate lines are removed",async()=>{
   const popup=await runCampaign([paid(35000),{...giftLine("a",11,"low"),quantity:3},giftLine("b",11,"high")]);

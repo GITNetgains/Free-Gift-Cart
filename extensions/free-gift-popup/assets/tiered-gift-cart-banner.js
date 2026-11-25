@@ -142,7 +142,9 @@
     const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
     const isGiftItem = (item) => Boolean(item.properties?._tier_gift) || item.properties?._free_gift === "true" ||
       alwaysGiftProductIds.has(item.product_id) || (tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0);
-    const paidSubtotal = (cart) => cart.items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
+    // After discounts (sale prices and order discounts), as in the popup.
+    const paidSubtotal = (cart) => Math.max(0, cart.items.reduce((total, item) => isGiftItem(item) ? total : total + Number(item.final_line_price ?? item.original_line_price ?? 0), 0)
+      - (cart.cart_level_discount_applications || []).reduce((total, discount) => total + Number(discount.total_allocated_amount || 0), 0));
 
     const giftIcon = `<svg class="fgcb-gift-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20 7h-2.18A3 3 0 0 0 12 3.76 3 3 0 0 0 6.18 7H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7h2v5h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1ZM9 7a1 1 0 1 1 1-1v1H9Zm6 0h-1V6a1 1 0 1 1 1 1ZM4 13v7a1 1 0 0 0 1 1h6v-8H4Zm9 8h6a1 1 0 0 0 1-1v-7h-7v8Z"/></svg>`;
 

@@ -79,7 +79,9 @@
     const stateFor = (cart) => {
       const rate = thresholdRate(cart?.currency);
       const items = cart?.items || [];
-      const paid = items.reduce((total, item) => isGiftItem(item) ? total : total + item.original_line_price, 0);
+      // After discounts (sale prices and order discounts), as in the popup.
+      const paid = Math.max(0, items.reduce((total, item) => isGiftItem(item) ? total : total + Number(item.final_line_price ?? item.original_line_price ?? 0), 0)
+        - (cart?.cart_level_discount_applications || []).reduce((total, discount) => total + Number(discount.total_allocated_amount || 0), 0));
       const thresholds = tiers.map((tier) => Math.round(tier.minimum * rate));
       const reached = thresholds.filter((threshold) => paid >= threshold).length;
       const giftProducts = new Set(items.filter((item) => item.properties?._tier_gift).map((item) => Number(item.product_id)));

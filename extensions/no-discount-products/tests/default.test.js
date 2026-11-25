@@ -198,3 +198,21 @@ test("price gifts: $349.98 is still Tier 1 (a $349 maximum covers its cents)", (
   });
   expect(result).toEqual({ operations: [] });
 });
+
+test("price gifts: the tier follows the total after discounts ($169.98 on sale for $127.50 gets no gift)", () => {
+  const gifts = [{ productId: "gid://shopify/Product/8708096557231" }];
+  const tiers = { enabled: true, shopCurrency: "USD", tiers: [
+    { id: "a", minimumSpend: 15000, maximumSpend: 34900, products: gifts },
+    { id: "b", minimumSpend: 35000, maximumSpend: null, products: gifts },
+  ] };
+  const run = (discount) => cartValidationsGenerateRun({
+    buyerJourney: { step: "CHECKOUT_COMPLETION" }, presentmentCurrencyRate: "1.0",
+    shop: { restrictionSettings: null, tierRules: { jsonValue: tiers } },
+    cart: { cost: { subtotalAmount: { currencyCode: "USD" } }, lines: [
+      { ...line("gid://shopify/Product/2", false, false, { amount: "169.98" }), discountAllocations: [{ discountedAmount: { amount: discount } }], tierMarker: null },
+      { ...line("gid://shopify/Product/8708096557231", false, false, { amount: "40.0" }), tierMarker: { value: "a" } },
+    ] },
+  });
+  expect(messages(run("42.48"))[0]).toContain("doesn't qualify");
+  expect(run("10.00")).toEqual({ operations: [] });
+});

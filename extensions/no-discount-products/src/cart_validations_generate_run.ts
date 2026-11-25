@@ -90,8 +90,13 @@ function tierGiftErrors(input: CartValidationsGenerateRunInput, settings: TierSe
   const giftQuantity = giftLines.reduce((total, line) => total + line.quantity, 0);
   if (!giftQuantity) return [];
 
-  const paidSubtotalCents = input.cart.lines.reduce((total, line) =>
-    isGift(line) ? total : total + Math.round(Number(line.cost.subtotalAmount.amount) * 100), 0);
+  // After discounts: each paid line less every discount allocated to it
+  // (sale prices, discount codes, order discounts), as in the cart popup.
+  const paidSubtotalCents = Math.max(0, input.cart.lines.reduce((total, line) => {
+    if (isGift(line)) return total;
+    const discounts = line.discountAllocations.reduce((sum, allocation) => sum + Number(allocation.discountedAmount.amount), 0);
+    return total + Math.round((Number(line.cost.subtotalAmount.amount) - discounts) * 100);
+  }, 0));
   const cartCurrency = input.cart.cost?.subtotalAmount?.currencyCode;
   const rate = cartCurrency === "USD" ? 1 : settings.shopCurrency === "USD" ? Number(input.presentmentCurrencyRate) || 1 : 1;
   const reached = tiers.reduce((index, tier, tierIndex) =>

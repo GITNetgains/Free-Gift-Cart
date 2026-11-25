@@ -47,11 +47,10 @@ export function isTierGiftLine(line) {
 const isOldGiftLine = (line) =>
   Boolean(line.attributes?.some((attribute) => attribute.key === '_free_gift' && attribute.value === 'true'));
 
-// The line's cost before discounts, matching the function's subtotalAmount.
+// The line's cost after its discounts (sale prices, product discounts).
+// Order discounts are taken off the total in TierGift.
 function lineSubtotal(line) {
-  const discounts = (line.discountAllocations || [])
-    .reduce((total, allocation) => total + Number(allocation.discountedAmount?.amount || 0), 0);
-  return Number(line.cost?.totalAmount?.amount || 0) + discounts;
+  return Number(line.cost?.totalAmount?.amount || 0);
 }
 
 const shortTitle = (title) => String(title || '').replace(/^\s*free\s+gift\s*[|:\-–]\s*/i, '');
@@ -142,9 +141,13 @@ export function TierGift({settings}) {
 
   const rate = catalog?.rate || 1;
   const tiers = settings.tiers;
-  const paid = lines
+  // After discounts, as in the cart popup: paid lines at their discounted
+  // cost, less order discounts (discount codes, automatic order discounts).
+  const orderDiscounts = (shopify.discountAllocations?.value || [])
+    .reduce((total, allocation) => total + Number(allocation.discountedAmount?.amount || 0), 0);
+  const paid = Math.max(0, lines
     .filter((line) => !isTierGiftLine(line) && !isOldGiftLine(line))
-    .reduce((total, line) => total + lineSubtotal(line), 0);
+    .reduce((total, line) => total + lineSubtotal(line), 0) - orderDiscounts);
   const thresholds = tiers.map((tier) => (tier.minimum / 100) * rate);
   const reached = thresholds.reduce((index, threshold, tierIndex) => (paid >= threshold ? tierIndex : index), -1);
   const tier = tiers[reached];
