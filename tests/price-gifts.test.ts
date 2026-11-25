@@ -80,9 +80,10 @@ describe("price gift settings", () => {
     expect(tierRangeErrors([tier(29900, null), tier(29900, null)])[0]).toContain("same amount");
   });
 
-  test("only netgains10 gets the feature", () => {
+  test("netgains10 and the live store get the feature", () => {
     expect(priceGiftsEnabledFor("netgains10.myshopify.com")).toBe(true);
-    expect(priceGiftsEnabledFor("custom-collection-cases.myshopify.com")).toBe(false);
+    expect(priceGiftsEnabledFor("custom-collection-cases.myshopify.com")).toBe(true);
+    expect(priceGiftsEnabledFor("other.myshopify.com")).toBe(false);
   });
 });
 

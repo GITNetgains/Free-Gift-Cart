@@ -6,7 +6,7 @@
 
 // Stores that see the feature. Others get no menu link, no page and no
 // settings, so the storefront embed and the discount stay idle there.
-export const PRICE_GIFT_SHOPS = ["netgains10.myshopify.com"];
+export const PRICE_GIFT_SHOPS = ["netgains10.myshopify.com", "custom-collection-cases.myshopify.com"];
 export const priceGiftsEnabledFor = (shop: string) => PRICE_GIFT_SHOPS.includes(shop);
 
 export const PRICE_GIFT_NAMESPACE = "tiered_gift";
