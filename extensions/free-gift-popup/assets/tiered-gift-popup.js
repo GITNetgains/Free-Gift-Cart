@@ -445,7 +445,7 @@
     const both = offered.length === 2 ? "BOTH" : "ALL";
     // $350+ tier: "You have unlocked two free gifts" (the line under it says
     // how many are still to pick).
-    const heading = tier.mode === "two" ? "YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
+    const heading = tier.mode === "two" ? "YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "CONGRATULATIONS! YOU’VE UNLOCKED A FREE GIFT!";
     const subheading = tier.mode === "two"
       ? tier.remaining === 1
         ? "Your first free gift is already in your cart. Pick 1 more gift below and choose its options."

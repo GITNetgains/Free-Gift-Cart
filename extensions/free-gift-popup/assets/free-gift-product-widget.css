@@ -189,3 +189,16 @@
 @container (min-width: 520px) {
   .fgpw-root[data-tiered] .fgpw-subtitle { font-size: 13px; white-space: normal; }
 }
+
+/* One font for the whole price gifts widget: the theme's own (the title
+   already used it, the rest was Arial), with calmer weights. */
+.fgpw-root[data-tiered] .fgpw-card,
+.fgpw-root[data-tiered] .fgpw-card * { font-family: inherit; letter-spacing: normal; }
+.fgpw-root[data-tiered] .fgpw-title { font-size: clamp(17px, 2.8cqi, 20px); font-weight: 700; line-height: 1.25; margin-bottom: 4px; }
+.fgpw-root[data-tiered] .fgpw-title strong { font-weight: 700; }
+.fgpw-root[data-tiered] .fgpw-subtitle { color: #475467; font-size: 14px; font-weight: 400; line-height: 1.5; }
+.fgpw-root[data-tiered] .fgpw-subtitle strong { font-weight: 700; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { font-size: 13px; font-weight: 600; }
+.fgpw-root[data-tiered] .fgpw-free { font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.fgpw-root[data-tiered] .fgpw-timer { font-size: 11px; font-weight: 600; }
+.fgpw-root[data-tiered] .fgpw-timer b { font-weight: 700; }
