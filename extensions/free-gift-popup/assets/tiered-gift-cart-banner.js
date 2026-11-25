@@ -61,6 +61,23 @@
 @container (max-width: 440px) {
   .fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { height: 56px; width: 56px; }
 }
+/* Even tighter: no empty band between a gift's title and its FREE tag,
+   both columns start at the top, smaller gaps around every row. */
+.fgcb-root[data-tiered] .fgcb-card { align-items: start; padding: 12px 18px 10px; row-gap: 6px; }
+.fgcb-root[data-tiered] .fgcb-middle { justify-content: flex-start; }
+.fgcb-root[data-tiered] .fgcb-heading { margin: 8px 0 4px; }
+.fgcb-root[data-tiered] .fgcb-alt { margin: 2px 0; }
+.fgcb-root[data-tiered] .fgcb-progress { margin-top: 8px; }
+.fgcb-root[data-tiered] .fgcb-continue { margin-top: 10px; min-height: 38px; }
+.fgcb-root[data-tiered] .fgcb-label { margin-bottom: 6px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { justify-content: flex-start; padding: 8px 8px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { height: 64px; width: 64px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { flex: 0 0 auto; gap: 6px; justify-content: flex-start; }
+.fgcb-root[data-tiered] .fgcb-next { margin-top: 8px; padding-top: 8px; }
+@container (max-width: 760px) {
+  /* Stacked cards: the title wraps inside the card instead of running past it. */
+  .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { flex: 1 1 auto; min-width: 0; }
+}
 `;
       document.head?.appendChild(style);
     }
