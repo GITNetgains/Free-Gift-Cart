@@ -69,9 +69,11 @@ async function enrichProducts(admin: Admin, settings: PriceGiftSettings) {
 // Every current variant of each gift product, for the "shown in the popup"
 // checkboxes (the popup offers all of a gift product's variants).
 export type GiftVariantChoice = { id: string; title: string; soldOut: boolean };
-async function giftProductVariants(admin: Admin, settings: PriceGiftSettings) {
+// Also each product's photos, for the "image shown for this gift" choice.
+type GiftProductInfo = { variants: Record<string, GiftVariantChoice[]>; images: Record<string, string[]> };
+async function giftProductVariants(admin: Admin, settings: PriceGiftSettings): Promise<GiftProductInfo> {
   const productIds = [...new Set(settings.tiers.flatMap((tier) => tier.products.map((product) => product.productId)))];
-  if (productIds.length === 0) return {} as Record<string, GiftVariantChoice[]>;
+  if (productIds.length === 0) return { variants: {}, images: {} };
   const response = await admin.graphql(
     `#graphql
       query PriceGiftProductVariants($ids: [ID!]!) {
@@ -79,6 +81,7 @@ async function giftProductVariants(admin: Admin, settings: PriceGiftSettings) {
           ... on Product {
             id
             variants(first: 100) { nodes { id title availableForSale } }
+            media(first: 20) { nodes { ... on MediaImage { image { url } } } }
           }
         }
       }
@@ -86,10 +89,12 @@ async function giftProductVariants(admin: Admin, settings: PriceGiftSettings) {
     { variables: { ids: productIds } },
   );
   const json = await response.json();
-  type Node = { id: string; variants: { nodes: Array<{ id: string; title: string; availableForSale: boolean }> } };
-  return Object.fromEntries(((json.data?.nodes || []) as Array<Node | null>).flatMap((node) => node?.id
-    ? [[node.id, node.variants.nodes.map((variant) => ({ id: variant.id, title: variant.title, soldOut: !variant.availableForSale }))]]
-    : [])) as Record<string, GiftVariantChoice[]>;
+  type Node = { id: string; variants: { nodes: Array<{ id: string; title: string; availableForSale: boolean }> }; media?: { nodes: Array<{ image?: { url: string } | null }> } };
+  const nodes = ((json.data?.nodes || []) as Array<Node | null>).filter((node): node is Node => Boolean(node?.id));
+  return {
+    variants: Object.fromEntries(nodes.map((node) => [node.id, node.variants.nodes.map((variant) => ({ id: variant.id, title: variant.title, soldOut: !variant.availableForSale }))])),
+    images: Object.fromEntries(nodes.map((node) => [node.id, (node.media?.nodes || []).flatMap((media) => media?.image?.url ? [media.image.url] : [])])),
+  };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -98,9 +103,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const response = await admin.graphql(SETTINGS_QUERY);
   const result = await response.json();
   const settings = normalizeSettings(result.data?.shop?.metafield?.jsonValue as Partial<PriceGiftSettings>);
-  let variants: Record<string, GiftVariantChoice[]> = {};
-  try { variants = await giftProductVariants(admin, settings); } catch { variants = {}; }
-  return { allowed: true as const, settings, variants };
+  let info: GiftProductInfo = { variants: {}, images: {} };
+  try { info = await giftProductVariants(admin, settings); } catch { /* keep empty */ }
+  return { allowed: true as const, settings, variants: info.variants, images: info.images };
 };
 
 async function ensureDiscount(admin: Admin, settings: PriceGiftSettings) {
@@ -190,9 +195,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   )).json();
   const error = saveJson.data?.metafieldsSet?.userErrors?.[0]?.message;
   if (error) return { ok: false, error };
-  let variants: Record<string, GiftVariantChoice[]> = {};
-  try { variants = await giftProductVariants(admin, settings); } catch { variants = {}; }
-  return { ok: true, settings, variants, warning: discount.warning };
+  let info: GiftProductInfo = { variants: {}, images: {} };
+  try { info = await giftProductVariants(admin, settings); } catch { /* keep empty */ }
+  return { ok: true, settings, variants: info.variants, images: info.images, warning: discount.warning };
 };
 
 function stockLabel(product: TierGiftProduct): { label: string; tone: "success" | "warning" | "critical" | "neutral" } {
@@ -278,15 +283,16 @@ export default function PriceGifts() {
       <s-section><s-paragraph>{"This feature isn't available on this store."}</s-paragraph></s-section>
     </s-page>;
   }
-  return <PriceGiftsEditor initial={data.settings} initialVariants={data.variants} />;
+  return <PriceGiftsEditor initial={data.settings} initialVariants={data.variants} initialImages={data.images} />;
 }
 
-function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSettings; initialVariants: Record<string, GiftVariantChoice[]> }) {
+function PriceGiftsEditor({ initial, initialVariants, initialImages }: { initial: PriceGiftSettings; initialVariants: Record<string, GiftVariantChoice[]>; initialImages: Record<string, string[]> }) {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const [saved, setSaved] = useState<PriceGiftSettings>(initial);
   const [settings, setSettings] = useState<PriceGiftSettings>(initial);
   const [variantChoices, setVariantChoices] = useState<Record<string, GiftVariantChoice[]>>(initialVariants);
+  const [productImages, setProductImages] = useState<Record<string, string[]>>(initialImages || {});
   const saving = fetcher.state !== "idle";
   const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
 
@@ -295,6 +301,7 @@ function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSett
     if (fetcher.data.ok && "settings" in fetcher.data && fetcher.data.settings) {
       setSettings(fetcher.data.settings); setSaved(fetcher.data.settings);
       if ("variants" in fetcher.data && fetcher.data.variants) setVariantChoices(fetcher.data.variants);
+      if ("images" in fetcher.data && fetcher.data.images) setProductImages(fetcher.data.images);
       shopify.toast.show(fetcher.data.warning || "Price gift settings saved");
     } else if ("error" in fetcher.data && fetcher.data.error) shopify.toast.show(fetcher.data.error, { isError: true });
   }, [fetcher.data, shopify]);
@@ -458,6 +465,14 @@ function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSett
           if (open) next.add(productId); else next.delete(productId);
           return { ...current, allowProductPageIds: [...next] };
         });
+        const giftImages = view.giftImages || {};
+        // Store a 600px CDN copy; "" goes back to the product's main photo.
+        const sized = (url: string) => url + (url.includes("?") ? "&" : "?") + "width=600";
+        const setGiftImage = (productId: string, url: string) => setSettings((current) => {
+          const next = Object.fromEntries(Object.entries(current.giftImages || {}).filter(([id]) => id !== productId));
+          if (url) next[productId] = sized(url);
+          return { ...current, giftImages: next };
+        });
         return <s-section heading="Gift product pages and variants">
           <s-stack gap="base">
             <s-text color="subdued">Gift product pages send shoppers to the cart, so gifts are only claimed in the popup. Untick a variant to keep it out of the popup; sold-out variants never show.</s-text>
@@ -470,6 +485,22 @@ function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSett
                   details="Untick if this product is also sold on its own."
                   checked={!allowed.has(group.productId)}
                   onChange={(event) => setPageOpen(group.productId, !event.currentTarget.checked)} />
+                {(productImages[group.productId]?.length || 0) > 1 && <>
+                  <s-text type="strong">Image shown for this gift</s-text>
+                  <s-stack direction="inline" gap="small-200">
+                    {productImages[group.productId].map((url, imageIndex) => {
+                      const chosen = giftImages[group.productId] ? giftImages[group.productId] === sized(url) : imageIndex === 0;
+                      return <s-clickable key={url} onClick={() => setGiftImage(group.productId, imageIndex === 0 ? "" : url)}
+                        border={chosen ? "large-100 strong" : "base"} borderRadius="base" padding="small-300"
+                        accessibilityLabel={`Image ${imageIndex + 1}${chosen ? " (shown)" : ""}`}>
+                        <s-stack gap="small-300" alignItems="center">
+                          <s-thumbnail src={url} alt={`Image ${imageIndex + 1}`} size="small" />
+                          <s-text color={chosen ? "base" : "subdued"}>{chosen ? "Shown" : `Image ${imageIndex + 1}`}</s-text>
+                        </s-stack>
+                      </s-clickable>;
+                    })}
+                  </s-stack>
+                </>}
                 <s-text type="strong">Shown in the gift popup</s-text>
                 {!choices
                   ? <s-text color="subdued">Save to load this product&apos;s variants.</s-text>

@@ -108,13 +108,16 @@
       }
     };
 
+    // Image chosen per gift product on the Price gifts page; it replaces the
+    // product photo everywhere the gift is shown.
+    const giftImages = settings.giftImages && typeof settings.giftImages === "object" ? settings.giftImages : {};
     // Tiers low to high with their gift products (one card per product).
     const tiers = settings.tiers.map((tier) => {
       const products = new Map();
       (tier.products || []).forEach((variant) => {
 
         if (!products.has(variant.productId)) products.set(variant.productId, {
-          id: variant.productId, title: variant.productTitle, imageUrl: variant.imageUrl, variantIds: new Set(),
+          id: variant.productId, title: variant.productTitle, imageUrl: giftImages[variant.productId] || variant.imageUrl, variantIds: new Set(),
         });
         products.get(variant.productId).variantIds.add(numericId(variant.variantId));
       });

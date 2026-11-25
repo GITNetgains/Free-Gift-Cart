@@ -90,6 +90,9 @@
     }
   }));
 
+  // Image chosen per gift product on the Price gifts page; it replaces the
+  // product and variant photos everywhere the gift is shown.
+  const giftImages = tierSettings.giftImages && typeof tierSettings.giftImages === "object" ? tierSettings.giftImages : {};
   const hiddenVariants = new Set(Array.isArray(tierSettings.hiddenVariantIds) ? tierSettings.hiddenVariantIds : []);
   // Tiers low to high, each with its gift products grouped from variants.
   const tiers = tierSettings.tiers.map((tier) => {
@@ -113,7 +116,7 @@
     variants.forEach((variant) => {
       if (!products.has(variant.productId)) products.set(variant.productId, {
         id: variant.productId, title: variant.productTitle,
-        imageUrl: live[variant.variantId]?.productImage || variant.imageUrl,
+        imageUrl: giftImages[variant.productId] || live[variant.variantId]?.productImage || variant.imageUrl,
         variants: [], allVariants: [], variantIds: new Set(),
       });
       const product = products.get(variant.productId);
@@ -122,7 +125,7 @@
       // line of one is still recognised as this gift.
       if (hiddenVariants.has(variant.variantId)) return;
       product.allVariants.push(variant);
-      if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
+      if (inStock(variant)) product.variants.push({ ...variant, imageUrl: giftImages[variant.productId] || live[variant.variantId]?.image || variant.imageUrl });
     });
     return {
       // Netgains10: Tier 1 is pick one; Tier 2 is pick two from its choices.

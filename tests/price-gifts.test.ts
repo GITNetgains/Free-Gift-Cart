@@ -101,3 +101,12 @@ test("the second tier always offers two gifts", () => {
  expect(normalized.tiers.map(tier=>tier.mode)).toEqual(["one","two"]);
  expect(JSON.parse(functionSettings(normalized)).tiers[1].mode).toBe("two");
 });
+
+test("gift images keep only product ids with https image URLs", () => {
+  const normalized = normalizeSettings({ tiers: [], giftImages: {
+    "gid://shopify/Product/1": "https://cdn.shopify.com/s/files/a.jpg?v=1&width=600",
+    "gid://shopify/Product/2": "javascript:alert(1)",
+    "not-a-product": "https://cdn.shopify.com/b.jpg",
+  } } as never);
+  expect(normalized.giftImages).toEqual({ "gid://shopify/Product/1": "https://cdn.shopify.com/s/files/a.jpg?v=1&width=600" });
+});

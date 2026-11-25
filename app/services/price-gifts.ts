@@ -63,6 +63,9 @@ export type PriceGiftSettings = {
   // Gift product pages are closed (the storefront sends shoppers to the
   // cart); products listed here keep their page, e.g. one also sold paid.
   allowProductPageIds?: string[];
+  // Product id -> image URL shown for that gift instead of its main photo
+  // (popup, cart banner and product widget).
+  giftImages?: Record<string, string>;
 };
 
 export const DEFAULT_PRICE_GIFT_SETTINGS: PriceGiftSettings = {
@@ -132,6 +135,8 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
     tiers,
     hiddenVariantIds: ids(raw?.hiddenVariantIds, "ProductVariant"),
     allowProductPageIds: ids(raw?.allowProductPageIds, "Product"),
+    giftImages: Object.fromEntries(Object.entries(raw?.giftImages && typeof raw.giftImages === "object" ? raw.giftImages : {})
+      .filter(([id, url]) => id.startsWith("gid://shopify/Product/") && typeof url === "string" && /^https:\/\/[^\s"<>]+$/.test(url) && url.length < 600)) as Record<string, string>,
   };
 }
 

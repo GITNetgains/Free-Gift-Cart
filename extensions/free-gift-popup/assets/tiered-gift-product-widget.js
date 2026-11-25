@@ -45,13 +45,16 @@
       }
     };
 
+    // Image chosen per gift product on the Price gifts page; it replaces the
+    // product photo everywhere the gift is shown.
+    const giftImages = settings.giftImages && typeof settings.giftImages === "object" ? settings.giftImages : {};
     // Tiers low to high, one card per gift product. Tier 2 is pick two.
     const tiers = settings.tiers.map((tier) => {
       const products = new Map();
       (tier.products || []).forEach((variant) => {
         if (!products.has(variant.productId)) products.set(variant.productId, {
           id: variant.productId, title: variant.productTitle,
-          imageUrl: live[variant.variantId]?.productImage || variant.imageUrl, variantIds: new Set(),
+          imageUrl: giftImages[variant.productId] || live[variant.variantId]?.productImage || variant.imageUrl, variantIds: new Set(),
         });
         products.get(variant.productId).variantIds.add(numericId(variant.variantId));
       });
