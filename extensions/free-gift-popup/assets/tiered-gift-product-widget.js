@@ -56,7 +56,14 @@
         products.get(variant.productId).variantIds.add(numericId(variant.variantId));
       });
       return { minimum: Number(tier.minimumSpend || 0), products: [...products.values()] };
-    }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({ ...tier, limit: index === 1 ? 2 : 1 }));
+    }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({ ...tier, limit: index === 1 ? 2 : 1 }))
+      // Tier 2 (pick two) chooses from the Tier 1 gifts plus its own, as in
+      // the popup and the discount function.
+      .map((tier, index, list) => tier.limit !== 2 ? tier : {
+        ...tier,
+        products: [...new Map(list.slice(0, index + 1).flatMap((candidate) => candidate.products)
+          .map((product) => [product.id, product])).values()],
+      });
 
     const tierVariantIds = new Set(tiers.flatMap((tier) => tier.products.flatMap((product) => [...product.variantIds])));
     const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);

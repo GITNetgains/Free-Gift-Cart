@@ -75,7 +75,13 @@
       };
     }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({
       ...tier, mode: index === 1 ? "two" : "one",
-    }));
+    })).map((tier, index, list) => tier.mode !== "two" ? tier : {
+      // Tier 2 (pick two) chooses from the Tier 1 gifts plus its own, as in
+      // the popup and the discount function.
+      ...tier,
+      products: [...new Map(list.slice(0, index + 1).flatMap((candidate) => candidate.products)
+        .map((product) => [product.id, product])).values()],
+    });
 
     // Gift lines don't count toward the total, as in the popup.
     const tierVariantIds = new Set(tiers.flatMap((tier) => tier.products.flatMap((product) => [...product.variantIds])));

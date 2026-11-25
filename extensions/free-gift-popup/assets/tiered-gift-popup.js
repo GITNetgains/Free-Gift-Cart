@@ -132,7 +132,15 @@
     };
   }).sort((a, b) => a.minimum - b.minimum).map((tier, index) => ({
     ...tier, mode: index === 1 ? "two" : "one",
-  }));
+  })).map((tier, index, list) => {
+    // Tier 2 (pick two) chooses from the Tier 1 gifts plus its own, so the
+    // shopper sees the gifts left after the one already in the cart (same
+    // pool as the discount function).
+    if (tier.mode !== "two") return tier;
+    const pool = (key) => [...new Map(list.slice(0, index + 1).flatMap((candidate) => candidate[key])
+      .map((product) => [product.id, product])).values()];
+    return { ...tier, allProducts: pool("allProducts"), products: pool("products") };
+  });
 
   // Always-gift products (their variants are $0), as in free-gift-popup.js.
   const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
@@ -165,8 +173,9 @@
     if (values.every((value) => colors.some((color) => String(value).toLowerCase().includes(color)))) return "Color";
     return `Option ${index + 1}`;
   };
+  // Only in-stock variants: an unavailable size/colour is not shown at all.
   const optionGroups = (product) => {
-    const variants = product.allVariants || product.variants;
+    const variants = product.variants;
     const count = Math.max(0, ...variants.map((variant) => variantValues(variant).length));
     return Array.from({ length: count }, (_, index) => {
       const values = [...new Set(variants.map((variant) => variantValues(variant)[index]).filter(Boolean))];
@@ -225,10 +234,11 @@
   };
   // Options cascade: the first option (e.g. size) lists every value; each
   // later option (e.g. colour) lists only the values that exist with the
-  // choices above it, so a shopper never sees a combination that isn't there.
+  // choices above it, so a shopper never sees a combination that isn't there
+  // (or one that is out of stock).
   const valuesFor = (product, index, values) => {
     const current = variantValues(variantOf(product));
-    return values.filter((value) => (product.allVariants || product.variants).some((variant) => {
+    return values.filter((value) => product.variants.some((variant) => {
       const options = variantValues(variant);
       return options[index] === value && current.slice(0, index).every((item, optionIndex) => options[optionIndex] === item);
     }));
@@ -247,11 +257,7 @@
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
         <div class="fgc-options">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
-          const available = product.variants.some((variant) => {
-            const values = variantValues(variant);
-            return values[groupIndex] === value && selected.slice(0, groupIndex).every((item, index) => values[index] === item);
-          });
-          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}"${available ? "" : ' disabled aria-disabled="true"'} data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}${available ? "" : " (Unavailable)"}</button>`;
+          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
         }).join("")}</div>
       </fieldset>`).join("")}
     </div>`;

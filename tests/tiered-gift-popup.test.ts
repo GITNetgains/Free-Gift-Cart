@@ -257,7 +257,7 @@ describe("current variant availability",()=>{
  test("an unavailable original variant stays blocked while a new available variant can be claimed",async()=>{
   const offer=withFirst({...sling2,productHandle:"slab-case-one"} as typeof sling2);
   const popup=await open(offer,{products:{"slab-case-one":{options:["Type"],variants:[{id:11,title:"Original",options:["Original"],available:false},{id:12,title:"Restocked",options:["Restocked"],available:true}]}}});
-  expect(popup.content).toContain("Original (Unavailable)");
+  expect(popup.content).not.toContain("Original");expect(popup.content).toContain("Restocked");
   popup.clickCard(sling2.productId);popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([12]);
  });
  test("a failed refresh preserves the server-rendered availability",async()=>{
@@ -278,11 +278,12 @@ describe("all current variants of the gift product",()=>{
   popup.clickOption(sling2.productId,title);popup.clickClaim();
   expect(popup.additions.map(i=>i.id)).toEqual([101+titles.indexOf(title)]);
  });
- test("unavailable variants remain visible but cannot be chosen",async()=>{
+ test("unavailable variants are not shown",async()=>{
   const product=full();product.variants[0].available=false;
   const popup=await run([paid(19998)],"/products/case",undefined,[],null,offer(),{products:{"slab-case-one":product}});
-  expect(popup.content).toContain("PSA (Unavailable)");expect(popup.content).toContain('disabled aria-disabled="true"');
-  popup.clickOption(sling2.productId,"PSA");popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([102]);
+  expect(popup.content).not.toContain('data-option-value="PSA"');expect(popup.content).not.toContain("Unavailable");
+  expect(popup.content).toContain('data-option-value="BGS"');
+  popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([102]);
  });
  test("newly discovered variants remain valid in the cart after reload",async()=>{
   const popup=await run([paid(19998),giftLine("new",101,"low")],"/products/case",undefined,[],null,offer(),{products:{"slab-case-one":full()}});

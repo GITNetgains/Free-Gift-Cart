@@ -88,8 +88,19 @@ describe("Netgains10 tier banner",()=>{
   expect(root.innerHTML).toContain('class="fgcb-hint fgcb-hint--alt"><span>Spend <strong>$350</strong> to choose <strong>2 of 3 free gifts</strong>.');
   expect(root.innerHTML).not.toContain("Choose your favourite. One free gift per order.");
  });
+ test("Tier 2 offers the gifts left from Tier 1 and Tier 2 together",async()=>{
+  const offer={enabled:true,tiers:[
+   {id:"low",minimumSpend:15000,mode:"one",products:[gift("4","41","Slab Case One"),gift("5","51","T-Shirt"),gift("6","61","Sling 2.0")]},
+   {id:"high",minimumSpend:35000,mode:"two",products:[gift("5","51","T-Shirt"),gift("6","61","Sling 2.0")]}]};
+  const below=await render([paid(10000)],"USD",offer);
+  expect(below.innerHTML).toContain("choose <strong>2 of 3 free gifts</strong>");
+  const root=await render([paid(29997),tierGift(51,"low")],"USD",offer);
+  expect(root.innerHTML).toContain("Tier 2 gift options");
+  expect(root.innerHTML).toContain("Slab Case One");expect(root.innerHTML).toContain("Sling 2.0");
+  expect(root.innerHTML).not.toContain(">T-Shirt<");
+ });
  test("a two-gift Tier 2 reads BOTH, never 2 of 2",async()=>{
-  const offer={enabled:true,tiers:[campaign.tiers[0],{...campaign.tiers[1],products:campaign.tiers[1].products.slice(0,2)}]};
+  const offer={enabled:true,tiers:[{...campaign.tiers[0],products:campaign.tiers[1].products.slice(0,2)},{...campaign.tiers[1],products:campaign.tiers[1].products.slice(0,2)}]};
   const root=await render([paid(10000)],"USD",offer);
   expect(root.innerHTML).toContain("Spend <strong>$350</strong> to get <strong>BOTH free gifts</strong>.");
   expect(root.innerHTML).toContain("Unlock BOTH gifts for FREE!");
