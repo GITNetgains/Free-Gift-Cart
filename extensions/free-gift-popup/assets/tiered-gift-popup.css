@@ -162,3 +162,34 @@
   align-items: center; display: flex; justify-content: center; line-height: 1.2; min-height: 38px;
   min-width: 0; overflow-wrap: anywhere; padding: 6px 6px; text-align: center; white-space: normal; width: 100%;
 }
+
+/* Option buttons, lighter: smaller, thin border, no heavy shadow; picked one
+   is solid navy. */
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] { gap: 6px; }
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option {
+  background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: none; color: #344054;
+  font-size: 12px; font-weight: 600; line-height: 1.15; min-height: 30px; padding: 4px 6px;
+}
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option:hover { border-color: #98a2b3; }
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option.is-selected {
+  background: #111d45; border-color: #111d45; box-shadow: none; color: #fff;
+}
+.fgc-dialog--compact .fgc-options.fgc-grid-2 .fgc-option { font-size: 11.5px; }
+.fgc-dialog--compact .fgc-col-options .fgc-option-group legend { font-size: 12px; margin-bottom: 6px; }
+@media (max-width: 760px) {
+  .fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option { min-height: 34px; }
+}
+/* Labels wrap between words only, never mid-word. */
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option { overflow-wrap: normal; word-break: normal; }
+
+/* Side-by-side gift boxes line up: every gift title gets the same two-line
+   space (longer titles end in "…"), so the photos, titles and the
+   "Choose your size/colour" rows sit at one height in every box. */
+@media (min-width: 541px) {
+  .fgc-products--all .fgc-gift-col .fgc-product-title {
+    -webkit-box-orient: vertical; -webkit-line-clamp: 2; display: -webkit-box;
+    line-height: 1.4; min-height: 2.8em; overflow: hidden;
+  }
+  .fgc-products--all .fgc-gift-col .fgc-product { justify-content: flex-start; }
+  .fgc-products--all .fgc-col-options .fgc-option-group legend { text-align: left; }
+}
