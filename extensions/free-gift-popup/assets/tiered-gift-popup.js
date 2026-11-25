@@ -244,6 +244,12 @@
     }));
   };
 
+  // Option labels start with a capital ("black" shows as "Black"); values
+  // that already have capitals ("MagPro (All sizes)") stay as they are.
+  const displayValue = (value) => {
+    const text = String(value);
+    return text === text.toLowerCase() ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  };
   // Options for one product. In "all" tiers every gift gets its own block,
   // titled with the product, so it is clear which gift each choice is for.
   const optionsHtml = (product, titled) => {
@@ -257,7 +263,7 @@
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
         <div class="fgc-options">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
-          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
+          return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(displayValue(value))}</button>`;
         }).join("")}</div>
       </fieldset>`).join("")}
     </div>`;
@@ -287,7 +293,7 @@
           <span class="fgc-check" aria-hidden="true"></span>
           <img class="fgc-product-image" src="${escapeHtml(imageFor(product))}" alt="${escapeHtml(product.title)}" loading="lazy"${imageFor(product) ? "" : " hidden"}>
           <strong class="fgc-product-title">${escapeHtml(product.title)}</strong>
-          <span class="fgc-free">${product.variants.length ? "🎁 FREE" : "OUT OF STOCK"}</span>
+          ${product.variants.length ? "" : '<span class="fgc-free">OUT OF STOCK</span>'}
         </button>`;
         return columns
           ? `<div class="fgc-gift-col" data-col="${escapeHtml(product.id)}">${card}<div class="fgc-col-options" data-col-for="${escapeHtml(product.id)}"></div></div>`
@@ -431,11 +437,6 @@
       : pickOne
         ? "Choose 1 free gift below. Select your preferred options, then claim your gift."
         : "The gift below is free with your order. Choose your options and add it to your cart.";
-    const urgency = several
-      ? "Limited quantities available. Claim your gifts while supplies last!"
-      : pickOne
-        ? "Limited quantities available. Claim your free gift while supplies last!"
-        : "Limited quantities available. Claim yours while supplies last.";
     const giftTitle = several ? "Your FREE Gifts" : pickOne ? "Choose Your FREE Gift" : "";
     root.style.setProperty("--fgc-background", look.backgroundColor || "#FFFFFF");
     root.style.setProperty("--fgc-text", look.textColor || "#111827");
@@ -447,8 +448,6 @@
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${heading}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
-        <p class="fgc-policy">${tier.mode === "two" ? "Two different free gifts per order." : "One free gift per order."}</p>
-        <p class="fgc-urgency">◷ &nbsp; ${escapeHtml(urgency)}</p>
         ${giftTitle ? `<p class="fgc-gift-title">${giftTitle}</p>` : ""}
         <div class="fgc-content"></div>
         <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>

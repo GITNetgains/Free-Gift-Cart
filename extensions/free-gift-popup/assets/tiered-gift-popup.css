@@ -128,3 +128,26 @@
   .fgc-claim { font-size: 15px; letter-spacing: 0; line-height: 1.2; padding: 10px 12px; }
   .fgc-heading { font-size: 16px; }
 }
+
+/* Each gift with its sizes/colours is one complete box (card + options).
+   The box gets the red border when the gift is picked; the card inside has
+   no border of its own. */
+.fgc-products--all .fgc-gift-col {
+  background: #fff; border: 1.5px solid #d6dae1; border-radius: 16px; box-sizing: border-box;
+  gap: 4px; padding: 10px 12px 12px; transition: border-color .12s, box-shadow .12s;
+}
+.fgc-products--all .fgc-gift-col.is-selected { border-color: var(--fgc-button, #ef0b18); box-shadow: 0 12px 28px rgba(239, 11, 24, .09); }
+.fgc-products--all .fgc-gift-col .fgc-product,
+.fgc-products--all .fgc-gift-col .fgc-product.is-selected { background: transparent; border: 0; box-shadow: none; padding: 4px 0 2px; }
+.fgc-products--all .fgc-gift-col .fgc-check { right: 0; top: 0; }
+.fgc-products--all .fgc-gift-col .fgc-product-title { margin-bottom: 0; }
+.fgc-products--all .fgc-col-options { border-top: 1px solid #eaecf0; padding-top: 10px; }
+.fgc-products--all .fgc-col-options .fgc-option-group:last-child { margin-bottom: 0; }
+.fgc-products--two .fgc-gift-col:not(.is-selected) .fgc-col-options { opacity: 1; }
+@media (max-width: 760px) {
+  .fgc-products--two .fgc-gift-col,
+  .fgc-products--two .fgc-gift-col:last-child { border-bottom: 1.5px solid #d6dae1; padding-bottom: 12px; }
+  .fgc-products--two .fgc-gift-col.is-selected { border-bottom-color: var(--fgc-button, #ef0b18); }
+}
+/* Gift boxes side by side share one height. */
+.fgc-products--two { align-items: stretch; }
