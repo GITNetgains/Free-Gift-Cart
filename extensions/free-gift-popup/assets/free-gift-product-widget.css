@@ -143,3 +143,31 @@
   .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { min-height: 0; text-align: left; }
   .fgpw-root[data-tiered] .fgpw-bottom { align-items: center; }
 }
+/* Narrow cards: timer stays on the right, the note below it on the left. */
+@container (max-width: 600px) {
+  .fgpw-root[data-tiered] .fgpw-bottom { align-items: flex-end; }
+  .fgpw-root[data-tiered] .fgpw-card .fgpw-footer { align-self: stretch; }
+}
+@container (max-width: 420px) {
+  .fgpw-root[data-tiered] .fgpw-bottom { align-items: center; }
+}
+
+/* Tighter spacing throughout the price gifts widget. */
+.fgpw-root[data-tiered] .fgpw-card { padding: 12px 14px; }
+.fgpw-root[data-tiered] .fgpw-title { margin-bottom: 2px; }
+.fgpw-root[data-tiered] .fgpw-subtitle { margin-bottom: 10px; }
+.fgpw-root[data-tiered] .fgpw-products { gap: 8px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { gap: 6px; padding: 6px 6px 8px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 92px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { gap: 5px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { line-height: 1.3; min-height: 2.6em; }
+.fgpw-root[data-tiered] .fgpw-bottom { margin-top: 8px; }
+@container (max-width: 600px) {
+  .fgpw-root[data-tiered] .fgpw-bottom { gap: 4px; }
+}
+@container (max-width: 420px) {
+  .fgpw-root[data-tiered] .fgpw-card { padding: 12px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { padding: 6px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 60px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { min-height: 0; }
+}
