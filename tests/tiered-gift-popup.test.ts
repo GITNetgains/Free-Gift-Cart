@@ -137,14 +137,14 @@ describe("Netgains10 tier gift selection",()=>{
  test.each([35000,90000])("Tier 2 at %i cents lets the shopper choose two of three",async amount=>{
   const popup=await runCampaign([paid(amount)]);
   for(const title of ["Sling 2.0","T-Shirt","Sling 3.0"]) expect(popup.content).toContain(title);
-  expect(popup.html).toContain("YOU HAVE UNLOCKED TWO FREE GIFTS!");expect(popup.html).toContain("Pick 2 different gifts");
+  expect(popup.html).toContain("CONGRATULATIONS YOU HAVE UNLOCKED TWO FREE GIFTS!");expect(popup.html).toContain("Pick 2 different gifts");
   popup.clickCard(sling2.productId);popup.clickCard(shirt.productId);popup.clickClaim();
   expect(popup.additions.map(i=>i.id)).toEqual([11,21]);
   expect(popup.additions.every(i=>i.quantity===1)).toBe(true);
  });
  test("an existing Tier 1 gift stays and Tier 2 offers one more claim",async()=>{
   const popup=await runCampaign([paid(35000),giftLine("kept",11,"low")]);
-  expect(popup.html).toContain("Pick 1 more gift");expect(popup.html).toContain("Choose 1 more gift from below");expect(popup.updates).toEqual([]);
+  expect(popup.html).toContain("Choose 1 more gift from below");expect(popup.html).not.toContain("already in your cart");expect(popup.updates).toEqual([]);
   popup.clickCard(shirt.productId);popup.clickClaim();
   expect(popup.additions.map(i=>i.id)).toEqual([21]);
  });
@@ -156,7 +156,7 @@ describe("Netgains10 tier gift selection",()=>{
   ]};
   const popup=await runCampaign([paid(35000),giftLine("kept",11,"low")],offer);
   expect(popup.updates).toEqual([]);
-  expect(popup.html).toContain("Pick 1 more gift");
+  expect(popup.html).toContain("Choose 1 more gift from below");
   // With 1 left to pick, a second click swaps the choice instead of locking.
   popup.clickCard(other1.productId);popup.clickCard(other2.productId);popup.clickClaim();
   expect(popup.additions.map(i=>i.id)).toEqual([51]);
@@ -164,8 +164,8 @@ describe("Netgains10 tier gift selection",()=>{
  test("Tier 2 with 1 left: no card is locked, every gift shows its own options",async()=>{
   const offer={enabled:true,tiers:[campaign.tiers[0],{id:"high",minimumSpend:35000,mode:"two",products:[sling2,...shirtVariants]}]};
   const popup=await runCampaign([paid(35000),giftLine("kept",31,"low")],offer);
-  expect(popup.html).toContain("Pick 1 more gift");
-  expect(popup.html).toContain("Your first free gift is already in your cart");
+  expect(popup.html).toContain("Choose 1 more gift from below");
+  expect(popup.html).toContain("Choose 1 more gift from below");
   expect(popup.content).toContain("fgc-products--two fgc-products--or");
   // The T-shirt's size options show before it is picked.
   expect(popup.content).toContain('data-option-value="M"');
@@ -185,7 +185,7 @@ describe("Netgains10 tier gift selection",()=>{
   const line={...giftLine("kept",77,"low"),product_id:2};
   const popup=await runCampaign([paid(35000),line]);
   expect(popup.updates).toEqual([]);
-  expect(popup.html).toContain("Pick 1 more gift");
+  expect(popup.html).toContain("Choose 1 more gift from below");
  });
  test("two existing gifts prompt shopper to keep one below Tier 2",async()=>{
   const amount=29997;
@@ -221,7 +221,7 @@ describe("Netgains10 tier gift selection",()=>{
  });
  test("tier 2 popup opens exactly at its minimum and offers the higher tier",async()=>{
   const popup=await runCampaign([paid(35000)]);
-  expect(popup.html).toContain("YOU HAVE UNLOCKED TWO FREE GIFTS!");expect(popup.html).toContain("Pick 2 different gifts");
+  expect(popup.html).toContain("CONGRATULATIONS YOU HAVE UNLOCKED TWO FREE GIFTS!");expect(popup.html).toContain("Pick 2 different gifts");
   expect(popup.content).toContain("Sling 3.0");
  });
  test("cart just below tier 2 stays in tier 1",async()=>{

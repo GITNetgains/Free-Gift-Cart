@@ -445,10 +445,12 @@
     const both = offered.length === 2 ? "BOTH" : "ALL";
     // $350+ tier: "You have unlocked two free gifts" (the line under it says
     // how many are still to pick).
-    const heading = tier.mode === "two" ? "YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "CONGRATULATIONS! YOU’VE UNLOCKED A FREE GIFT!";
+    const heading = tier.mode === "two" ? "CONGRATULATIONS YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "CONGRATULATIONS! YOU’VE UNLOCKED A FREE GIFT!";
     const subheading = tier.mode === "two"
       ? tier.remaining === 1
-        ? "Your first free gift is already in your cart. Pick 1 more gift below and choose its options."
+        // One gift already in the cart: only the "Choose 1 more gift from
+        // below" line shows.
+        ? ""
         : `Pick ${Math.min(tier.remaining || 2, available.length)} different gift${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "s"} below and choose the options under each gift. Each gift is free with your order.`
       : several
       ? `Congratulations! Your cart qualifies for ${both} gifts. Add them to your order!`
@@ -465,7 +467,7 @@
       <section class="fgc-dialog fgc-dialog--compact${tier.mode === "all" ? " fgc-dialog--all" : ""}" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${heading}</h2></div>
-        <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        ${subheading ? `<p class="fgc-subheading">${escapeHtml(subheading)}</p>` : ""}
         ${tier.mode === "two" && tier.remaining === 1 ? '<p class="fgc-pick-note">Choose 1 more gift from below</p>' : ""}
         ${giftTitle ? `<p class="fgc-gift-title">${giftTitle}</p>` : ""}
         <div class="fgc-content"></div>
