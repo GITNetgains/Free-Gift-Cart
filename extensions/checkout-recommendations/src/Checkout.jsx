@@ -409,13 +409,27 @@ export function descriptionBlocks(html) {
   const pattern = /<(h[1-6]|ul|ol)\b[^>]*>([\s\S]*?)<\/\1>/gi;
   let last = 0;
   const addText = (chunk) => {
+    // A bold label ending in ":" starts a new line even mid-paragraph
+    // ("... style. <strong>Key Features:</strong> <strong>Storage:</strong> ...").
+    const marked = chunk.replace(/<(strong|b)\b[^>]*>(?:(?!<\/\1>)[\s\S])*?:\s*(?:<[^>]+>\s*)*<\/\1>/gi, '<br>$&');
     // Paragraphs, divs and line breaks split the text into blocks.
-    chunk.split(/<\/?(?:p|div|section|article|table|tr|td|th|tbody|thead)\b[^>]*>|<br\s*\/?>/i)
+    marked.split(/<\/?(?:p|div|section|article|table|tr|td|th|tbody|thead|li)\b[^>]*>|<br\s*\/?>/i)
       .map(inline)
+      .map(labelled)
       .filter((block) => block.lead || block.text)
       .forEach((block) => {
-        // A bold line on its own ("Key Features & Highlights:") reads as a heading.
+        // A bold label followed by another label ("Product Specifications:
+        // Exterior Dimensions: 14.5 in") is a heading with a line under it.
+        const inner = block.lead && block.text ? labelled({lead: '', text: block.text}) : null;
+        if (inner?.lead && block.lead.length <= 60) {
+          blocks.push({type: 'heading', text: block.lead.replace(/:$/, '')}, {type: 'paragraph', ...inner});
+          return;
+        }
+        // A bold line on its own ("Key Features & Highlights:"), or a short
+        // line ending in a colon, reads as a heading.
         if (block.lead && !block.text && block.lead.length <= 60) blocks.push({type: 'heading', text: block.lead.replace(/:$/, '')});
+        else if (!block.lead && block.text.length <= 60 && block.text.endsWith(':')) blocks.push({type: 'heading', text: block.text.slice(0, -1)});
+        else if (/^[•\-–—*✓✔►▪●]\s*/.test(block.text) && !block.lead) blocks.push({type: 'bullet', ...labelled({lead: '', text: block.text.replace(/^[•\-–—*✓✔►▪●]\s*/, '')})});
         else blocks.push({type: 'paragraph', ...block});
       });
   };
@@ -425,7 +439,7 @@ export function descriptionBlocks(html) {
     const tag = match[1].toLowerCase();
     if (tag === 'ul' || tag === 'ol') {
       const items = [...match[2].matchAll(/<li\b[^>]*>([\s\S]*?)(?=<li\b|$)/gi)]
-        .map((item) => inline(item[1].replace(/<\/li>/gi, '')))
+        .map((item) => labelled(inline(item[1].replace(/<\/li>/gi, ''))))
         .filter((item) => item.lead || item.text);
       if (items.length) blocks.push({type: 'list', items});
     } else {
@@ -435,7 +449,40 @@ export function descriptionBlocks(html) {
     }
   }
   addText(source.slice(last));
-  return blocks;
+  return groupLists(blocks);
+}
+
+// "Exterior Dimensions: 14.5 in" without bold: the short label before the
+// colon becomes the bold lead-in. Sentences ("Note: this ships...") with a
+// long label are left alone.
+function labelled(block) {
+  if (block.lead || !block.text) return block;
+  const match = /^([^:.!?]{2,40}):\s+(\S[\s\S]*)$/.exec(block.text);
+  return match ? {lead: `${match[1]}:`, text: match[2]} : block;
+}
+
+// Bullet lines, and two or more "Label: text" lines in a row, read as one
+// bullet list (features, specifications).
+function groupLists(blocks) {
+  const result = [];
+  let run = [];
+  const flush = () => {
+    if (run.length >= 2 || run.some((block) => block.type === 'bullet')) {
+      result.push({type: 'list', items: run.map(({lead, text}) => ({lead, text}))});
+    } else {
+      result.push(...run);
+    }
+    run = [];
+  };
+  for (const block of blocks) {
+    if (block.type === 'bullet' || (block.type === 'paragraph' && block.lead && block.text)) run.push(block);
+    else {
+      flush();
+      result.push(block);
+    }
+  }
+  flush();
+  return result;
 }
 
 // The cart changes that leave a single unit of a single gift product. Keep in
