@@ -681,6 +681,9 @@
       }
 
       if (!tier) { hidePopup(); setDismissed(""); return; }
+      // The popups open on the cart page only. Other pages still keep the
+      // cart's gifts in line (above), they just never show a popup.
+      if (!onCartPage) { hidePopup(); return; }
       // A pick-one tier with more than one gift in the cart (e.g. the cart
       // dropped from $350 to under $350 with both gifts): the shopper chooses
       // which gift to keep; the other one is removed.

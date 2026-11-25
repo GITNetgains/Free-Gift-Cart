@@ -48,7 +48,7 @@ function cartRow(line: number) {
   return { row, link: attributes, quantityBox };
 }
 
-async function run(items: Item[], pathname = "/products/case", shop = { currency: "USD", active: "USD", rate: "1.0" }, rows: Array<ReturnType<typeof cartRow>> = [], dismissed: string | null = null, offerSettings = settings, stock: { live?: Record<string, {available: boolean}>; products?: Record<string, unknown>; fail?: boolean } = {}) {
+async function run(items: Item[], pathname = "/cart", shop = { currency: "USD", active: "USD", rate: "1.0" }, rows: Array<ReturnType<typeof cartRow>> = [], dismissed: string | null = null, offerSettings = settings, stock: { live?: Record<string, {available: boolean}>; products?: Record<string, unknown>; fail?: boolean } = {}) {
   let html = "";
   // Every innerHTML the popup writes (cards, then each options refresh).
   const writes: string[] = [];
@@ -123,9 +123,9 @@ const campaign = { enabled: true, tiers: [
  {id:"low",minimumSpend:15000,mode:"one",products:[sling2,shirt,sling3]},
  {id:"high",minimumSpend:35000,mode:"one",products:[sling2,shirt,sling3]},
 ]};
-const runCampaign = (items: Item[], offer=campaign) => run(items,"/products/case",undefined,[],null,offer);
+const runCampaign = (items: Item[], offer=campaign) => run(items,"/cart",undefined,[],null,offer);
 const convertedRun = (amount: number, currency: string, active: string, rate: string) =>
- run([paid(amount)], "/products/case", {currency: "USD", active, rate}, [], null, campaign);
+ run([paid(amount)], "/cart", {currency: "USD", active, rate}, [], null, campaign);
 describe("Netgains10 tier gift selection",()=>{
  test.each([15000,29997,34999])("Tier 1 at %i cents offers choices and claims one",async amount=>{
   const popup=await runCampaign([paid(amount)]);
@@ -216,7 +216,7 @@ describe("Netgains10 tier gift selection",()=>{
   popup.clickCard(shirt.productId);popup.clickCard(sling2.productId);popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([11,21]);
  });
  test("closing only dismisses the unchanged cart",async()=>{
-  const result=await run([paid(15000)],"/products/case",undefined,[],"low|999:1",campaign);
+  const result=await run([paid(15000)],"/cart",undefined,[],"low|999:1",campaign);
   expect(result.html).toBe("");
  });
  test("tier 2 popup opens exactly at its minimum and offers the higher tier",async()=>{
@@ -236,7 +236,7 @@ describe("Netgains10 tier gift selection",()=>{
 
 describe("current variant availability",()=>{
  const withFirst=(first: typeof sling2)=>({...campaign,tiers:campaign.tiers.map(t=>({...t,products:[first,shirt,sling3]}))});
- const open=(offer: ReturnType<typeof withFirst>,stock: Parameters<typeof run>[6])=>run([paid(19998)],"/products/case",undefined,[],null,offer,stock);
+ const open=(offer: ReturnType<typeof withFirst>,stock: Parameters<typeof run>[6])=>run([paid(19998)],"/cart",undefined,[],null,offer,stock);
  test("stale zero inventory does not override live availability",async()=>{
   const offer=withFirst({...sling2,inventoryTracked:true,inventoryQuantity:0,availableForSale:false} as typeof sling2);
   const popup=await open(offer,{live:{[sling2.variantId]:{available:true}}});
@@ -272,7 +272,7 @@ describe("all current variants of the gift product",()=>{
  const full=()=>({id:1,options:[{name:"Slab type"}],variants:titles.map((title,index)=>({id:101+index,title,options:[title],available:true}))});
  const offer=()=>({...campaign,tiers:campaign.tiers.map(t=>({...t,products:[{...sling2,productHandle:"slab-case-one",variantId:"gid://shopify/ProductVariant/103",variantTitle:"SGC",optionNames:["Slab type"],optionValues:["SGC"]},shirt,sling3]}))});
  test.each(titles)("loads and claims %s even when only SGC was saved",async title=>{
-  const popup=await run([paid(19998)],"/products/case",undefined,[],null,offer(),{products:{"slab-case-one":full()}});
+  const popup=await run([paid(19998)],"/cart",undefined,[],null,offer(),{products:{"slab-case-one":full()}});
   for(const value of titles) expect(popup.content).toContain(value);
   expect(popup.content).toContain("Choose your slab type");
   popup.clickOption(sling2.productId,title);popup.clickClaim();
@@ -280,13 +280,24 @@ describe("all current variants of the gift product",()=>{
  });
  test("unavailable variants are not shown",async()=>{
   const product=full();product.variants[0].available=false;
-  const popup=await run([paid(19998)],"/products/case",undefined,[],null,offer(),{products:{"slab-case-one":product}});
+  const popup=await run([paid(19998)],"/cart",undefined,[],null,offer(),{products:{"slab-case-one":product}});
   expect(popup.content).not.toContain('data-option-value="PSA"');expect(popup.content).not.toContain("Unavailable");
   expect(popup.content).toContain('data-option-value="BGS"');
   popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([102]);
  });
  test("newly discovered variants remain valid in the cart after reload",async()=>{
-  const popup=await run([paid(19998),giftLine("new",101,"low")],"/products/case",undefined,[],null,offer(),{products:{"slab-case-one":full()}});
+  const popup=await run([paid(19998),giftLine("new",101,"low")],"/cart",undefined,[],null,offer(),{products:{"slab-case-one":full()}});
   expect(popup.updates).toEqual([]);expect(popup.html).toBe("");
+ });
+});
+
+describe("popup only on the cart page",()=>{
+ test("an unlocked tier opens nothing on a product page",async()=>{
+  const popup=await run([paid(19998)],"/products/case",undefined,[],null,campaign);
+  expect(popup.html).toBe("");
+ });
+ test("a product page still removes a gift the tier doesn't allow",async()=>{
+  const popup=await run([paid(5000),giftLine("x",11,"low")],"/products/case",undefined,[],null,campaign);
+  expect(popup.html).toBe("");expect(Object.values(popup.updates[0]||{})).toContain(0);
  });
 });
