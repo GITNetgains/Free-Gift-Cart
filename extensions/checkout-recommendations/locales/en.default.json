@@ -18,5 +18,8 @@
   "decrease": "Decrease quantity of {{title}}",
   "increase": "Increase quantity of {{title}}",
   "showOptions": "Show options for {{title}}",
-  "hideOptions": "Hide options for {{title}}"
+  "hideOptions": "Hide options for {{title}}",
+  "viewDetails": "View details",
+  "viewDetailsLabel": "View details of {{title}}",
+  "close": "Close"
 }

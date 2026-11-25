@@ -1,6 +1,6 @@
 import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
-import {useEffect, useState} from 'preact/hooks';
+import {useEffect, useRef, useState} from 'preact/hooks';
 
 // Rules are managed on the app's "Checkout recommendations" admin page and
 // saved to this shop metafield. A rule matches when any of its trigger
@@ -26,7 +26,9 @@ const PRODUCT_FIELDS = `
   title
   availableForSale
   isGiftCard
+  description
   featuredImage { url altText }
+  images(first: 6) { nodes { url altText } }
   options(first: 3) { name }
   variants(first: 25) {
     nodes {
@@ -98,6 +100,9 @@ function Extension() {
   // The one product whose options (variant, quantity) are showing.
   const [openId, setOpenId] = useState('');
   const [error, setError] = useState('');
+  // The product shown in the "View details" popup, and its photo.
+  const [detailsId, setDetailsId] = useState('');
+  const [detailsImage, setDetailsImage] = useState('');
 
   const cartProductIds = [...new Set(lines
     .map((line) => line.merchandise?.product?.id)
@@ -245,10 +250,14 @@ function Extension() {
                 below; only one product is open at a time. The small Add
                 button on the right adds it straight away. */}
             <s-grid gridTemplateColumns="1fr auto" columnGap="base" alignItems="start">
-            <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
-              accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
             <s-grid gridTemplateColumns="auto 1fr" columnGap="base" alignItems="center">
-              <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
+              <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
+                accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
+                <s-product-thumbnail size="small" src={variant.image || product.image} alt={product.imageAlt || product.title} />
+              </s-clickable>
+              <s-stack gap="small-500">
+              <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))}
+                accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
               <s-stack gap="small-500">
                 <s-text>{product.title}</s-text>
                 {(isAdded || product.variants.length === 1) && variant.title && (
@@ -267,8 +276,15 @@ function Extension() {
                   {isAdded && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
                 </s-stack>
               </s-stack>
+              </s-clickable>
+                {/* Opens the product details popup (ProductDetails). */}
+                <s-link commandFor={DETAILS_MODAL_ID} command="--show"
+                  accessibilityLabel={String(shopify.i18n.translate('viewDetailsLabel', {title: product.title}))}
+                  onClick={() => { setDetailsId(product.id); setDetailsImage(''); }}>
+                  <s-text type="small">{shopify.i18n.translate('viewDetails')}</s-text>
+                </s-link>
+              </s-stack>
             </s-grid>
-            </s-clickable>
               <s-clickable onClick={() => setOpenId((current) => (current === product.id ? '' : product.id))} padding="small-200"
                 accessibilityLabel={String(shopify.i18n.translate(isOpen ? 'hideOptions' : 'showOptions', {title: product.title}))}>
                 <s-icon type={isOpen ? 'chevron-up' : 'chevron-down'} size="small" />
@@ -303,10 +319,87 @@ function Extension() {
           </s-stack>
         );
       })}
+      <ProductDetails
+        product={visible.find((product) => product.id === detailsId) || null}
+        image={detailsImage}
+        onImage={setDetailsImage}
+        variantOf={(product) => product.variants.find((item) => item.id === lineOf(product)?.merchandise?.id) || variantOf(product)}
+        isAdded={(product) => inCart.has(product.id)}
+        busy={Boolean(busyId)}
+        quantity={(product) => (inCart.has(product.id) ? lineOf(product)?.quantity || 1 : quantities[product.id] || 1)}
+        onSelect={(product, variantId) => setSelected((current) => ({...current, [product.id]: variantId}))}
+        onQuantity={changeQuantity}
+        onAdd={addToCart}
+        canUpdate={canUpdate}
+      />
       {/* Closes the list off from the discount field below. */}
       <s-divider />
       {error && <s-banner tone="critical">{error}</s-banner>}
     </Card>
+  );
+}
+
+const DETAILS_MODAL_ID = 'recommendation-details';
+
+// "View details" popup: photos, price, options, description and Add, without
+// leaving checkout. One popup for the list; the link picks the product.
+function ProductDetails({product, image, onImage, variantOf, isAdded, busy, quantity, onSelect, onQuantity, onAdd, canUpdate}) {
+  const modalRef = useRef(null);
+  if (!product) {
+    return <s-modal id={DETAILS_MODAL_ID} ref={modalRef} heading={String(shopify.i18n.translate('viewDetails'))} />;
+  }
+  const variant = variantOf(product);
+  const added = isAdded(product);
+  const shown = image || variant.image || product.image;
+  const photos = [...new Set([variant.image, ...product.images].filter(Boolean))];
+  const paragraphs = product.description.split(/\n+/).map((text) => text.trim()).filter(Boolean);
+  return (
+    <s-modal id={DETAILS_MODAL_ID} ref={modalRef} heading={product.title} size="base">
+      <s-stack gap="base">
+        {shown && <s-image src={shown} alt={product.imageAlt || product.title} aspectRatio="1" objectFit="contain" borderRadius="base" />}
+        {photos.length > 1 && (
+          <s-stack direction="inline" gap="small-200">
+            {photos.slice(0, 6).map((url) => (
+              <s-clickable key={url} onClick={() => onImage(url)} borderRadius="base"
+                border={url === shown ? 'base' : 'none'} accessibilityLabel={product.title}>
+                <s-product-thumbnail size="small" src={url} alt={product.title} />
+              </s-clickable>
+            ))}
+          </s-stack>
+        )}
+        <s-stack direction="inline" gap="small-300" alignItems="center">
+          <s-text type="strong">{formatMoney(variant.price)}</s-text>
+          {variant.compareAtPrice && (
+            <>
+              <s-text type="redundant" color="subdued">{formatMoney(variant.compareAtPrice)}</s-text>
+              <s-badge tone="critical" size="small">{shopify.i18n.translate('save', {percent: savePercent(variant)})}</s-badge>
+            </>
+          )}
+          {added && <s-badge size="small" icon="check">{shopify.i18n.translate('added')}</s-badge>}
+        </s-stack>
+        {!added && product.variants.length > 1 && (
+          <s-select label={product.optionLabel || String(shopify.i18n.translate('option'))} value={variant.id} disabled={busy}
+            onChange={(event) => { onSelect(product, /** @type {HTMLSelectElement} */ (event.currentTarget).value); onImage(''); }}>
+            {product.variants.map((item) => <s-option key={item.id} value={item.id}>{item.title}</s-option>)}
+          </s-select>
+        )}
+        {(added || product.variants.length === 1) && variant.title && <s-text color="subdued">{variant.title}</s-text>}
+        {paragraphs.map((text, index) => <s-paragraph key={index}>{text}</s-paragraph>)}
+        <s-grid gridTemplateColumns="112px auto" columnGap="base" alignItems="center" justifyContent="start">
+          <QuantityStepper value={quantity(product)} title={product.title}
+            disabled={busy || (added && !canUpdate)} onChange={(value) => onQuantity(product, value)} />
+        </s-grid>
+      </s-stack>
+      {!added && (
+        <s-button slot="primary-action" variant="primary" loading={busy}
+          onClick={async () => { await onAdd(product); modalRef.current?.hideOverlay?.(); }}>
+          {shopify.i18n.translate('add')}
+        </s-button>
+      )}
+      <s-button slot="secondary-actions" variant="secondary" commandFor={DETAILS_MODAL_ID} command="--hide">
+        {shopify.i18n.translate('close')}
+      </s-button>
+    </s-modal>
   );
 }
 
@@ -517,6 +610,9 @@ function toCard(product) {
     title: product.title,
     image: product.featuredImage?.url || '',
     imageAlt: product.featuredImage?.altText || '',
+    // For the "View details" popup.
+    description: String(product.description || '').trim(),
+    images: [...new Set([product.featuredImage?.url, ...(product.images?.nodes || []).map((image) => image?.url)].filter(Boolean))],
     isGiftCard: product.isGiftCard === true,
     requiresShipping: variants.some((variant) => variant.requiresShipping),
     // Single-variant products have a lone "Title" option.
