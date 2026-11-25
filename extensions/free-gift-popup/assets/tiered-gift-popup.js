@@ -193,6 +193,9 @@
 
   let busy = false;
   let pending = false;
+  // What the last cart check found: "ok", "changed" (gifts were removed and
+  // the page reloads) or "keep" (too many gifts for a pick-one tier).
+  let checkResult = "ok";
   // The card whose options are showing (in "one" tiers, also the chosen
   // gift) and the chosen variant per product.
   let focusedId = "";
@@ -670,6 +673,7 @@
   const checkCart = async () => {
     if (busy) { pending = true; return; }
     busy = true;
+    checkResult = "ok";
     try {
       const response = await nativeFetch(`${basePath}cart.js`, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!response.ok) return;
@@ -710,6 +714,7 @@
       // removals never look like the shopper's.
       writeState({ paid, gifts: valid.length });
       if (Object.keys(updates).length) {
+        checkResult = "changed";
         hidePopup();
         const update = await nativeFetch(`${basePath}cart/update.js`, {
           method: "POST",
@@ -726,11 +731,15 @@
       if (!tier) { hidePopup(); setDismissed(""); return; }
       // The popups open on the cart page only. Other pages still keep the
       // cart's gifts in line (above), they just never show a popup.
-      if (!onCartPage) { hidePopup(); return; }
       // A pick-one tier with more than one gift in the cart (e.g. the cart
       // dropped from $350 to under $350 with both gifts): the shopper chooses
-      // which gift to keep; the other one is removed.
-      if (tier.mode === "one" && valid.length > 1) { showKeep(valid, tier, subtotal, cart.currency); return; }
+      // which gift to keep (cart page only); the other one is removed.
+      if (tier.mode === "one" && valid.length > 1) {
+        checkResult = "keep";
+        if (onCartPage) showKeep(valid, tier, subtotal, cart.currency); else hidePopup();
+        return;
+      }
+      if (!onCartPage) { hidePopup(); return; }
       if (removedByShopper) setDismissed(signatureOf(cart, tier));
       const limit = tier.mode === "all" ? tier.allProducts.length : tier.mode === "two" ? 2 : 1;
       tier.remaining = Math.max(0, limit - kept.size);
@@ -771,6 +780,32 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkCart(); });
   // "Choose your free gift" on the cart banner (tiered-gift-cart-banner.js).
   document.addEventListener("fgc:open-gift", () => { setDismissed(""); checkCart(); });
+
+  // Checkout buttons run a fresh gift check first, so a cart changed a
+  // moment ago (e.g. dropped under $350 with two gifts) can't reach checkout
+  // with a gift that would be charged. The checkout validation
+  // (no-discount-products) holds the same rule on the server.
+  const CHECKOUT_TRIGGER = 'button[name="checkout"], input[name="checkout"], a[href$="/checkout"], a[href*="/checkout?"], form[action$="/checkout"] [type="submit"]';
+  let checkoutCleared = false;
+  document.addEventListener("click", async (event) => {
+    const trigger = event.target instanceof Element ? event.target.closest(CHECKOUT_TRIGGER) : null;
+    if (!trigger || checkoutCleared) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    while (busy) await new Promise((resolve) => window.setTimeout(resolve, 50));
+    await checkCart();
+    while (busy) await new Promise((resolve) => window.setTimeout(resolve, 50));
+    // On the cart page a fixed cart reloads; elsewhere it is already fixed.
+    if (checkResult === "changed" && onCartPage) return;
+    if (checkResult === "keep") {
+      if (!onCartPage) window.location.href = `${cartPath}`;
+      return;
+    }
+    checkoutCleared = true;
+    if (trigger instanceof HTMLAnchorElement) { window.location.href = trigger.href; return; }
+    trigger.click();
+    window.setTimeout(() => { checkoutCleared = false; }, 3000);
+  }, true);
 
   checkCart();
   // The cart page's own quantity controls vary by theme, so it also polls.

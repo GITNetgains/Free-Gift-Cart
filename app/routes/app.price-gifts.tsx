@@ -191,6 +191,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     `,
     { variables: { metafields: [
       { ownerId: shopJson.data!.shop!.id, namespace: PRICE_GIFT_NAMESPACE, key: "settings", type: "json", value: JSON.stringify(settings) },
+      // Small copy for the checkout validation (no-discount-products).
+      { ownerId: shopJson.data!.shop!.id, namespace: PRICE_GIFT_NAMESPACE, key: "function_settings", type: "json", value: functionSettings(settings) },
     ] } },
   )).json();
   const error = saveJson.data?.metafieldsSet?.userErrors?.[0]?.message;

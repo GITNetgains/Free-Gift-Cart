@@ -2,9 +2,11 @@ query CartValidationsGenerateRunInput {
   buyerJourney { step }
   presentmentCurrencyRate
   cart {
+    cost { subtotalAmount { currencyCode } }
     lines {
       quantity
       giftMarker: attribute(key: "_free_gift") { value }
+      tierMarker: attribute(key: "_tier_gift") { value }
       cost { subtotalAmount { amount } }
       discountAllocations { discountedAmount { amount } }
       merchandise {
@@ -22,5 +24,7 @@ query CartValidationsGenerateRunInput {
     restrictionSettings: metafield(namespace: "free_gift_cart", key: "no_discount_products") { jsonValue }
     giftRules: metafield(namespace: "free_gift_cart", key: "function_settings") { jsonValue }
     giftSettings: metafield(namespace: "free_gift_cart", key: "settings") { jsonValue }
+    tierRules: metafield(namespace: "tiered_gift", key: "function_settings") { jsonValue }
+    tierSettings: metafield(namespace: "tiered_gift", key: "settings") { jsonValue }
   }
 }

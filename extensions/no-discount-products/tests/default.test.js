@@ -141,3 +141,43 @@ describe("free gift validation", () => {
     ]);
   });
 });
+
+describe("price gift (tier) validation", () => {
+  const slab = "gid://shopify/Product/10390754525359";
+  const gifts = [{ productId: slab }, { productId: slingProductId }, { productId: shirtProductId }];
+  const tiers = { enabled: true, shopCurrency: "USD", tiers: [
+    { id: "a", minimumSpend: 15000, maximumSpend: 34900, products: gifts },
+    { id: "b", minimumSpend: 35000, maximumSpend: null, products: gifts },
+  ] };
+  const tierInput = (paidAmount, giftProducts, { step = "CHECKOUT_COMPLETION", currency = "USD", rate = "1.0" } = {}) => ({
+    buyerJourney: { step },
+    presentmentCurrencyRate: rate,
+    shop: { restrictionSettings: null, giftSettings: { jsonValue: { enabled: true, minimumSpend: 30000, products: [] } }, tierRules: { jsonValue: tiers } },
+    cart: { cost: { subtotalAmount: { currencyCode: currency } }, lines: [
+      { ...line(normalProductId, false, false, { amount: String(paidAmount) }), tierMarker: null },
+      ...giftProducts.map((id) => ({ ...line(id, false, false, { amount: "40.0" }), tierMarker: { value: "a" } })),
+    ] },
+  });
+
+  test("$150-$349: one gift passes, two are blocked", () => {
+    expect(cartValidationsGenerateRun(tierInput(200, [slingProductId]))).toEqual({ operations: [] });
+    expect(messages(cartValidationsGenerateRun(tierInput(200, [slingProductId, shirtProductId])))[0]).toContain("1 free gift");
+  });
+  test("$350+: two different gifts pass (old one-gift rule no longer applies), three are blocked", () => {
+    expect(cartValidationsGenerateRun(tierInput(400, [slingProductId, shirtProductId]))).toEqual({ operations: [] });
+    expect(messages(cartValidationsGenerateRun(tierInput(400, [slingProductId, shirtProductId, slab])))[0]).toContain("2 different");
+  });
+  test("$150-$299 with one gift isn't blocked by the old $300 minimum", () => {
+    expect(cartValidationsGenerateRun(tierInput(160, [slingProductId]))).toEqual({ operations: [] });
+  });
+  test("below $150 a gift is blocked", () => {
+    expect(messages(cartValidationsGenerateRun(tierInput(100, [slingProductId])))[0]).toContain("doesn't qualify");
+  });
+  test("cart changes are never blocked", () => {
+    expect(cartValidationsGenerateRun(tierInput(200, [slingProductId, shirtProductId], { step: "CART_INTERACTION" }))).toEqual({ operations: [] });
+  });
+  test("CAD cart converts the minimum", () => {
+    expect(messages(cartValidationsGenerateRun(tierInput(200, [slingProductId], { currency: "CAD", rate: "1.45" })))[0]).toContain("doesn't qualify");
+    expect(cartValidationsGenerateRun(tierInput(220, [slingProductId], { currency: "CAD", rate: "1.45" }))).toEqual({ operations: [] });
+  });
+});
