@@ -97,7 +97,7 @@ function tierGiftErrors(input: CartValidationsGenerateRunInput, settings: TierSe
   const reached = tiers.reduce((index, tier, tierIndex) =>
     paidSubtotalCents >= Math.round(Number(tier.minimumSpend || 0) * rate) ? tierIndex : index, -1);
   const tier = tiers[reached];
-  const pastMaximum = tier?.maximumSpend != null && paidSubtotalCents > Math.round(Number(tier.maximumSpend) * rate);
+  const pastMaximum = tier?.maximumSpend != null && paidSubtotalCents >= Math.round((Number(tier.maximumSpend) + 100) * rate);
   const allowed = !tier || pastMaximum ? 0 : reached === 1 ? 2 : 1;
   const distinctProducts = new Set(giftLines.map(productId)).size;
   if (giftQuantity <= allowed && distinctProducts === giftQuantity) return [];

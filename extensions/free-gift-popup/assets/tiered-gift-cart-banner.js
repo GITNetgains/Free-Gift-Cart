@@ -172,7 +172,7 @@
       };
       const claimed = current ? (current.mode === "two" ? claimedIn(reached - 1) : current.products.filter(owns).length) : 0;
       const hasGift = Boolean(current) && (current.mode === "all" ? claimed >= current.products.length : claimed >= (current.mode === "two" ? 2 : 1));
-      const pastMax = Boolean(current && current.maximum != null && paid > Math.round(current.maximum * rate));
+      const pastMax = Boolean(current && current.maximum != null && paid >= Math.round((current.maximum + 100) * rate));
 
       const giftClaimed = hasGift && !pastMax;
 

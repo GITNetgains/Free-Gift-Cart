@@ -148,7 +148,7 @@ export function TierGift({settings}) {
   const thresholds = tiers.map((tier) => (tier.minimum / 100) * rate);
   const reached = thresholds.reduce((index, threshold, tierIndex) => (paid >= threshold ? tierIndex : index), -1);
   const tier = tiers[reached];
-  const pastMaximum = Boolean(tier && tier.maximum != null && paid > (tier.maximum / 100) * rate);
+  const pastMaximum = Boolean(tier && tier.maximum != null && paid >= ((tier.maximum + 100) / 100) * rate);
   const limit = !tier || pastMaximum ? 0 : reached === 1 ? 2 : 1;
   // Tier 2 offers the Tier 1 and Tier 2 gifts together.
   const pool = !tier || pastMaximum ? [] : reached === 1 ? tiers.slice(0, 2) : [tier];

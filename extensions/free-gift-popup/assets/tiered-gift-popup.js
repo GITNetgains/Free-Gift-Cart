@@ -164,7 +164,7 @@
   const tierFor = (subtotal, cartCurrency) => {
     const rate = thresholdRate(cartCurrency);
     const tier = [...tiers].reverse().find((candidate) => subtotal >= Math.round(candidate.minimum * rate));
-    if (!tier || (tier.maximum != null && subtotal > Math.round(tier.maximum * rate))) return null;
+    if (!tier || (tier.maximum != null && subtotal >= Math.round((tier.maximum + 100) * rate))) return null;
     return tier;
   };
 

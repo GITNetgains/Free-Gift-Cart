@@ -40,7 +40,7 @@ export function activeTier(tiers: Tier[], paidSubtotalCents: number, currencyRat
     .sort((a, b) => b.minimumSpend - a.minimumSpend)
     .find((candidate) => paidSubtotalCents >= Math.round(candidate.minimumSpend * currencyRate));
   if (!tier) return undefined;
-  if (tier.maximumSpend != null && paidSubtotalCents > Math.round(tier.maximumSpend * currencyRate)) return undefined;
+  if (tier.maximumSpend != null && paidSubtotalCents >= Math.round((tier.maximumSpend + 100) * currencyRate)) return undefined;
   return tier;
 }
 
