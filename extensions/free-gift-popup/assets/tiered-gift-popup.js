@@ -289,10 +289,12 @@
     // "all" and "two" tiers: each gift is a column with its own options right
     // under its card. In "two" every gift's options always show, so the
     // shopper sees all sizes/colours before deciding.
-    const columns = tier.mode === "all" || tier.mode === "two";
+    // Pick-one tiers use the same boxes: every gift shows its own options,
+    // and choosing an option picks that gift.
+    const columns = true;
+    const pickBetween = tier.mode === "two" ? needed === 1 : offered.length === 2;
     const layout = tier.mode === "all" ? " fgc-products--all"
-      : tier.mode === "two" ? ` fgc-products--all fgc-products--two${needed === 1 ? " fgc-products--or" : ""}${offered.length > 2 ? " fgc-products--cols3" : ""}`
-        : offered.length > 2 ? " fgc-products--choice" : "";
+      : ` fgc-products--all fgc-products--two${pickBetween ? " fgc-products--or" : ""}${offered.length > 2 ? " fgc-products--cols3" : ""}`;
     content.innerHTML = `
       <div class="fgc-products${layout}">${offered.map((product) => {
         const card = `
@@ -355,8 +357,14 @@
         panel.hidden = true;
         return;
       }
-      panel.innerHTML = optionsHtml(focused(), false);
-      panel.hidden = !panel.innerHTML.trim();
+      // Pick-one: every gift's options stay in its own box.
+      offered.forEach((product) => {
+        const column = content.querySelector(`[data-col-for="${product.id}"]`);
+        if (column) column.innerHTML = product.variants.length ? optionsHtml(product, false) : "";
+        content.querySelector(`[data-col="${product.id}"]`)?.classList.toggle("is-selected", isSelected(product));
+      });
+      panel.innerHTML = "";
+      panel.hidden = true;
     };
 
     content.addEventListener("click", (event) => {
@@ -368,6 +376,7 @@
         chosen[product.id] = pickVariant(product, Number(option.dataset.optionIndex), option.dataset.optionValue).variantId;
         // Choosing a size/colour of a gift also picks that gift.
         if (tier.mode === "two" && !selectedIds.has(product.id)) select(product.id);
+        if (tier.mode === "one") focusedId = product.id;
         refresh();
         return;
       }
