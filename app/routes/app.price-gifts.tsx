@@ -389,7 +389,7 @@ function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSett
             <s-text color="subdued">{"Shoppers get the gifts of their cart's tier in the cart page popup. Popup text and colors come from Free gift settings."}</s-text>
           </s-stack>
           <s-switch label="Enabled" labelAccessibilityVisibility="exclusive" checked={settings.enabled}
-            onChange={(event) => setSettings((current) => ({ ...current, enabled: event.currentTarget.checked ?? false }))} />
+            onChange={(event) => { const enabled = Boolean(event.currentTarget?.checked); setSettings((current) => ({ ...current, enabled })); }} />
         </s-grid>
       </s-section>
 
