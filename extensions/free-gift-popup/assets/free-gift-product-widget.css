@@ -117,3 +117,29 @@
 @container (min-width: 520px) {
   .fgpw-root[data-tiered] .fgpw-subtitle { font-size: clamp(11px, 1.85cqi, 13.5px); white-space: nowrap; }
 }
+
+/* Price gifts widget, cleaner: lighter card, equal gift cards (photo, two-line
+   title, small FREE GIFT tag), footer note and timer share the bottom row. */
+.fgpw-root[data-tiered] .fgpw-card { border-left-width: 3px; box-shadow: 0 6px 20px rgba(16, 24, 40, .06); padding: 16px 18px; }
+.fgpw-root[data-tiered] .fgpw-title { margin-bottom: 4px; }
+.fgpw-root[data-tiered] .fgpw-subtitle { margin-bottom: 12px; }
+.fgpw-root[data-tiered] .fgpw-products { gap: 10px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { gap: 10px; padding: 8px 8px 12px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { border-radius: 10px; height: 104px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { gap: 8px; padding: 0 4px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title {
+  font-size: 13px; font-weight: 700; line-height: 1.35; min-height: 2.7em; text-align: center;
+}
+.fgpw-root[data-tiered] .fgpw-free { font-size: 9.5px; letter-spacing: .08em; padding: 4px 9px; }
+.fgpw-root[data-tiered] .fgpw-bottom { align-items: center; gap: 12px; justify-content: space-between; margin-top: 12px; }
+.fgpw-root[data-tiered] .fgpw-card .fgpw-footer { flex: 1 1 auto; font-size: 11px; margin: 0; min-width: 0; }
+.fgpw-root[data-tiered] .fgpw-timer { flex: 0 0 auto; font-size: 11px; padding: 5px 10px; }
+@container (max-width: 600px) {
+  .fgpw-root[data-tiered] .fgpw-bottom { align-items: flex-start; flex-direction: column-reverse; gap: 8px; }
+}
+@container (max-width: 420px) {
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product { padding: 8px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 64px; }
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { min-height: 0; text-align: left; }
+  .fgpw-root[data-tiered] .fgpw-bottom { align-items: center; }
+}

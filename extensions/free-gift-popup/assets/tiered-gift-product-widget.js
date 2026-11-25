@@ -129,17 +129,22 @@
     const render = (cart) => {
       state = stateFor(cart);
       if (!state || !state.tier.products.length) { root.hidden = true; return; }
+      // "FREE GIFT | Zion Cases® T-Shirt" shows as "Zion Cases® T-Shirt": the
+      // badge already says it is free.
+      const shortTitle = (title) => String(title || "").replace(/^\s*free\s+gift\s*[|:–-]\s*/i, "") || title;
       const cards = state.tier.products.map((product) => `
         <div class="fgpw-product">
           <span class="fgpw-thumb">${product.imageUrl ? `<img class="fgpw-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}" loading="lazy">` : ""}</span>
-          <span class="fgpw-info"><span class="fgpw-free">FREE GIFT</span><span class="fgpw-product-title">${escapeHtml(product.title)}</span></span>
+          <span class="fgpw-info"><span class="fgpw-product-title">${escapeHtml(shortTitle(product.title))}</span><span class="fgpw-free">FREE GIFT</span></span>
         </div>`).join("");
       const html = `<div class="fgpw-card">
         <h2 class="fgpw-title">${state.title}</h2>
         <p class="fgpw-subtitle">${state.subtitle}</p>
         <div class="fgpw-body"><div class="fgpw-products${state.tier.products.length > 2 ? " fgpw-products--three" : ""}">${cards}</div></div>
-        <div class="fgpw-bottom"><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>${timerText()}</b></span></div>
-        <p class="fgpw-footer">*Free gift items are not eligible for exchange or replacement.*</p>
+        <div class="fgpw-bottom">
+          <p class="fgpw-footer">*Free gift items are not eligible for exchange or replacement.*</p>
+          <span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>${timerText()}</b></span>
+        </div>
       </div>`;
       // Redraw only when something changed, so images don't blink.
       if (html.replace(/data-fgpw-timer>[^<]*/, "") !== lastHtml) {
