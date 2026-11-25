@@ -171,3 +171,14 @@
   .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 60px; }
   .fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { min-height: 0; }
 }
+
+/* A little smaller overall: photo, titles, tag and heading. */
+.fgpw-root[data-tiered] .fgpw-title { font-size: clamp(16px, 2.6cqi, 19px); }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 78px; padding: 4px; }
+.fgpw-root[data-tiered] .fgpw-products--three .fgpw-product-title { font-size: 12px; }
+.fgpw-root[data-tiered] .fgpw-free { font-size: 9px; padding: 3px 8px; }
+.fgpw-root[data-tiered] .fgpw-timer { font-size: 10.5px; padding: 4px 9px; }
+.fgpw-root[data-tiered] .fgpw-card .fgpw-footer { font-size: 10.5px; }
+@container (max-width: 420px) {
+  .fgpw-root[data-tiered] .fgpw-products--three .fgpw-thumb { height: 54px; }
+}

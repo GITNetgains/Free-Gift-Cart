@@ -28,6 +28,40 @@
       // The "OR" offer line under the heading reads like the heading itself.
       style.textContent += ".fgcb-root[data-tiered] .fgcb-hint.fgcb-hint--alt{color:#0f1b3d;font-size:clamp(17px,1.4cqi,22px);font-weight:750;letter-spacing:-.02em;line-height:1.3;margin:0 0 8px}.fgcb-root[data-tiered] .fgcb-hint--alt strong{color:#ef0b18;font-weight:800}";
       style.textContent += "\n.fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, .85fr) minmax(0, 1.35fr); gap: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { min-width: 0; padding-left: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: column; justify-content: flex-start; padding: 12px 8px; text-align: center; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: center; width: 100%; gap: 10px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 80px; height: 80px; max-width: 100%; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-title { font-size: 13px; line-height: 1.4; overflow-wrap: break-word; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-free { margin-top: auto; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-or { display: none; }\n@container (max-width: 900px) {\n .fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, 1fr); }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { border-left: 0; border-top: 1px solid #dfe2e8; padding: 16px 0 0; }\n}\n@container (max-width: 440px) {\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { grid-template-columns: minmax(0, 1fr); gap: 8px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: row; text-align: left; gap: 12px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: flex-start; width: auto; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 64px; height: 64px; }\n}\n";
+      // Tighter, cleaner banner: less padding, smaller gift cards with
+      // two-line titles that line up, compact "SPEND $350+" box.
+      style.textContent += `
+.fgcb-root[data-tiered] .fgcb-card { align-items: center; column-gap: 24px; padding: 14px 20px 12px; row-gap: 8px; }
+.fgcb-root[data-tiered] .fgcb-middle { padding-left: 24px; }
+.fgcb-root[data-tiered] .fgcb-pill { padding: 5px 10px; }
+.fgcb-root[data-tiered] .fgcb-heading { margin: 10px 0 6px; }
+.fgcb-root[data-tiered] .fgcb-alt { margin: 4px 0; }
+.fgcb-root[data-tiered] .fgcb-hint.fgcb-hint--alt { margin: 0 0 4px; }
+.fgcb-root[data-tiered] .fgcb-progress { gap: 6px; margin-top: 10px; }
+.fgcb-root[data-tiered] .fgcb-continue { margin-top: 12px; min-height: 40px; }
+.fgcb-root[data-tiered] .fgcb-label { font-size: 14px; margin-bottom: 8px; }
+.fgcb-root[data-tiered] .fgcb-products { gap: 10px; }
+.fgcb-root[data-tiered] .fgcb-product { gap: 8px; padding: 8px 10px; }
+.fgcb-root[data-tiered] .fgcb-product-info { gap: 6px; }
+.fgcb-root[data-tiered] .fgcb-product-title { font-size: 12.5px; line-height: 1.3; }
+.fgcb-root[data-tiered] .fgcb-free { font-size: 11px; padding: 4px 12px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { gap: 10px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { gap: 6px; padding: 8px 8px 10px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { height: 72px; width: 72px; }
+.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-title { font-size: 12.5px; min-height: 2.6em; }
+.fgcb-root[data-tiered] .fgcb-next { align-items: center; display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; padding-top: 10px; }
+.fgcb-root[data-tiered] .fgcb-next .fgcb-pill { font-size: 10px; padding: 4px 8px; }
+.fgcb-root[data-tiered] .fgcb-next-text { font-size: 14px; margin: 0; }
+.fgcb-root[data-tiered] .fgcb-card .fgcb-footer { font-size: 11px; }
+@container (max-width: 760px) {
+  .fgcb-root[data-tiered] .fgcb-card { padding: 14px; }
+  .fgcb-root[data-tiered] .fgcb-middle { padding: 12px 0 0; }
+  .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-title { min-height: 0; }
+}
+@container (max-width: 440px) {
+  .fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { height: 56px; width: 56px; }
+}
+`;
       document.head?.appendChild(style);
     }
     const numericId = (gid) => Number(String(gid || "").split("/").pop());
@@ -199,7 +233,7 @@
         heading = upgrade
           ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
           : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}+</strong> and choose <strong>1 FREE gift</strong>.`;
-        label = upgrade ? "Upgrade to" : "Choose 1 gift";
+        label = upgrade ? "Upgrade to" : "Choose one gift";
       }
       if (target.mode === "two") {
         const keptCount = claimedIn(index);
@@ -236,7 +270,7 @@
       const cards = shown.map((product, index) => `
         <div class="fgcb-product">
           ${product.imageUrl ? `<img class="fgcb-image" src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.title)}">` : ""}
-          <div class="fgcb-product-info"><span class="fgcb-product-title">${escapeHtml(product.title)}</span><span class="fgcb-free">FREE</span></div>
+          <div class="fgcb-product-info"><span class="fgcb-product-title">${escapeHtml(String(product.title || "").replace(/^\s*free\s+gift\s*[|:–-]\s*/i, "") || product.title)}</span><span class="fgcb-free">FREE</span></div>
         </div>${index < shown.length - 1 ? `<span class="fgcb-or"><span>${joiner}</span></span>` : ""}`).join("");
       // Unlocked: the link opens the gift popup (tiered-gift-popup.js),
       // even after the shopper closed it. Otherwise: keep shopping.

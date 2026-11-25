@@ -244,12 +244,12 @@
     }));
   };
 
-  // Option labels start with a capital ("black" shows as "Black"); values
-  // that already have capitals ("MagPro (All sizes)") stay as they are.
-  const displayValue = (value) => {
-    const text = String(value);
-    return text === text.toLowerCase() ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-  };
+  // Every word of an option label starts with a capital ("matte black" shows
+  // as "Matte Black"); the rest of each word stays as it is ("MagPro").
+  // Size codes are all capitals ("xl" shows as "XL", "2xl" as "2XL").
+  const displayValue = (value) => String(value)
+    .replace(/(^|[\s(\/-])(\p{Ll})/gu, (_, before, letter) => before + letter.toUpperCase())
+    .replace(/\b(\d*x*[sml])\b/gi, (size) => size.toUpperCase());
   // Option buttons sit in equal-width columns, so no button stretches across
   // a row on its own: 4 for short labels (S, M, XL), 3 for words (Gray,
   // White), 2 for long names (Magnetic Card Holder).
