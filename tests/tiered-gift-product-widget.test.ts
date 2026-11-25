@@ -48,7 +48,7 @@ describe("Netgains10 product page widget", () => {
     for (const title of ["Slab Case One", "T-Shirt", "Sling 2.0"]) expect(root.innerHTML).toContain(title);
     expect(root.innerHTML).toContain("fgpw-products--three");
     expect(root.innerHTML).toContain("Unlock a <strong>FREE Gift</strong> on Orders <strong>$150+</strong>");
-    expect(root.innerHTML).toContain("Spend <strong>$150+</strong> and choose <strong>1 FREE gift</strong>. Spend <strong>$350+</strong> and choose <strong>any 2 FREE gifts</strong>.");
+    expect(root.innerHTML).toContain("Spend <strong>$150 &amp; above</strong>, choose <strong>1 FREE gift</strong>.<br>Spend <strong>$350 &amp; above</strong>, choose <strong>any 2 FREE gifts</strong>.");
     expect(root.hidden).toBe(false);
   });
   test("below Tier 1 there is no claim button", async () => {

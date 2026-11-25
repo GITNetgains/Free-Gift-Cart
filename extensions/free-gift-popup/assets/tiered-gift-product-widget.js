@@ -92,8 +92,9 @@
           tier: first,
           title: `Unlock a <strong>FREE Gift</strong> on Orders <strong>${money(thresholds[0])}+</strong>`,
           subtitle: tiers[1]
-            ? `Spend <strong>${money(thresholds[0])}+</strong> and choose <strong>1 FREE gift</strong>. Spend <strong>${money(thresholds[1])}+</strong> and choose <strong>any 2 FREE gifts</strong>.`
-            : `Spend <strong>${money(thresholds[0])}+</strong> and choose <strong>1 FREE gift</strong>.`,
+            // Two lines, one under the other.
+            ? `Spend <strong>${money(thresholds[0])} &amp; above</strong>, choose <strong>1 FREE gift</strong>.<br>Spend <strong>${money(thresholds[1])} &amp; above</strong>, choose <strong>any 2 FREE gifts</strong>.`
+            : `Spend <strong>${money(thresholds[0])} &amp; above</strong>, choose <strong>1 FREE gift</strong>.`,
           claim: "locked", remaining: thresholds[0] - paid, money,
         };
       }

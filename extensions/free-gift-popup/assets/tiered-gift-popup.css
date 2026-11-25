@@ -193,3 +193,18 @@
   .fgc-products--all .fgc-gift-col .fgc-product { justify-content: flex-start; }
   .fgc-products--all .fgc-col-options .fgc-option-group legend { text-align: left; }
 }
+
+/* Box border and the line under each gift title a little darker, so they
+   read clearly on white. */
+.fgc-products--all .fgc-gift-col { border-color: #b9c0cb; }
+.fgc-products--all .fgc-col-options { border-top-color: #cfd4dc; }
+@media (max-width: 760px) {
+  .fgc-products--two .fgc-gift-col,
+  .fgc-products--two .fgc-gift-col:last-child { border-bottom-color: #b9c0cb; }
+}
+.fgc-products--all .fgc-gift-col.is-selected,
+.fgc-products--two .fgc-gift-col.is-selected { border-color: var(--fgc-button, #ef0b18); }
+
+/* $350+ popup with one gift already in the cart: red "Choose 1 more gift
+   from below" under the intro line. */
+.fgc-dialog--compact .fgc-pick-note { color: var(--fgc-button, #ef0b18); font-size: 14px; font-weight: 700; letter-spacing: normal; line-height: 1.4; margin: 0 0 8px; text-align: center; }

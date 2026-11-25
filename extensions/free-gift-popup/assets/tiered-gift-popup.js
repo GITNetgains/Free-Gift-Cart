@@ -443,7 +443,9 @@
     // all tier with one gift left keeps its own text.
     const pickOne = tier.mode === "one";
     const both = offered.length === 2 ? "BOTH" : "ALL";
-    const heading = tier.mode === "two" ? `CHOOSE ${Math.min(tier.remaining || 2, available.length)} FREE GIFT${Math.min(tier.remaining || 2, available.length) === 1 ? "" : "S"}` : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
+    // $350+ tier: "You have unlocked two free gifts" (the line under it says
+    // how many are still to pick).
+    const heading = tier.mode === "two" ? "YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "YOU’VE UNLOCKED A FREE GIFT!";
     const subheading = tier.mode === "two"
       ? tier.remaining === 1
         ? "Your first free gift is already in your cart. Pick 1 more gift below and choose its options."
@@ -464,6 +466,7 @@
         <button class="fgc-close" type="button" aria-label="Close">&times;</button>
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">${heading}</h2></div>
         <p class="fgc-subheading">${escapeHtml(subheading)}</p>
+        ${tier.mode === "two" && tier.remaining === 1 ? '<p class="fgc-pick-note">Choose 1 more gift from below</p>' : ""}
         ${giftTitle ? `<p class="fgc-gift-title">${giftTitle}</p>` : ""}
         <div class="fgc-content"></div>
         <p class="fgc-footer">*Free gift items are not eligible for exchange or replacement.*</p>
