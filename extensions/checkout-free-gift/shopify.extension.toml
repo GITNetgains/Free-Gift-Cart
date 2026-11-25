@@ -27,3 +27,7 @@ api_access = true
 [[extensions.metafields]]
 namespace = "free_gift_cart"
 key = "settings"
+
+[[extensions.metafields]]
+namespace = "tiered_gift"
+key = "function_settings"

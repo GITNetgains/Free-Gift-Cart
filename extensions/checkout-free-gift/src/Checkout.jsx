@@ -1,6 +1,7 @@
 import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
+import {TierGift, readTierSettings} from './TierGift.jsx';
 
 // Checkout side of the free gift offer. It reads the same shop settings as the
 // cart popup (see app/routes/app.free-gift.tsx) and adds the gift with the
@@ -20,8 +21,14 @@ const SINGLE_QUANTITY_PRODUCT_IDS = new Set([
 ]);
 
 export default async () => {
-  render(<Extension />, document.body);
+  render(<Root />, document.body);
 };
+
+// Price gifts (spend tiers) replace the original free gift while they are on.
+function Root() {
+  const tierSettings = readTierSettings();
+  return tierSettings ? <TierGift settings={tierSettings} /> : <Extension />;
+}
 
 function Extension() {
   const entry = shopify.appMetafields.value.find(({target, metafield}) =>

@@ -153,6 +153,8 @@ export function functionSettings(settings: PriceGiftSettings) {
       mode: tier.mode,
       products: tier.products.map(({ productId, variantId }) => ({ productId, variantId })),
     })),
+    // Checkout blocks leave these out of the gift choice.
+    hiddenVariantIds: settings.hiddenVariantIds || [],
   });
 }
 

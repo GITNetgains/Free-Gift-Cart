@@ -41,6 +41,26 @@ const PRODUCT_FIELDS = `
   }
 `;
 
+// Price gifts (spend tiers): their gift products, while the offer is on.
+// The free gift block (checkout-free-gift) keeps the gift lines in line with
+// the tiers then, so this block leaves gift lines alone and never sells
+// the gift products.
+function tierGiftProductIds() {
+  const entry = shopify.appMetafields.value.find(({target, metafield}) =>
+    target.type === 'shop' && metafield.namespace === 'tiered_gift' && metafield.key === 'function_settings');
+  let data = null;
+  try {
+    const raw = entry?.metafield.value;
+    data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    data = null;
+  }
+  if (!data?.enabled || !Array.isArray(data.tiers) || !data.tiers.length) return null;
+  return [...new Set(data.tiers.flatMap((tier) => (Array.isArray(tier?.products) ? tier.products : [])
+    .map((product) => String(product?.productId || ''))
+    .filter((id) => id.startsWith('gid://shopify/Product/'))))];
+}
+
 export default async () => {
   render(<Extension />, document.body);
 };
@@ -53,6 +73,8 @@ function Extension() {
   // The free gift settings change the exclusions too, so reload on either.
   const rawConfig = `${entry?.metafield.value ?? ''}|${giftEntry?.metafield.value ?? ''}`;
   const config = parseConfig(entry?.metafield.value, giftEntry?.metafield.value);
+  const tierGiftIds = tierGiftProductIds();
+  if (tierGiftIds) config.giftProductIds = tierGiftIds;
   const lines = shopify.lines.value;
   const country = shopify.localization.country.value?.isoCode;
   const canAdd = shopify.instructions.value?.lines?.canAddCartLine !== false;
@@ -106,8 +128,10 @@ function Extension() {
 
   // Only one free gift in the whole order: keep one unit, preferring the line
   // claimed through the app, and remove every other gift product line.
+  // Not with price gifts: Tier 2 allows two, and the free gift block
+  // handles their lines.
   const giftProductIds = new Set([...SINGLE_QUANTITY_PRODUCT_IDS, ...config.giftProductIds]);
-  const giftKey = lines
+  const giftKey = tierGiftIds ? '' : lines
     .filter((line) => giftProductIds.has(line.merchandise?.product?.id))
     .map((line) => `${line.id}:${line.quantity}`)
     .join(',');
