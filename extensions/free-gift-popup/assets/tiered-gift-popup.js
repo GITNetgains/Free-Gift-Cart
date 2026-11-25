@@ -424,6 +424,23 @@
     }
   };
 
+  // Desktop: the popup heading stays on one line. Fonts differ by theme, so
+  // it is measured and stepped down until the whole line fits the dialog.
+  // Phones (760px and below) let it wrap.
+  const fitHeading = () => {
+    const heading = root.querySelector(".fgc-dialog--compact .fgc-heading");
+    if (!heading) return;
+    heading.style.fontSize = "";
+    if (window.innerWidth <= 760) return;
+    if (!window.getComputedStyle) return;
+    let size = parseFloat(window.getComputedStyle(heading).fontSize) || 20;
+    while (heading.scrollWidth > heading.clientWidth + 1 && size > 12) {
+      size -= 0.5;
+      heading.style.fontSize = `${size}px`;
+    }
+  };
+  window.addEventListener?.("resize", () => { if (root.querySelector(".fgc-overlay")) fitHeading(); });
+
   // What the open popup offers, so a cart change that alters it redraws it.
   let openKey = "";
   const offerKey = (tier, offered) => `${tier.id}:${tier.mode}:${tier.remaining || ""}:${offered.map((product) => product.id).join(",")}`;
@@ -445,7 +462,7 @@
     const both = offered.length === 2 ? "BOTH" : "ALL";
     // $350+ tier: "You have unlocked two free gifts" (the line under it says
     // how many are still to pick).
-    const heading = tier.mode === "two" ? "CONGRATULATIONS YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "CONGRATULATIONS! YOU’VE UNLOCKED A FREE GIFT!";
+    const heading = tier.mode === "two" ? "CONGRATULATIONS! YOU HAVE UNLOCKED TWO FREE GIFTS!" : several ? `YOU’VE UNLOCKED ${both} FREE GIFTS!` : "CONGRATULATIONS! YOU’VE UNLOCKED A FREE GIFT!";
     const subheading = tier.mode === "two"
       ? tier.remaining === 1
         // One gift already in the cart: only the "Choose 1 more gift from
@@ -479,6 +496,7 @@
     root.querySelector(".fgc-overlay")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
     root.onkeydown = (event) => { if (event.key === "Escape" && !root.hidden) close(); };
     renderSelector(tier, offered);
+    fitHeading();
     root.querySelector(".fgc-close")?.focus({ preventScroll: true });
   };
 

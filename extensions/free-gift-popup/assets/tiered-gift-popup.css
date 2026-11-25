@@ -208,3 +208,18 @@
 /* $350+ popup with one gift already in the cart: red "Choose 1 more gift
    from below" under the intro line. */
 .fgc-dialog--compact .fgc-pick-note { color: var(--fgc-button, #ef0b18); font-size: 14px; font-weight: 700; letter-spacing: normal; line-height: 1.4; margin: 0 0 8px; text-align: center; }
+
+/* Popup heading on one line on desktop ("CONGRATULATIONS! YOU HAVE UNLOCKED
+   TWO FREE GIFTS!"): the size follows the screen width, the theme's heading
+   size and letter spacing don't apply. Phones may wrap. */
+.fgc-dialog--compact .fgc-header { gap: 10px; margin: 0 56px 4px; }
+.fgc-dialog--compact .fgc-heading { letter-spacing: .01em; line-height: 1.2; }
+@media (min-width: 761px) {
+  .fgc-dialog--compact .fgc-heading { font-size: clamp(16px, 1.75vw, 22px); white-space: nowrap; }
+  .fgc-dialog--compact .fgc-gift { font-size: 28px; }
+}
+/* The heading starts at a fixed desktop size; tiered-gift-popup.js shrinks
+   it only when the line doesn't fit. */
+@media (min-width: 761px) {
+  .fgc-dialog--compact .fgc-heading { flex: 0 1 auto; font-size: 22px; min-width: 0; overflow: hidden; }
+}
