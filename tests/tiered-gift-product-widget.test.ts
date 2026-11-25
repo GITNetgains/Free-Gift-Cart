@@ -59,12 +59,12 @@ describe("Netgains10 product page widget", () => {
   test("Tier 1 reached: 1 free gift, no claim button (the popup opens by itself)", async () => {
     const w = await widget([paid(20000)]);
     expect(w.root.innerHTML).toContain("You've unlocked <strong>1 FREE Gift</strong>!");
-    expect(w.root.innerHTML).toContain("spend <strong>$150</strong> more to choose <strong>2 of 3 free gifts</strong>");
+    expect(w.root.innerHTML).toContain("spend <strong>$150</strong> more to choose <strong>any 2 FREE gifts</strong>");
     expect(w.root.innerHTML).not.toContain("fgpw-claim");
   });
   test("Tier 1 gift claimed: shows the Tier 2 offer without a claim button", async () => {
     const { root } = await widget([paid(20000), tierGift(1)]);
-    expect(root.innerHTML).toContain("Spend <strong>$150</strong> more to choose <strong>2 of 3 free gifts</strong>");
+    expect(root.innerHTML).toContain("Spend <strong>$150</strong> more to choose <strong>any 2 FREE gifts</strong>");
     expect(root.innerHTML).not.toContain("fgpw-claim");
   });
   test("Tier 2 with a Tier 1 gift: 1 more to claim", async () => {

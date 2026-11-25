@@ -93,7 +93,7 @@ describe("Netgains10 tier banner",()=>{
    {id:"low",minimumSpend:15000,mode:"one",products:[gift("4","41","Slab Case One"),gift("5","51","T-Shirt"),gift("6","61","Sling 2.0")]},
    {id:"high",minimumSpend:35000,mode:"two",products:[gift("5","51","T-Shirt"),gift("6","61","Sling 2.0")]}]};
   const below=await render([paid(10000)],"USD",offer);
-  expect(below.innerHTML).toContain("Unlock 2 of 3 gifts for FREE!");
+  expect(below.innerHTML).toContain("Unlock any 2 gifts for FREE!");
   const root=await render([paid(29997),tierGift(51,"low")],"USD",offer);
   expect(root.innerHTML).toContain("Tier 2 gift options");
   expect(root.innerHTML).toContain("Slab Case One");expect(root.innerHTML).toContain("Sling 2.0");
@@ -139,7 +139,7 @@ describe("tier progression after adding products and gifts",()=>{
   expect(root.innerHTML).toContain("Tier 2");
   expect(Number(root.innerHTML.match(/style="width:([\d.]+)%/)?.[1])).toBeCloseTo(57.14, 2);
   expect(root.innerHTML).toContain("Next tier at: <strong>$350.00</strong>");
-  expect(root.innerHTML).toContain("choose <strong>2 of 3 free gifts</strong>");
+  expect(root.innerHTML).toContain("choose <strong>any 2 FREE gifts</strong>");
  });
  test("exactly 350 after one retained gift unlocks one more Tier 2 gift",async()=>{
   const root=await render([paid(35000),tierGift(11,"low")],"USD",campaign);

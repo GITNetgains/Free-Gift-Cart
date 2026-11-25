@@ -507,6 +507,10 @@
   const lockGiftRows = () => {
     if (!lastCart) return;
     lastCart.items.forEach((item, index) => { if (isGiftItem(item)) rowsFor(item, index).forEach(lockRow); });
+    // The server-rendered first-paint style (snippets/tiered-gift-lines-style)
+    // goes once the rows are locked here: its line numbers go stale when the
+    // cart changes without a page load.
+    document.querySelectorAll("style[data-fgc-gift-lines]").forEach((style) => style.remove());
   };
   // Themes redraw the cart after changes; lock the new rows too.
   let lockTimer = 0;

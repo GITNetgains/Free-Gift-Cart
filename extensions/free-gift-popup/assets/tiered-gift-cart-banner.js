@@ -137,9 +137,9 @@
       const money = (cents) => formatMoney(cents, cart.currency);
       // Whole amounts without ".00", as in the heading ("Spend $150 ...").
       const short = (cents) => money(cents).replace(/[.,]00(?=\D*$)/, "");
-      // The pick-two offer: "2 of 3", or "BOTH" when the tier has 2 gifts.
-      const twoOf = (n) => n > 2 ? `2 of ${n}` : "BOTH";
-      const pickTwo = (n) => n > 2 ? `choose <strong>2 of ${n} free gifts</strong>` : "get <strong>BOTH free gifts</strong>";
+      // The pick-two offer: "any 2", or "BOTH" when the tier has 2 gifts.
+      const twoOf = (n) => n > 2 ? "any 2" : "BOTH";
+      const pickTwo = (n) => n > 2 ? "choose <strong>any 2 FREE gifts</strong>" : "get <strong>BOTH FREE gifts</strong>";
       const upgrade = !unlocked && reached > 0 && !pastMax;
       const has = (product) => giftProducts.has(numericId(product.id)) || [...product.variantIds].some((id) => giftVariants.has(id));
       // In an all tier, gifts already in the cart (e.g. the T-shirt claimed

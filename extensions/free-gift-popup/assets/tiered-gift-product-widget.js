@@ -69,8 +69,8 @@
     const alwaysGiftProductIds = new Set([8708096557231, 8431587655855]);
     const isGiftItem = (item) => Boolean(item.properties?._tier_gift) || item.properties?._free_gift === "true" ||
       alwaysGiftProductIds.has(item.product_id) || (tierVariantIds.has(item.variant_id) && Number(item.original_price) === 0);
-    // "2 of 3", or "BOTH" when the tier has two gifts.
-    const pickText = (tier) => tier.limit === 1 ? "1 free gift" : tier.products.length > 2 ? `2 of ${tier.products.length} free gifts` : "BOTH free gifts";
+    // "any 2", or "BOTH" when the tier has two gifts.
+    const pickText = (tier) => tier.limit === 1 ? "1 FREE gift" : tier.products.length > 2 ? "any 2 FREE gifts" : "BOTH FREE gifts";
 
     // What the widget says for this cart, or null to hide it.
     const stateFor = (cart) => {
@@ -105,7 +105,7 @@
           title: `You've unlocked <strong>${left === 1 ? "1 FREE Gift" : `${left} FREE Gifts`}</strong>!`,
           subtitle: next
             ? `Choose your gift now, or spend <strong>${money(thresholds[reached] - paid)}</strong> more to choose <strong>${pickText(next)}</strong>.`
-            : `Choose <strong>${left === 1 ? "1 more free gift" : pickText(current)}</strong> and add ${left === 1 ? "it" : "them"} to your cart.`,
+            : `Choose <strong>${left === 1 ? "1 more FREE gift" : pickText(current)}</strong> and add ${left === 1 ? "it" : "them"} to your cart.`,
           claim: "open", money,
         };
       }

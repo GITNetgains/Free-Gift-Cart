@@ -1,0 +1,18 @@
+{% comment %}
+  Price gifts: hides the quantity selector of gift lines in the theme cart
+  (page and drawer) from the first paint, so it never flashes before
+  tiered-gift-popup.js locks the row. Dawn-style row ids; the remove button
+  stays. Other themes are still handled by the script, which removes this
+  style once it has locked the rows itself (line numbers shift when the
+  cart changes without a page load).
+{% endcomment %}
+{%- capture fgc_gift_rows -%}
+  {%- for item in cart.items -%}
+    {%- if item.properties._tier_gift != blank -%}
+      #CartItem-{{ forloop.index }} quantity-input,#CartDrawer-Item-{{ forloop.index }} quantity-input,
+    {%- endif -%}
+  {%- endfor -%}
+{%- endcapture -%}
+{%- if fgc_gift_rows != blank -%}
+  <style data-fgc-gift-lines>{{ fgc_gift_rows | strip | remove_last: ',' }}{display:none!important}</style>
+{%- endif -%}

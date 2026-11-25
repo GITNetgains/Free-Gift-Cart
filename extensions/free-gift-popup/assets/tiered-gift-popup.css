@@ -122,3 +122,9 @@
     color: #697586; display: block; font-size: 12px; font-weight: 800; margin-top: 6px; text-align: center;
   }
 }
+
+/* Phones: the claim button stays on one line ("CLAIM 1 FREE GIFT (0/1 SELECTED)"). */
+@media (max-width: 540px) {
+  .fgc-claim { font-size: 15px; letter-spacing: 0; line-height: 1.2; padding: 10px 12px; }
+  .fgc-heading { font-size: 16px; }
+}

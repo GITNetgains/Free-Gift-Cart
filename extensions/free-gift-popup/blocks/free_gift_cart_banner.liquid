@@ -11,6 +11,7 @@
     <script type="application/json" data-fgcb-tiers>{{ tier_settings | json }}</script>
   </div>
   {{ 'free-gift-cart-banner.css' | asset_url | stylesheet_tag }}
+  {% render 'tiered-gift-lines-style' %}
   <script src="{{ 'tiered-gift-cart-banner.js' | asset_url }}" defer></script>
 {% elsif gift_settings != blank and gift_settings.enabled and request.page_type == 'cart' %}
   <div class="fgcb-root" data-cart-add-url="{{ routes.cart_add_url }}" data-cart-update-url="{{ routes.cart_update_url }}" hidden>
