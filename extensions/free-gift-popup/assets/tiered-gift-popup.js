@@ -555,15 +555,12 @@
       return "$" + (cents / 100).toFixed(2);
     }
   };
-  // Why a gift has to go, and what brings both back.
+  // Why a gift has to go.
   const keepMessage = (count, tier, subtotal, currency) => {
     const next = tiers[tiers.findIndex((candidate) => candidate.id === tier.id) + 1];
-    if (!next) return { text: `Only 1 gift is free with your order. Pick the one to keep.`, more: "" };
+    if (!next) return { text: `Only 1 gift is free with your order. Pick the one to keep.` };
     const threshold = Math.round(next.minimum * thresholdRate(currency));
-    return {
-      text: `Your cart is under ${formatMoney(threshold, currency)}, so only 1 gift is free. Pick the one to keep.`,
-      more: `Add ${formatMoney(Math.max(0, threshold - subtotal), currency)} more later to get ${count === 2 ? "the other gift" : "the other gifts"} free again.`,
-    };
+    return { text: `Your cart is under ${formatMoney(threshold, currency)}, so only 1 gift is free. Pick the one to keep.` };
   };
   const showKeep = (items, tier, subtotal, currency) => {
     const key = `keep:${items.map((item) => item.key).sort().join(",")}`;
@@ -582,15 +579,13 @@
       <section class="fgc-dialog fgc-dialog--compact fgc-dialog--keep" role="dialog" aria-modal="true" aria-labelledby="fgc-heading">
         <div class="fgc-header"><span class="fgc-gift">🎁</span><h2 class="fgc-heading" id="fgc-heading">CHOOSE 1 GIFT TO KEEP</h2></div>
         <p class="fgc-subheading">${escapeHtml(message.text)}</p>
-        ${message.more ? `<p class="fgc-urgency">${escapeHtml(message.more)}</p>` : ""}
         <div class="fgc-content">
           <div class="fgc-products">${items.map((item) => `
             <button class="fgc-product" type="button" data-keep="${escapeHtml(item.key)}">
               <span class="fgc-check" aria-hidden="true"></span>
               ${item.image ? `<img class="fgc-product-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.product_title)}" loading="lazy">` : ""}
               <strong class="fgc-product-title">${escapeHtml(item.product_title)}</strong>
-              ${variantLabel(item) ? `<span class="fgc-keep-variant">${escapeHtml(variantLabel(item))}</span>` : ""}
-              <span class="fgc-free">🎁 FREE</span>
+              ${variantLabel(item) ? `<span class="fgc-keep-variant">${escapeHtml(displayValue(variantLabel(item)))}</span>` : ""}
             </button>`).join("")}
           </div>
           <button class="fgc-claim" type="button">🎁 KEEP THIS GIFT</button>
