@@ -23,10 +23,10 @@
       const style = document.createElement("style");
       style.id = "fgcb-tier-style";
       style.textContent = ".fgcb-alt{align-items:center;color:#8a8f9c;display:flex;font-size:12px;font-weight:800;gap:10px;letter-spacing:.08em;margin:8px 0 6px;max-width:420px}.fgcb-alt::before,.fgcb-alt::after{background:#e4e7ec;content:\"\";flex:1 1 auto;height:1px}.fgcb-hint{color:#0f1b3d;display:block;font-family:inherit;font-size:clamp(17px,1.36cqi,22px);font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:8px 0 0;word-spacing:normal}.fgcb-alt+.fgcb-hint{margin-top:0}.fgcb-hint .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-hint strong{color:#ef0b18;font-weight:800}.fgcb-heading .fgcb-gift-icon{display:inline-block;height:.9em;margin:0 6px -.1em 0;vertical-align:baseline;width:.9em}.fgcb-next{border-top:1px solid #e4e7ec;margin-top:16px;padding-top:14px}.fgcb-next-text{color:#0f1b3d;font-size:clamp(15px,1.1cqi,18px);font-weight:700;margin:10px 0 0}";
-      style.textContent += ".fgcb-root[data-tiered] .fgcb-heading{font-size:clamp(20px,1.7cqi,26px);font-weight:750;line-height:1.3;letter-spacing:-.02em;margin:12px 0 8px}.fgcb-root[data-tiered] .fgcb-hint{font-size:14px;font-weight:500;line-height:1.55;letter-spacing:normal;color:#475467;margin:0 0 14px}.fgcb-root[data-tiered] .fgcb-hint .fgcb-gift-icon{display:none}.fgcb-root[data-tiered] .fgcb-pill{font-size:11px;letter-spacing:.07em}.fgcb-root[data-tiered] .fgcb-amounts{font-size:12px;color:#667085}.fgcb-root[data-tiered] .fgcb-label{font-size:15px;font-weight:700;margin-bottom:12px}";
+      style.textContent += ".fgcb-root[data-tiered] .fgcb-heading{font-size:clamp(17px,1.4cqi,22px);font-weight:750;line-height:1.3;letter-spacing:-.02em;margin:12px 0 8px}.fgcb-root[data-tiered] .fgcb-hint{font-size:14px;font-weight:500;line-height:1.55;letter-spacing:normal;color:#475467;margin:0 0 14px}.fgcb-root[data-tiered] .fgcb-hint .fgcb-gift-icon{display:none}.fgcb-root[data-tiered] .fgcb-pill{font-size:11px;letter-spacing:.07em}.fgcb-root[data-tiered] .fgcb-amounts{font-size:12px;color:#667085}.fgcb-root[data-tiered] .fgcb-label{font-size:15px;font-weight:700;margin-bottom:12px}";
       style.textContent += ".fgcb-root[data-tiered] .fgcb-amounts{display:flex;flex-wrap:wrap;gap:6px 16px;white-space:normal;line-height:1.5}.fgcb-root[data-tiered] .fgcb-amounts strong{font-weight:700}";
       // The "OR" offer line under the heading reads like the heading itself.
-      style.textContent += ".fgcb-root[data-tiered] .fgcb-hint.fgcb-hint--alt{color:#0f1b3d;font-size:clamp(20px,1.7cqi,26px);font-weight:750;letter-spacing:-.02em;line-height:1.3;margin:0 0 8px}.fgcb-root[data-tiered] .fgcb-hint--alt strong{color:#ef0b18;font-weight:800}";
+      style.textContent += ".fgcb-root[data-tiered] .fgcb-hint.fgcb-hint--alt{color:#0f1b3d;font-size:clamp(17px,1.4cqi,22px);font-weight:750;letter-spacing:-.02em;line-height:1.3;margin:0 0 8px}.fgcb-root[data-tiered] .fgcb-hint--alt strong{color:#ef0b18;font-weight:800}";
       style.textContent += "\n.fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, .85fr) minmax(0, 1.35fr); gap: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { min-width: 0; padding-left: 20px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: column; justify-content: flex-start; padding: 12px 8px; text-align: center; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: center; width: 100%; gap: 10px; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 80px; height: 80px; max-width: 100%; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-title { font-size: 13px; line-height: 1.4; overflow-wrap: break-word; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-free { margin-top: auto; }\n.fgcb-root[data-tiered] .fgcb-card--three .fgcb-or { display: none; }\n@container (max-width: 900px) {\n .fgcb-root[data-tiered] .fgcb-card--three { grid-template-columns: minmax(0, 1fr); }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-middle { border-left: 0; border-top: 1px solid #dfe2e8; padding: 16px 0 0; }\n}\n@container (max-width: 440px) {\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-products { grid-template-columns: minmax(0, 1fr); gap: 8px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product { flex-direction: row; text-align: left; gap: 12px; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-product-info { align-items: flex-start; width: auto; }\n .fgcb-root[data-tiered] .fgcb-card--three .fgcb-image { width: 64px; height: 64px; }\n}\n";
       document.head?.appendChild(style);
     }
@@ -163,7 +163,7 @@
         ? `Choose your favourite. Add <strong>${money(nextRemaining)}</strong> to choose 2 gifts at Tier ${index + 2}.`
         // Below Tier 1 the "OR" line is the Tier 2 offer.
         : alternative && next?.mode === "two"
-          ? `Spend <strong>${short(thresholds[index + 1])}</strong> to ${pickTwo(next.products.length)}.`
+          ? `Spend <strong>${short(thresholds[index + 1])}+</strong> and choose <strong>any 2 FREE gifts</strong>.`
           : "Choose your favourite. One free gift per order.") : !next ? ""
         : unlocked
           ? (nextAll ? `Add <strong>${money(nextRemaining)}</strong> more to get a 2nd gift <strong>FREE</strong>.`
@@ -198,7 +198,7 @@
         pill = upgrade ? `UPGRADE TO TIER ${index + 1}` : "FREE GIFT AWAITS";
         heading = upgrade
           ? `Add <strong>${money(remaining)}</strong> more to upgrade your <strong>FREE</strong> gift!`
-          : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}</strong> to choose <strong>1 free gift</strong>.`;
+          : `Spend <strong>${money(targetThreshold).replace(/[.,]00(?=\D*$)/, "")}+</strong> and choose <strong>1 FREE gift</strong>.`;
         label = upgrade ? "Upgrade to" : "Choose 1 gift";
       }
       if (target.mode === "two") {
@@ -216,7 +216,7 @@
         hint = target?.mode === "two"
           ? completed
             ? `You have reached the highest tier. Your 2 gifts stay free.`
-            : `Add <strong>${money(remaining)}</strong> to reach <strong>Tier ${index + 1}</strong> and ${pickTwo(target.products.length)}.`
+            : `Spend <strong>${money(remaining)}</strong> to reach <strong>Tier ${index + 1}</strong> and ${pickTwo(target.products.length)}.`
           : current?.mode === "two"
           ? completed
             ? "You have reached the highest tier. Both gifts stay free."

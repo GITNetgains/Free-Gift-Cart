@@ -92,8 +92,8 @@
           tier: first,
           title: `Unlock a <strong>FREE Gift</strong> on Orders <strong>${money(thresholds[0])}+</strong>`,
           subtitle: tiers[1]
-            ? `Spend <strong>${money(thresholds[0])}</strong> to choose <strong>${pickText(first)}</strong>. Spend <strong>${money(thresholds[1])}</strong> to choose <strong>${pickText(tiers[1])}</strong>.`
-            : `Spend <strong>${money(thresholds[0])}</strong> to choose <strong>${pickText(first)}</strong>.`,
+            ? `Spend <strong>${money(thresholds[0])}+</strong> and choose <strong>1 FREE gift</strong>. Spend <strong>${money(thresholds[1])}+</strong> and choose <strong>any 2 FREE gifts</strong>.`
+            : `Spend <strong>${money(thresholds[0])}+</strong> and choose <strong>1 FREE gift</strong>.`,
           claim: "locked", remaining: thresholds[0] - paid, money,
         };
       }
@@ -139,8 +139,6 @@
         <p class="fgpw-subtitle">${state.subtitle}</p>
         <div class="fgpw-body"><div class="fgpw-products${state.tier.products.length > 2 ? " fgpw-products--three" : ""}">${cards}</div></div>
         <div class="fgpw-bottom"><span class="fgpw-timer">◷ Limited-time offer · Ends in <b data-fgpw-timer>${timerText()}</b></span></div>
-        ${state.claim === "none" ? "" : `<button class="fgpw-claim" type="button">🎁 &nbsp; ${state.claim === "open" && state.tier.limit === 2 ? "CLAIM MY FREE GIFTS" : "CLAIM MY FREE GIFT"}</button>`}
-        <p class="fgpw-status" aria-live="polite"></p>
         <p class="fgpw-footer">*Free gift items are not eligible for exchange or replacement.*</p>
       </div>`;
       // Redraw only when something changed, so images don't blink.
@@ -150,18 +148,6 @@
       }
       root.hidden = false;
     };
-
-    root.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element) || !event.target.closest(".fgpw-claim") || !state) return;
-      const status = root.querySelector(".fgpw-status");
-      if (state.claim === "locked") {
-        if (status) status.textContent = `Add ${state.money(state.remaining)} more to unlock your free gift.`;
-        return;
-      }
-      // The tier popup takes over: choice, sizes and the per-tier limit.
-      if (status) status.textContent = "";
-      document.dispatchEvent(new CustomEvent("fgc:open-gift"));
-    });
 
     const checkCart = async () => {
       try {

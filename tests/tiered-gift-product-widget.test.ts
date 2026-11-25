@@ -48,21 +48,19 @@ describe("Netgains10 product page widget", () => {
     for (const title of ["Slab Case One", "T-Shirt", "Sling 2.0"]) expect(root.innerHTML).toContain(title);
     expect(root.innerHTML).toContain("fgpw-products--three");
     expect(root.innerHTML).toContain("Unlock a <strong>FREE Gift</strong> on Orders <strong>$150+</strong>");
-    expect(root.innerHTML).toContain("Spend <strong>$150</strong> to choose <strong>1 free gift</strong>. Spend <strong>$350</strong> to choose <strong>2 of 3 free gifts</strong>.");
+    expect(root.innerHTML).toContain("Spend <strong>$150+</strong> and choose <strong>1 FREE gift</strong>. Spend <strong>$350+</strong> and choose <strong>any 2 FREE gifts</strong>.");
     expect(root.hidden).toBe(false);
   });
-  test("below Tier 1 the claim button says how much more to add, no popup", async () => {
+  test("below Tier 1 there is no claim button", async () => {
     const w = await widget([paid(9999)]);
-    w.clickClaim();
-    expect(w.status.textContent).toBe("Add $50.01 more to unlock your free gift.");
-    expect(w.events).toEqual([]);
+    expect(w.root.innerHTML).not.toContain("fgpw-claim");
+    expect(w.root.innerHTML).toContain("fgpw-footer");
   });
-  test("Tier 1 reached: 1 free gift, claim opens the popup", async () => {
+  test("Tier 1 reached: 1 free gift, no claim button (the popup opens by itself)", async () => {
     const w = await widget([paid(20000)]);
     expect(w.root.innerHTML).toContain("You've unlocked <strong>1 FREE Gift</strong>!");
     expect(w.root.innerHTML).toContain("spend <strong>$150</strong> more to choose <strong>2 of 3 free gifts</strong>");
-    w.clickClaim();
-    expect(w.events).toEqual(["fgc:open-gift"]);
+    expect(w.root.innerHTML).not.toContain("fgpw-claim");
   });
   test("Tier 1 gift claimed: shows the Tier 2 offer without a claim button", async () => {
     const { root } = await widget([paid(20000), tierGift(1)]);
@@ -76,7 +74,7 @@ describe("Netgains10 product page widget", () => {
   test("Tier 2 with nothing claimed: 2 gifts", async () => {
     const { root } = await widget([paid(35000)]);
     expect(root.innerHTML).toContain("You've unlocked <strong>2 FREE Gifts</strong>!");
-    expect(root.innerHTML).toContain("CLAIM MY FREE GIFTS");
+    expect(root.innerHTML).not.toContain("CLAIM MY FREE GIFT");
   });
   test("both Tier 2 gifts claimed hides the widget", async () => {
     const { root } = await widget([paid(35000), tierGift(1), tierGift(2)]);
