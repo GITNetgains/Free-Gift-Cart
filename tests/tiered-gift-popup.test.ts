@@ -301,3 +301,18 @@ describe("popup only on the cart page",()=>{
   expect(popup.html).toBe("");expect(Object.values(popup.updates[0]||{})).toContain(0);
  });
 });
+
+describe("variants hidden on the Price gifts page",()=>{
+ const titles=["PSA","BGS","SGC"];
+ const full=()=>({id:1,options:[{name:"Slab type"}],variants:titles.map((title,index)=>({id:101+index,title,options:[title],available:true}))});
+ const offer=(hidden:string[])=>({...campaign,hiddenVariantIds:hidden,tiers:campaign.tiers.map(t=>({...t,products:[{...sling2,productHandle:"slab-case-one",variantId:"gid://shopify/ProductVariant/101",variantTitle:"PSA",optionNames:["Slab type"],optionValues:["PSA"]},shirt,sling3]}))});
+ test("a hidden variant is never offered, the others are",async()=>{
+  const popup=await run([paid(19998)],"/cart",undefined,[],null,offer(["gid://shopify/ProductVariant/102"]) as typeof campaign,{products:{"slab-case-one":full()}});
+  expect(popup.content).not.toContain('data-option-value="BGS"');
+  expect(popup.content).toContain('data-option-value="PSA"');expect(popup.content).toContain('data-option-value="SGC"');
+ });
+ test("a product with every variant hidden is not offered",async()=>{
+  const popup=await run([paid(19998)],"/cart",undefined,[],null,offer(["gid://shopify/ProductVariant/101","gid://shopify/ProductVariant/102","gid://shopify/ProductVariant/103"]) as typeof campaign,{products:{"slab-case-one":full()}});
+  expect(popup.content).not.toContain("PSA");expect(popup.html).not.toContain("Sling 2.0");
+ });
+});

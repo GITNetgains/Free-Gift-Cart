@@ -58,6 +58,11 @@ export type PriceGiftSettings = {
   // The store currency at the last save. Tier minimums are US dollars; only
   // a USD store converts them to the buyer's currency.
   shopCurrency?: string;
+  // Variants never offered in the popup (sold-out ones are hidden anyway).
+  hiddenVariantIds?: string[];
+  // Gift product pages are closed (the storefront sends shoppers to the
+  // cart); products listed here keep their page, e.g. one also sold paid.
+  allowProductPageIds?: string[];
 };
 
 export const DEFAULT_PRICE_GIFT_SETTINGS: PriceGiftSettings = {
@@ -119,7 +124,15 @@ export function normalizeSettings(raw: Partial<PriceGiftSettings> | undefined | 
     // Stable for equal minimums; the save action refuses those.
     .sort((a, b) => a.minimumSpend - b.minimumSpend)
     .map((tier, index) => ({ ...tier, mode: index === 1 ? "two" as const : "one" as const }));
-  return { ...settings, enabled: Boolean(settings.enabled), tiers };
+  const ids = (value: unknown, kind: string) => [...new Set((Array.isArray(value) ? value : [])
+    .filter((id): id is string => typeof id === "string" && id.startsWith(`gid://shopify/${kind}/`)))];
+  return {
+    ...settings,
+    enabled: Boolean(settings.enabled),
+    tiers,
+    hiddenVariantIds: ids(raw?.hiddenVariantIds, "ProductVariant"),
+    allowProductPageIds: ids(raw?.allowProductPageIds, "Product"),
+  };
 }
 
 // The discount function only needs ids and rules (and a function metafield

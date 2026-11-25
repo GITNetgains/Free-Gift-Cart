@@ -1,0 +1,21 @@
+{% comment %}
+  Price gifts: a gift product's page sends the shopper to the cart, so gifts
+  are only claimed through the popup. Products listed in
+  allowProductPageIds (Price gifts page: "Send shoppers to the cart..."
+  unticked) keep their page. Never in the theme editor, so the product
+  template can still be edited. Pass tier_settings.
+{% endcomment %}
+{%- if request.page_type == 'product' and product and request.design_mode != true -%}
+  {%- assign fgc_product_gid = 'gid://shopify/Product/' | append: product.id -%}
+  {%- assign fgc_is_gift = false -%}
+  {%- for fgc_tier in tier_settings.tiers -%}
+    {%- for fgc_gift in fgc_tier.products -%}
+      {%- if fgc_gift.productId == fgc_product_gid -%}{%- assign fgc_is_gift = true -%}{%- endif -%}
+    {%- endfor -%}
+  {%- endfor -%}
+  {%- if fgc_is_gift and tier_settings.allowProductPageIds contains fgc_product_gid -%}{%- assign fgc_is_gift = false -%}{%- endif -%}
+  {%- if fgc_is_gift -%}
+    <style>html{visibility:hidden!important}</style>
+    <script>window.location.replace({{ routes.cart_url | json }});</script>
+  {%- endif -%}
+{%- endif -%}

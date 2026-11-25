@@ -7,6 +7,7 @@
     opens the tier popup, run by tiered-gift-product-widget.js. Stores
     without price gift settings never reach this branch.
   {% endcomment %}
+  {% render 'tiered-gift-page-redirect', tier_settings: tier_settings %}
   <div class="fgpw-root" data-tiered data-shop-currency="{{ shop.currency }}" hidden>
     <script type="application/json" data-fgpw-tiers>{{ tier_settings | json }}</script>
   </div>

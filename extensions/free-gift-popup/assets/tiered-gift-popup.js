@@ -90,6 +90,7 @@
     }
   }));
 
+  const hiddenVariants = new Set(Array.isArray(tierSettings.hiddenVariantIds) ? tierSettings.hiddenVariantIds : []);
   // Tiers low to high, each with its gift products grouped from variants.
   const tiers = tierSettings.tiers.map((tier) => {
     const products = new Map();
@@ -117,6 +118,9 @@
       });
       const product = products.get(variant.productId);
       product.variantIds.add(numericId(variant.variantId));
+      // Variants the admin hid (Price gifts page) are never offered; a cart
+      // line of one is still recognised as this gift.
+      if (hiddenVariants.has(variant.variantId)) return;
       product.allVariants.push(variant);
       if (inStock(variant)) product.variants.push({ ...variant, imageUrl: live[variant.variantId]?.image || variant.imageUrl });
     });
@@ -724,7 +728,8 @@
       if (removedByShopper) setDismissed(signatureOf(cart, tier));
       const limit = tier.mode === "all" ? tier.allProducts.length : tier.mode === "two" ? 2 : 1;
       tier.remaining = Math.max(0, limit - kept.size);
-      const choices = tier.mode === "all" ? tier.products : tier.allProducts;
+      // A product whose every variant is hidden is not offered at all.
+      const choices = (tier.mode === "all" ? tier.products : tier.allProducts).filter((product) => product.allVariants.length);
       const offered = kept.size >= limit ? [] : choices.filter((product) => !kept.has(product.id));
       if (!offered.some((product) => product.variants.length)) { hidePopup(); return; }
       currentSignature = signatureOf(cart, tier);

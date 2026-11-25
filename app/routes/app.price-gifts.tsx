@@ -66,12 +66,41 @@ async function enrichProducts(admin: Admin, settings: PriceGiftSettings) {
   });
 }
 
+// Every current variant of each gift product, for the "shown in the popup"
+// checkboxes (the popup offers all of a gift product's variants).
+export type GiftVariantChoice = { id: string; title: string; soldOut: boolean };
+async function giftProductVariants(admin: Admin, settings: PriceGiftSettings) {
+  const productIds = [...new Set(settings.tiers.flatMap((tier) => tier.products.map((product) => product.productId)))];
+  if (productIds.length === 0) return {} as Record<string, GiftVariantChoice[]>;
+  const response = await admin.graphql(
+    `#graphql
+      query PriceGiftProductVariants($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Product {
+            id
+            variants(first: 100) { nodes { id title availableForSale } }
+          }
+        }
+      }
+    `,
+    { variables: { ids: productIds } },
+  );
+  const json = await response.json();
+  type Node = { id: string; variants: { nodes: Array<{ id: string; title: string; availableForSale: boolean }> } };
+  return Object.fromEntries(((json.data?.nodes || []) as Array<Node | null>).flatMap((node) => node?.id
+    ? [[node.id, node.variants.nodes.map((variant) => ({ id: variant.id, title: variant.title, soldOut: !variant.availableForSale }))]]
+    : [])) as Record<string, GiftVariantChoice[]>;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   if (!priceGiftsEnabledFor(session.shop)) return { allowed: false as const };
   const response = await admin.graphql(SETTINGS_QUERY);
   const result = await response.json();
-  return { allowed: true as const, settings: normalizeSettings(result.data?.shop?.metafield?.jsonValue as Partial<PriceGiftSettings>) };
+  const settings = normalizeSettings(result.data?.shop?.metafield?.jsonValue as Partial<PriceGiftSettings>);
+  let variants: Record<string, GiftVariantChoice[]> = {};
+  try { variants = await giftProductVariants(admin, settings); } catch { variants = {}; }
+  return { allowed: true as const, settings, variants };
 };
 
 async function ensureDiscount(admin: Admin, settings: PriceGiftSettings) {
@@ -161,7 +190,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   )).json();
   const error = saveJson.data?.metafieldsSet?.userErrors?.[0]?.message;
   if (error) return { ok: false, error };
-  return { ok: true, settings, warning: discount.warning };
+  let variants: Record<string, GiftVariantChoice[]> = {};
+  try { variants = await giftProductVariants(admin, settings); } catch { variants = {}; }
+  return { ok: true, settings, variants, warning: discount.warning };
 };
 
 function stockLabel(product: TierGiftProduct): { label: string; tone: "success" | "warning" | "critical" | "neutral" } {
@@ -247,14 +278,15 @@ export default function PriceGifts() {
       <s-section><s-paragraph>{"This feature isn't available on this store."}</s-paragraph></s-section>
     </s-page>;
   }
-  return <PriceGiftsEditor initial={data.settings} />;
+  return <PriceGiftsEditor initial={data.settings} initialVariants={data.variants} />;
 }
 
-function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
+function PriceGiftsEditor({ initial, initialVariants }: { initial: PriceGiftSettings; initialVariants: Record<string, GiftVariantChoice[]> }) {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const [saved, setSaved] = useState<PriceGiftSettings>(initial);
   const [settings, setSettings] = useState<PriceGiftSettings>(initial);
+  const [variantChoices, setVariantChoices] = useState<Record<string, GiftVariantChoice[]>>(initialVariants);
   const saving = fetcher.state !== "idle";
   const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
 
@@ -262,6 +294,7 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
     if (!fetcher.data) return;
     if (fetcher.data.ok && "settings" in fetcher.data && fetcher.data.settings) {
       setSettings(fetcher.data.settings); setSaved(fetcher.data.settings);
+      if ("variants" in fetcher.data && fetcher.data.variants) setVariantChoices(fetcher.data.variants);
       shopify.toast.show(fetcher.data.warning || "Price gift settings saved");
     } else if ("error" in fetcher.data && fetcher.data.error) shopify.toast.show(fetcher.data.error, { isError: true });
   }, [fetcher.data, shopify]);
@@ -408,6 +441,52 @@ function PriceGiftsEditor({ initial }: { initial: PriceGiftSettings }) {
           </s-stack>
         </s-section>;
       })}
+
+      {/* Per gift product: is its page open, and which variants the popup offers. */}
+      {(() => {
+        const products = productGroups(view.tiers.flatMap((tier) => tier.products));
+        if (products.length === 0) return null;
+        const hidden = new Set(view.hiddenVariantIds || []);
+        const allowed = new Set(view.allowProductPageIds || []);
+        const setHidden = (variantId: string, hide: boolean) => setSettings((current) => {
+          const next = new Set(current.hiddenVariantIds || []);
+          if (hide) next.add(variantId); else next.delete(variantId);
+          return { ...current, hiddenVariantIds: [...next] };
+        });
+        const setPageOpen = (productId: string, open: boolean) => setSettings((current) => {
+          const next = new Set(current.allowProductPageIds || []);
+          if (open) next.add(productId); else next.delete(productId);
+          return { ...current, allowProductPageIds: [...next] };
+        });
+        return <s-section heading="Gift product pages and variants">
+          <s-stack gap="base">
+            <s-text color="subdued">Gift product pages send shoppers to the cart, so gifts are only claimed in the popup. Untick a variant to keep it out of the popup; sold-out variants never show.</s-text>
+            {products.map((group, index) => {
+              const choices = variantChoices[group.productId];
+              return <s-stack key={group.productId} gap="small-300">
+                {index > 0 && <s-divider />}
+                <GiftThumb product={group.variants[0]} />
+                <s-checkbox label="Send shoppers to the cart when they open this product's page"
+                  details="Untick if this product is also sold on its own."
+                  checked={!allowed.has(group.productId)}
+                  onChange={(event) => setPageOpen(group.productId, !event.currentTarget.checked)} />
+                <s-text type="strong">Shown in the gift popup</s-text>
+                {!choices
+                  ? <s-text color="subdued">Save to load this product&apos;s variants.</s-text>
+                  : choices.length <= 1 && (choices[0]?.title === "Default Title")
+                    ? <s-text color="subdued">No variants: the product itself is offered.</s-text>
+                    : <s-grid gridTemplateColumns="repeat(auto-fill, minmax(180px, 1fr))" gap="small-200">
+                      {choices.map((variant) => <s-checkbox key={variant.id}
+                        label={variant.soldOut ? `${variant.title} (sold out)` : variant.title}
+                        disabled={variant.soldOut}
+                        checked={!variant.soldOut && !hidden.has(variant.id)}
+                        onChange={(event) => setHidden(variant.id, !event.currentTarget.checked)} />)}
+                    </s-grid>}
+              </s-stack>;
+            })}
+          </s-stack>
+        </s-section>;
+      })()}
 
       {view.tiers.length > 0 && view.tiers.length < MAX_TIERS && <s-section>
         <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
