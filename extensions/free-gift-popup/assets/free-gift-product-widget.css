@@ -108,3 +108,12 @@
     .fgpw-root[data-tiered] .fgpw-products--three .fgpw-info { align-items: flex-start; flex: 1 1 0%; min-width: 0; text-align: left; }
   }
 }
+
+/* Price gifts: the offer line ("Spend $150+ and choose 1 FREE gift. Spend
+   $350+ and choose any 2 FREE gifts.") stays on one line on desktop; the
+   size follows the card width. Phones wrap as before. */
+.fgpw-root[data-tiered] .fgpw-subtitle,
+.fgpw-root[data-tiered] .fgpw-subtitle strong { letter-spacing: normal; word-spacing: normal; }
+@container (min-width: 520px) {
+  .fgpw-root[data-tiered] .fgpw-subtitle { font-size: clamp(11px, 1.85cqi, 13.5px); white-space: nowrap; }
+}

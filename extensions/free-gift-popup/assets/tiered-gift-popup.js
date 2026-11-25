@@ -250,6 +250,13 @@
     const text = String(value);
     return text === text.toLowerCase() ? text.charAt(0).toUpperCase() + text.slice(1) : text;
   };
+  // Option buttons sit in equal-width columns, so no button stretches across
+  // a row on its own: 4 for short labels (S, M, XL), 3 for words (Gray,
+  // White), 2 for long names (Magnetic Card Holder).
+  const gridColumns = (values) => {
+    const longest = Math.max(0, ...values.map((value) => String(value).length));
+    return longest <= 3 ? 4 : longest <= 8 ? 3 : 2;
+  };
   // Options for one product. In "all" tiers every gift gets its own block,
   // titled with the product, so it is clear which gift each choice is for.
   const optionsHtml = (product, titled) => {
@@ -261,7 +268,7 @@
       ${groups.map((group, groupIndex) => `
       <fieldset class="fgc-option-group">
         <legend>Choose your ${escapeHtml(group.name.toLowerCase())}</legend>
-        <div class="fgc-options">${valuesFor(product, groupIndex, group.values).map((value) => {
+        <div class="fgc-options fgc-grid-${gridColumns(valuesFor(product, groupIndex, group.values))}">${valuesFor(product, groupIndex, group.values).map((value) => {
           const isSelected = selected[groupIndex] === value;
           return `<button class="fgc-option${isSelected ? " is-selected" : ""}" type="button" aria-pressed="${isSelected}" data-product="${escapeHtml(product.id)}" data-option-index="${groupIndex}" data-option-value="${escapeHtml(value)}">${escapeHtml(displayValue(value))}</button>`;
         }).join("")}</div>

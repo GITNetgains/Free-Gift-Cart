@@ -151,3 +151,14 @@
 }
 /* Gift boxes side by side share one height. */
 .fgc-products--two { align-items: stretch; }
+
+/* Option buttons: equal-width grid columns (count set by label length in
+   tiered-gift-popup.js), one height, long labels wrap inside the button. */
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] { display: grid; gap: 8px; }
+.fgc-dialog--compact .fgc-options.fgc-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fgc-dialog--compact .fgc-options.fgc-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fgc-dialog--compact .fgc-options.fgc-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option {
+  align-items: center; display: flex; justify-content: center; line-height: 1.2; min-height: 38px;
+  min-width: 0; overflow-wrap: anywhere; padding: 6px 6px; text-align: center; white-space: normal; width: 100%;
+}
