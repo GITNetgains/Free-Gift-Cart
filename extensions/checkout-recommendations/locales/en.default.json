@@ -1,6 +1,5 @@
 {
   "name": "Product recommendations",
-  "description": "Description",
   "defaultHeading": "You may also like",
   "add": "Add",
   "remove": "Remove",
@@ -20,10 +19,5 @@
   "showOptions": "Show options for {{title}}",
   "hideOptions": "Hide options for {{title}}",
   "viewDetails": "View details",
-  "viewDetailsLabel": "View details of {{title}}",
-  "close": "Close",
-  "readMore": "Read more",
-  "quantity": "Quantity",
-  "inStock": "In stock",
-  "addToOrder": "Add to order · {{price}}"
+  "viewDetailsLabel": "View details of {{title}}"
 }
