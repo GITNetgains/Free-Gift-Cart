@@ -158,6 +158,7 @@
 .fgc-dialog--compact .fgc-options.fgc-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .fgc-dialog--compact .fgc-options.fgc-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .fgc-dialog--compact .fgc-options.fgc-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fgc-dialog--compact .fgc-options.fgc-grid-1 { grid-template-columns: minmax(0, 1fr); }
 .fgc-dialog--compact .fgc-options[class*="fgc-grid-"] .fgc-option {
   align-items: center; display: flex; justify-content: center; line-height: 1.2; min-height: 38px;
   min-width: 0; overflow-wrap: anywhere; padding: 6px 6px; text-align: center; white-space: normal; width: 100%;

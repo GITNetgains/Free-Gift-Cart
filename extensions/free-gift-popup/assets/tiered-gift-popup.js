@@ -271,6 +271,9 @@
   // a full row of their own and do not count towards the column choice.
   const isWideValue = (value) => String(value).length > 20;
   const gridColumns = (values) => {
+    // A long label anywhere in the group: every option gets its own
+    // full-width row, so the buttons line up evenly.
+    if (values.some(isWideValue)) return 1;
     const longest = Math.max(0, ...values.filter((value) => !isWideValue(value)).map((value) => String(value).length));
     return longest <= 3 ? 4 : longest <= 8 ? 3 : 2;
   };
