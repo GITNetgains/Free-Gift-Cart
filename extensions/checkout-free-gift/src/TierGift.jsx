@@ -172,6 +172,14 @@ export function TierGift({settings}) {
       changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
     }
   }
+  // A gift from the old Free gift offer (`_free_gift`, e.g. a cart saved
+  // before price gifts went live) is taken out: next to a tier gift it made
+  // two gifts, and the checkout validation then blocked the order.
+  if (canRemove) {
+    for (const line of lines.filter(isOldGiftLine)) {
+      changes.push({type: 'removeCartLine', id: line.id, quantity: line.quantity});
+    }
+  }
   const changeKey = catalog ? changes.map((change) => `${change.type}:${change.id}`).join(',') : '';
   useEffect(() => {
     if (!changeKey || busyId) return;
