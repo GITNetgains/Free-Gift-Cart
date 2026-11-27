@@ -17,7 +17,7 @@ const settings = {
 const paid = (cents: number) => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
 const tierGift = (variant: number, tier: string) => ({ key: `g${variant}`, variant_id: variant, product_id: variant, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: tier } });
 
-async function render(items: unknown[], shopCurrency = "INR", offerSettings = settings) {
+async function render(items: unknown[], shopCurrency = "INR", offerSettings = settings, productStock: Record<string, unknown> = {}) {
   const root = {
     dataset: { shopCurrency } as Record<string, string>, hidden: true, innerHTML: "", addEventListener() {},
     querySelector: () => ({ textContent: JSON.stringify(offerSettings) }),
@@ -31,7 +31,12 @@ async function render(items: unknown[], shopCurrency = "INR", offerSettings = se
       createElement: () => { let text = ""; return { set textContent(value: string) { text = value; }, get innerHTML() { return text; } }; },
     },
     window: { Shopify: { currency: { rate: "0.012", active: "USD" }, routes: { root: "/" } }, setInterval() {} },
-    fetch: async () => ({ ok: true, json: async () => ({ currency: "USD", items: cartItems }) }),
+    fetch: async (url: string) => {
+      const handle = String(url).match(/products\/([^/]+)\.js/)?.[1];
+      if (handle) return productStock[handle] ? { ok: true, json: async () => productStock[handle] } : { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ currency: "USD", items: cartItems }) };
+    },
+    AbortSignal: { timeout: () => undefined },
     MutationObserver: class { constructor(callback: () => void) { onMutation = callback; } observe() {} },
     Intl, JSON, Number, String, Math, Set, Map, Array, Object,
   });
@@ -117,7 +122,23 @@ describe("Netgains10 tier banner",()=>{
   expect(root.innerHTML).toContain("Choose <strong>1</strong> more free gift!");
   expect(root.innerHTML).toContain("data-open-gift");
  });
- test("a sold-out configured product still has its informational card",async()=>{
+ test("a product whose every variant is sold out is not shown; tier progress is unchanged",async()=>{
+  const offer={...campaign,tiers:campaign.tiers.map(t=>({...t,products:t.products.map(p=>({...p,productHandle:"h"+p.productId.split("/").pop()}))}))};
+  const stock={h3:{id:3,variants:[{id:31,available:false},{id:32,available:false}]},h1:{id:1,variants:[{id:11,available:false},{id:12,available:true}]}};
+  const root=await render([paid(15000)],"USD",offer,stock);
+  expect(root.innerHTML).not.toContain("Third");
+  expect(root.innerHTML).toContain("First");expect(root.innerHTML).toContain("Second");
+  expect(root.innerHTML).toContain("Choose <strong>1 of 2</strong>");
+  // A sold-out gift already in the cart still counts as claimed.
+  const claimed=await render([paid(15000),{...tierGift(31,"low"),product_id:3}],"USD",offer,stock);
+  expect(claimed.innerHTML).toContain("Your <strong>free gift</strong> is in your cart.");
+ });
+ test("every gift sold out hides the banner",async()=>{
+  const offer={...campaign,tiers:campaign.tiers.map(t=>({...t,products:t.products.map(p=>({...p,productHandle:"h"+p.productId.split("/").pop()}))}))};
+  const out=(id:number)=>({id,variants:[{id:id*10+1,available:false}]});
+  expect((await render([paid(15000)],"USD",offer,{h1:out(1),h2:out(2),h3:out(3)})).hidden).toBe(true);
+ });
+ test("a stale sold-out snapshot alone does not hide a gift",async()=>{
   const offer={...campaign,tiers:campaign.tiers.map(t=>({...t,products:t.products.map(p=>({...p,availableForSale:false}))}))};
   expect((await render([paid(15000)],"USD",offer)).innerHTML).toContain("Third");
  });

@@ -125,6 +125,34 @@
       };
     };
 
+    // Live stock per gift product (Shopify's /products/<handle>.js), the same
+    // check as the popup. A product is sold out when none of its variants the
+    // admin left visible is available; it is then not shown. Unknown (fetch
+    // failed) counts as in stock. Claimed gifts and tier progress still use
+    // every gift, so only what is shown changes.
+    const hiddenVariants = new Set(Array.isArray(settings.hiddenVariantIds) ? settings.hiddenVariantIds.map(numericId) : []);
+    const handles = new Map();
+    settings.tiers.forEach((tier) => (tier.products || []).forEach((variant) => {
+      if (variant.productHandle) handles.set(variant.productHandle, variant.productId);
+    }));
+    const soldOut = new Set();
+    const inStock = (product) => !soldOut.has(product.id);
+    const refreshStock = () => Promise.all([...handles].map(async ([handle, productId]) => {
+      try {
+        const response = await fetch(`${basePath}products/${encodeURIComponent(handle)}.js`, {
+          cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return;
+        const product = await response.json();
+        if (!Array.isArray(product.variants)) return;
+        if (product.id && numericId(productId) !== Number(product.id)) return;
+        const offered = product.variants.filter((variant) => !hiddenVariants.has(Number(variant.id)));
+        if (offered.some((variant) => variant.available)) soldOut.delete(productId); else soldOut.add(productId);
+      } catch {
+        // Keep the last known stock.
+      }
+    }));
+
     let state = null;
     let lastHtml = "";
     const startedAt = Date.now();
@@ -134,6 +162,8 @@
     };
     const render = (cart) => {
       state = stateFor(cart);
+      // Sold-out gifts are not shown.
+      if (state) state = { ...state, tier: { ...state.tier, products: state.tier.products.filter(inStock) } };
       if (!state || !state.tier.products.length) { root.hidden = true; return; }
       // "FREE GIFT | Zion Cases® T-Shirt" shows as "Zion Cases® T-Shirt": the
       // badge already says it is free.
@@ -169,8 +199,12 @@
         // The next poll retries network failures.
       }
     };
-    checkCart();
-    window.setInterval(checkCart, 2000);
+    // Stock first, so a sold-out gift never flashes in; refreshed every minute.
+    refreshStock().finally(() => {
+      checkCart();
+      window.setInterval(checkCart, 2000);
+    });
+    window.setInterval(refreshStock, 60000);
     window.setInterval(() => {
       const timer = root.querySelector("[data-fgpw-timer]");
       if (timer) timer.textContent = timerText();

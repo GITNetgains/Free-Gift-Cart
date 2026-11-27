@@ -15,7 +15,7 @@ const campaign = { enabled: true, tiers: [
 const paid = (cents: number) => ({ key: "paid", variant_id: 999, product_id: 999, quantity: 1, original_line_price: cents, original_price: cents });
 const tierGift = (id: number) => ({ key: `g${id}`, variant_id: id * 10 + 1, product_id: id, quantity: 1, original_line_price: 3000, original_price: 3000, properties: { _tier_gift: "low" } });
 
-async function widget(items: unknown[], settings = campaign, embed = true) {
+async function widget(items: unknown[], settings = campaign, embed = true, productStock: Record<string, unknown> = {}) {
   let click: ((event: unknown) => void) | undefined;
   const events: string[] = [];
   const status = { textContent: "" };
@@ -34,7 +34,12 @@ async function widget(items: unknown[], settings = campaign, embed = true) {
       dispatchEvent: (event: { type: string }) => { events.push(event.type); },
     },
     window: { Shopify: { currency: { active: "USD", rate: "1.0" }, routes: { root: "/" } }, setInterval() {} },
-    fetch: async () => ({ ok: true, json: async () => ({ currency: "USD", items }) }),
+    fetch: async (url: string) => {
+      const handle = String(url).match(/products\/([^/]+)\.js/)?.[1];
+      if (handle) return productStock[handle] ? { ok: true, json: async () => productStock[handle] } : { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ currency: "USD", items }) };
+    },
+    AbortSignal: { timeout: () => undefined },
     CustomEvent: class { constructor(public type: string) {} }, Element,
     Intl, JSON, Number, String, Math, Set, Map, Array, Object, Date,
   });
@@ -43,6 +48,13 @@ async function widget(items: unknown[], settings = campaign, embed = true) {
 }
 
 describe("Netgains10 product page widget", () => {
+  test("a sold-out gift is not shown", async () => {
+    const offer = { ...campaign, tiers: campaign.tiers.map((t) => ({ ...t, products: t.products.map((p) => ({ ...p, productHandle: "h" + p.productId.split("/").pop() })) })) };
+    const { root } = await widget([paid(9999)], offer, true, { h2: { id: 2, variants: [{ id: 21, available: false }] } });
+    expect(root.innerHTML).not.toContain("T-Shirt");
+    expect(root.innerHTML).toContain("Slab Case One");
+    expect(root.innerHTML).toContain("Sling 2.0");
+  });
   test("below Tier 1 it shows all 3 gifts and both offers", async () => {
     const { root } = await widget([paid(9999)]);
     for (const title of ["Slab Case One", "T-Shirt", "Sling 2.0"]) expect(root.innerHTML).toContain(title);

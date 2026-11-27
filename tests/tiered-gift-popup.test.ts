@@ -199,10 +199,10 @@ describe("Netgains10 tier gift selection",()=>{
   const popup=await runCampaign([paid(35000)],offer);
   popup.clickCard(shirt.productId);popup.clickCard(sling3.productId);popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([21,31]);
  });
- test("sold-out choices remain visible but cannot be claimed",async()=>{
+ test("sold-out choices are hidden; the rest can still be claimed",async()=>{
   const offer={...campaign,tiers:campaign.tiers.map(t=>({...t,products:[{...sling2,availableForSale:false},shirt,sling3]}))};
   const popup=await runCampaign([paid(35000)],offer);
-  expect(popup.content).toContain("Sling 2.0");expect(popup.content).toContain("OUT OF STOCK");
+  expect(popup.content).not.toContain("Sling 2.0");expect(popup.content).not.toContain("OUT OF STOCK");
   popup.clickCard(shirt.productId);popup.clickCard(sling3.productId);popup.clickClaim();expect(popup.additions.map(i=>i.id)).toEqual([21,31]);
  });
  test("below the minimum removes every gift",async()=>{

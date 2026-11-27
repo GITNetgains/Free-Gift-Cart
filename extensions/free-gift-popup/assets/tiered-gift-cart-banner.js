@@ -148,6 +148,34 @@
 
     const giftIcon = `<svg class="fgcb-gift-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20 7h-2.18A3 3 0 0 0 12 3.76 3 3 0 0 0 6.18 7H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7h2v5h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1ZM9 7a1 1 0 1 1 1-1v1H9Zm6 0h-1V6a1 1 0 1 1 1 1ZM4 13v7a1 1 0 0 0 1 1h6v-8H4Zm9 8h6a1 1 0 0 0 1-1v-7h-7v8Z"/></svg>`;
 
+    // Live stock per gift product (Shopify's /products/<handle>.js), the same
+    // check as the popup. A product is sold out when none of its variants the
+    // admin left visible is available; it is then not shown. Unknown (fetch
+    // failed) counts as in stock. Claimed gifts and tier progress still use
+    // every gift, so only what is shown changes.
+    const hiddenVariants = new Set(Array.isArray(settings.hiddenVariantIds) ? settings.hiddenVariantIds.map(numericId) : []);
+    const handles = new Map();
+    settings.tiers.forEach((tier) => (tier.products || []).forEach((variant) => {
+      if (variant.productHandle) handles.set(variant.productHandle, variant.productId);
+    }));
+    const soldOut = new Set();
+    const inStock = (product) => !soldOut.has(product.id);
+    const refreshStock = () => Promise.all([...handles].map(async ([handle, productId]) => {
+      try {
+        const response = await fetch(`${basePath}products/${encodeURIComponent(handle)}.js`, {
+          cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return;
+        const product = await response.json();
+        if (!Array.isArray(product.variants)) return;
+        if (product.id && numericId(productId) !== Number(product.id)) return;
+        const offered = product.variants.filter((variant) => !hiddenVariants.has(Number(variant.id)));
+        if (offered.some((variant) => variant.available)) soldOut.delete(productId); else soldOut.add(productId);
+      } catch {
+        // Keep the last known stock.
+      }
+    }));
+
     let lastHtml = "";
     const render = (cart) => {
       const rate = thresholdRate(cart.currency);
@@ -184,7 +212,8 @@
       if (!unlocked && !giftClaimed && reached === tiers.length) { root.hidden = true; return; }
       const completed = giftClaimed && reached === tiers.length;
       const index = unlocked || completed ? reached - 1 : reached;
-      const target = tiers[index];
+      // Sold-out gifts are not shown (claimed counts above use every gift).
+      const target = { ...tiers[index], products: tiers[index].products.filter(inStock) };
       const targetThreshold = thresholds[index];
       if (!target.products.length) { root.hidden = true; return; }
 
@@ -208,7 +237,7 @@
       const all = target.products.length === 2 ? "BOTH" : "ALL";
       // What the next tier adds, under the heading (e.g. "Spend $350.00 and
       // get BOTH gifts FREE.").
-      const next = tiers[index + 1];
+      const next = tiers[index + 1] && { ...tiers[index + 1], products: tiers[index + 1].products.filter(inStock) };
       const nextRemaining = next ? Math.max(0, thresholds[index + 1] - paid) : 0;
       const nextAll = next && next.mode !== "one" && next.products.length > 1;
       const nextGifts = next?.products.length === 2 ? "BOTH" : "ALL";
@@ -347,8 +376,15 @@
       }
     };
 
-    checkCart();
-    timer = window.setInterval(checkCart, 2000);
+    // Stock first, so a sold-out gift never flashes in; refreshed every minute.
+    refreshStock().finally(() => {
+      checkCart();
+      timer = window.setInterval(checkCart, 2000);
+    });
+    const stockTimer = window.setInterval(() => {
+      if (root.isConnected === false) { window.clearInterval(stockTimer); return; }
+      refreshStock();
+    }, 60000);
   });
   initialize();
   // Themes can replace the whole cart section after add/change/remove. Start

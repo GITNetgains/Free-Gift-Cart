@@ -750,8 +750,9 @@
       if (removedByShopper) setDismissed(signatureOf(cart, tier));
       const limit = tier.mode === "all" ? tier.allProducts.length : tier.mode === "two" ? 2 : 1;
       tier.remaining = Math.max(0, limit - kept.size);
-      // A product whose every variant is hidden is not offered at all.
-      const choices = (tier.mode === "all" ? tier.products : tier.allProducts).filter((product) => product.allVariants.length);
+      // A product whose every variant is hidden, or sold out, is not offered
+      // at all (no "out of stock" card either).
+      const choices = (tier.mode === "all" ? tier.products : tier.allProducts).filter((product) => product.allVariants.length && product.variants.length);
       const offered = kept.size >= limit ? [] : choices.filter((product) => !kept.has(product.id));
       if (!offered.some((product) => product.variants.length)) { hidePopup(); return; }
       currentSignature = signatureOf(cart, tier);
